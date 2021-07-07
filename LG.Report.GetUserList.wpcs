@@ -1,0 +1,10 @@
+var users = getUsers();
+for(var i=0;i<users.size();i++) {
+var user = users[i];
+var username = user.getUserName();
+var userFirstName = user.getUserFirstName(); 
+var userLastName = user.getUserLastName();
+var userEmail= user.getUserEmail();
+//
+out.writeln(username+"|"+userFirstName+"|"+userLastName+"|"+userEmail);
+}

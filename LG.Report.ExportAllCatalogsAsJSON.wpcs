@@ -1,0 +1,58 @@
+function initGlobals() {
+  //On d�clare la hash map
+  var hmGlobals = [];
+  var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+  var log = getLogger("CGA-Log");
+  hmGlobals["LOGGER"] = log;
+
+  hmGlobals["FN_GET_ITEM_JSON"] = getScriptByPath("/scripts/triggers/LG.Library.JSON").getFunctionByName("getItemJSON");
+  hmGlobals["FN_GET_ITEM_TYPE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+  return hmGlobals;
+}
+
+var hmGlobals = initGlobals(); //Initialisation du tableau de variables globales
+var ctgs = getCatalogNamesList(); //La variable ctgs contient la liste des catalogues disponibles
+var log = hmGlobals["LOGGER"];
+var first = true;
+var i = 0;
+var ziparchive=new ZipArchive("myarchive.zip");
+
+forEachHmElement(ctgs, oKey, ctg) { //Pour chaque element d'un catalogue de la liste de catalogues
+  if (ctg.contains("010")) {
+    var filename_json = "file:///tmp/" + ctg.substring(0, 4) + ".json";
+    //    var filename_zip = filename_json + ".zip"; could not make it work :(
+
+    var writer = createOtherOut(filename_json, "utf-8");
+
+    forEachCtgItem(ctg, item) { //Pour chaque item du catalogue
+
+      //out.writeln("catalog 010");
+      var type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(item); //Recuperation du type de l'item
+      //out.writeln(type);
+      if (type == "PItem") {
+        //if (item.getCtgItemPrimaryKey() == "K010I01062") {
+        //out.writeln("item K010I01062");
+        log.loggerDebug("BEGIN: Exporting item JSON - " + item.getCtgItemPrimaryKey());
+
+        var JSONBody = hmGlobals["FN_GET_ITEM_JSON"].invoke(hmGlobals, item);
+
+        if (first) {
+          first = false;
+        } else {
+          // this is not really JSON but to be able too process items individually afterward...
+          writer.writeln(",");
+        }
+        //out.writeln(JSONBody);
+        writer.writeln("{\"nextid:\" : \""+item.getCtgItemPrimaryKey() +"\"},");
+        writer.writeln("{" + JSONBody + "}");
+        //}
+        log.loggerDebug("END: Exporting item");
+        // i++;
+        // if (i > 100) {
+        //   break;
+        // }
+      }
+    }
+  }
+}
+

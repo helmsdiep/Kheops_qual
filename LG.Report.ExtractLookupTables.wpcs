@@ -1,0 +1,84 @@
+// LG.Report.ExtractLookupTables
+// Extract all lookup tables as Excel files
+//
+//
+//
+
+function initGlobals() {
+  var hmGlobals = [];
+  hmGlobals["getLkpNamesList"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("getLkpNamesList");
+  hmGlobals["addMapElement"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("addMapElement");
+  return hmGlobals;
+}
+
+// buildMapElementExcel
+// @desc create a csv line with the data of a 'map element'
+// @param mapEl 'map element' designed to replace a hashmap with a key/value and ordered association
+// @param processKey put it true to process keys, false for values
+// @return csv string
+function buildMapElementExcel(row, mapEl, processKey) {
+  for (var k = 0; k < mapEl.size(); k++) {
+    var str = mapEl[k]["val"];
+    if (processKey) {
+      str = mapEl[k]["key"];
+    }
+    if (str == "null") {
+      str = "";
+    }
+    var cell = row.createExcelCell(k);
+    cell.setCellType("STRING");
+    cell.setStringCellValue(str);
+  }
+}
+
+function exportLkp(hmGlobals, lkpName, excelsheet) {
+  out.writeln("Exporting Lookup " + lkpName);
+  var lookup = getCtgByName(lkpName);
+  var spec = lookup.getCtgSpec();
+  var specname = spec.getSpecName();
+  var attrs = spec.getSpecAttribNames();
+  var c = 0;
+  var first = true;
+
+
+  forEachCtgItem(lkpName, lkp_item) {
+    var myMap = [];
+    forEachHmElement(attrs, key, vlkpColumn) {
+      hmGlobals["addMapElement"].invoke(myMap, vlkpColumn, checkString(lkp_item.getCtgItemAttrib(specname + "/" + vlkpColumn), ""));
+    }
+
+    if (first == true) {
+      row = excelsheet.createRow(c);
+      buildMapElementExcel(row, myMap, true);
+      c = c + 1;
+      first = false;
+    }
+    var row = excelsheet.createRow(c);
+    buildMapElementExcel(row, myMap, false);
+    c = c + 1;
+  }
+}
+
+
+
+out.writeln("starting Lookups Export");
+// var lkpName = "L015-Assemblage - Assembly";
+var hmGlobals = initGlobals();
+var lkps = hmGlobals["getLkpNamesList"].invoke();
+var exportdate = today().formatDate("yyyyMMdd-HHmmss");
+var docstore_selected_path = "/lookups_export/" + exportdate + "/";
+//var b = new ExcelBook(null, "XLSX");
+
+
+forEachHmElement(lkps, oKey, lkpName) {
+//  if (startsWith(lkpName, "L139")) {
+    var b = new ExcelBook(NULL, "XLSX");
+    var excelsheet = b.createExcelSheet(lkpName);
+    exportLkp(hmGlobals, lkpName, excelsheet);
+    b.saveToDocStore(docstore_selected_path + lkpName + ".xlsx", true);
+//  }
+}
+
+out.writeln("finished Lookups Export");
+out.writeln("please check Custom Tools > Lookups Exports");
+

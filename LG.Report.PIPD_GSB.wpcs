@@ -1,0 +1,5 @@
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/Siniat.Export.PIPD.GSB")
+    .getFunctionByName("getFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);

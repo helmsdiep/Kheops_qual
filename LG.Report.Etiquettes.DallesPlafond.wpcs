@@ -1,0 +1,12 @@
+//
+// Export Dalles Plafond - Export Kheops pour étiquetage 
+//
+var str = getScriptByPath("/scripts/triggers/LG.Interface.DallesPlafond").getFunctionByName("getFullCSV").invoke();
+
+var outWriter = createOtherOut("");
+var strC800FileName = "file://Interfaces/EDI/Purebel/Export_C800_"+today().formatDate("yyyyMMdd_HHmmss")+".csv";
+var outFileC800 = createOtherOut(strC800FileName);
+outFileC800.writeln(str);
+outFileC800.save(strC800FileName);
+outWriter.writeln(str);
+out.writeln(str);

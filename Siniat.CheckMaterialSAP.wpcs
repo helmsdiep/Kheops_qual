@@ -1,0 +1,14 @@
+var e;
+
+catchError(e) {
+  var processCheckMat=getScriptByPath("/scripts/triggers/Import CSV and Check Material Number SAP").getFunctionByName("CheckMat");
+  processCheckMat.invoke();
+
+  var processCheckMat_MDMtoSAP=getScriptByPath("/scripts/triggers/Import CSV and Check Material Number SAP").getFunctionByName("CheckMat_MDMtoSAP");
+  processCheckMat_MDMtoSAP.invoke();
+}
+
+if (e!=null){
+  out.writeln(e);
+  logDebug(e);
+}

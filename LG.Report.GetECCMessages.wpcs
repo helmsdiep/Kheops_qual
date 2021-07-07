@@ -1,0 +1,2 @@
+var r=getScriptByPath("/scripts/triggers/ReadALEAUD").getFunctionByName("getMessageFromECC").invoke();
+out.writeln("Got " + r + " messages from ECC.");

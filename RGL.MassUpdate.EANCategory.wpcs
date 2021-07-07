@@ -1,0 +1,83 @@
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+
+var oKey;
+var catalogName;
+var ctgs = getCatalogNamesList();
+
+forEachHmElement(ctgs,oKey,catalogName) {
+	logDebug("CTG : "+catalogName);
+	var oCatalog = getCtgByName(catalogName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+
+	var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+	var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+		
+	var oItemSet = oCatalog.getItemSetForCatalog();
+		
+	var oProdItem;
+	forEachItemSetElement(oItemSet,oProdItem) {
+		var oitemGTINEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oProdItem,"01AC0042-GTIN");
+		if (oitemGTINEn!=null) {
+			var strGTIN = checkString(oitemGTINEn.getEntryNodeValue(),"");
+			if(strGTIN!="") {
+				var oitemEANCategoryEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oProdItem,"01AC0668-EANCategory");
+				if (oitemEANCategoryEn!=null) {	
+					var strEANCategory = checkString(oitemEANCategoryEn.getEntryNodeValue(),"");
+					if(strEANCategory=="") {
+						var oitemProd = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oProdItem,"Prod");
+						var oitemBrandNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemProd,"01AC0036-brandName");
+						var lkpBrandName = checkString(oitemBrandNameEn.getEntryNodeValue(),"");
+						var lkpTableBrandName = getLkpByName("L103-Marque ciale Detenteur - Brand name");
+						if(lkpBrandName!=null && lkpBrandName!="" && lkpBrandName!="null") {
+							var lkpBrandNameValues=lookupValues(lkpTableBrandName,lkpBrandName);
+							if(lkpBrandNameValues!=null) {
+								var strEANCategoryNew = lkpBrandNameValues[10];
+								oitemEANCategoryEn.setEntryNodeValue(strEANCategoryNew);
+								var test = oProdItem.saveCtgItem();
+								logDebug(test);
+								logDebug("ITM : "+oProdItem.getPrimaryKey());
+							}
+						}
+					}
+				}
+			}
+		}
+	}	
+}		
+			
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logDebug("Fin Traitement");

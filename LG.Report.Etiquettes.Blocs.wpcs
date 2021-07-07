@@ -1,0 +1,10 @@
+//
+// Export Blocs - Export Kheops pour étiquetage 
+//
+
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.Blocs").getFunctionByName("getFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);
+// outWriter.save("/test/Blocs_"+today().formatDate("yyyyMMdd_HHmmss")+".csv");

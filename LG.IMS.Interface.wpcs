@@ -1,0 +1,492 @@
+function getExportScriptForAttribute(fieldmap) {
+    var customScript = checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/customScript"), "");
+
+    var res = "";
+    if (customScript == "") {
+        res = "res = tech.invoke(hmGlobals, item, " +
+            "\"" + fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/sAttrName") + "\"," +
+            checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/iLkpCol"), "null") + "," +
+            "\"" + checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/sGroupingName"), "") + "\"," +
+            "\"" + checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/sAttrNameGroupingKey"), "") + "\"," +
+            "\"" + checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/sAttrValGroupingKey"), "") + "\"," +
+            checkString(fieldmap.getEntryAttrib("SC003-IMS_AttribsMap/iLevel"), "null") +
+            ")[0];";
+    } else {
+        res = customScript;
+    }
+    return res;
+}
+
+
+// returns all fields from all categories to be mapped.
+// level can be either "Product" or "Item"
+function getAllFieldsToMap(level) {
+
+    // Catalog describing the mapping of attributes to IMS
+    var ctgMap = getCtgByName("IMSAttribsMap");
+    // Main hierarchy for attributes mappings
+    var ctgTree = getCategoryTreeByName("H010-FieldMapIMS");
+    var catSetL1 = ctgTree.getCategoryByPath("", "", true, true).getCategoryChildren(true, ctgMap);
+    var fieldSet = [];
+    var k = 0;
+    for (i = 0; i < catSetL1.size(); i++) {
+        //out.writeln(catSetL1[i].getCategoryCode());
+        var catSetL2 = catSetL1[i].getCategoryChildren(true, ctgMap);
+        for (j = 0; j < catSetL2.size(); j++) {
+            var cat = catSetL2[j];
+            var code = cat.getCategoryCode();
+            //out.writeln(code);
+            if (code.endsWith(level)) {
+                var is = cat.getItemSetForCategory(ctgMap, true);
+                forEachItemSetElement(is, oItem) {
+                    if (oItem.getCtgItemAttrib("SC003-IMS_AttribsMap/mappingStatus") == "ACTIVE") {
+                        var imsField = oItem.getCtgItemAttrib("SC003-IMS_AttribsMap/IMSField");
+                        if (fieldSet[imsField] == null) {
+                            fieldSet[imsField] = [];
+                            fieldSet[imsField]["position"] = k;
+                            fieldSet[imsField]["field"] = oItem;
+                            fieldSet[imsField]["category"] = catSetL1[i].getCategoryCode();
+                            k++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return fieldSet;
+}
+
+
+function writeScriptForHeader(writer, level, fieldSet) {
+    writer.writeln("function createHeader(hmGlobals, sheet, rowIndex , tech) {");
+    writer.writeln("    var cell;");
+    writer.writeln("    var row;");
+    writer.writeln("    row = sheet.createRow(rowIndex);");
+
+    forEachHmElement(fieldSet, oKey, oValue){
+        var item = oValue["field"];
+        writer.writeln("// " + oKey);
+        writer.writeln("    cell = row.createExcelCell(" + toString(oValue["position"]) + ");");
+        writer.writeln("    cell.setCellType(\"STRING\");");
+        writer.writeln("    cell.setStringCellValue(\"" + oKey + "\");");
+        writer.writeln("    cellIndex++;");
+    }
+    writer.writeln("}");
+
+}
+
+function writeScriptForBody(writer, level, fieldSet) {
+    // Catalog describing the mapping of attributes to IMS
+    var ctgMap = getCtgByName("IMSAttribsMap");
+    // Main hierarchy for attributes mappings
+    var ctgTree = getCategoryTreeByName("H010-FieldMapIMS");
+
+    writer.writeln("function mapFields(hmGlobals, item, sheet, rowIndex , tech) {");
+    writer.writeln("    var cell;");
+    writer.writeln("    var row;");
+
+    writer.writeln("    var attrDate;");
+    writer.writeln("    var attrString;");
+    writer.writeln("    var attrNum;");
+    writer.writeln("    var e;");
+    writer.writeln("    var en_US = new Locale(\"en\", \"US\");");
+    writer.writeln("    var lib = getScriptByPath(\"/scripts/triggers/LG.Library.LGUtils\");");
+    writer.writeln("    var convertL210NumberToUnit = lib.getFunctionByName(\"convertL210NumberToUnit\");");
+    writer.writeln("    var getDedupCSV = lib.getFunctionByName(\"getDedupCSV\");");
+    writer.writeln("    row = sheet.createRow(rowIndex);");
+    writer.writeln("    var itemCat=checkString(tech.invoke(hmGlobals, item, \"01AC0050-WebSiteCategory\",2,\"\",\"\",\"\",0)[0],\"\");");
+
+    var catSetL1 = ctgTree.getCategoryByPath("", "", true, true).getCategoryChildren(true, ctgMap);
+
+    var k = 0;
+    // for each category
+    for (i = 0; i < catSetL1.size(); i++) {
+        var categoryCode = catSetL1[i].getCategoryCode();
+        
+        writer.writeln("// Category = " + categoryCode);
+        
+        if (categoryCode != "COMMON") {
+            var webCategoryCode = catSetL1[i].getEntryAttribValues("SH010-IMSAttribsMapHierarchySpec/validForCategories")[0];
+            writer.writeln("if (itemCat==\"" + webCategoryCode + "\"){");
+        } else {
+            writer.writeln("if (1==1) {");
+            writer.writeln("// COMMON attributes");
+        }
+        var catSetL2 = catSetL1[i].getCategoryChildren(true, ctgMap);
+        for (j = 0; j < catSetL2.size(); j++) {
+            var cat = catSetL2[j];
+            //out.writeln(cat.getCategoryCode());
+            if (cat.getCategoryCode().endsWith(level)) {
+                var is = cat.getItemSetForCategory(ctgMap, true);
+                forEachItemSetElement(is, oItem) {
+                    var IMSField = oItem.getCtgItemAttrib("SC003-IMS_AttribsMap/IMSField");
+
+                    var fieldmap = oItem;
+                    if (fieldmap.getCtgItemAttrib("SC003-IMS_AttribsMap/mappingStatus") == "ACTIVE") {
+                        writer.writeln("// " + fieldmap.getCtgItemAttrib("SC003-IMS_AttribsMap/mappingId") + "-" + fieldmap.getCtgItemAttrib("SC003-IMS_AttribsMap/IMSField"));
+
+                        // create an excel row for this item.
+
+                        writer.writeln("    cell = row.createExcelCell(" + toString(fieldSet[IMSField]["position"]) + ");");
+                        writer.writeln("if(true){");
+                        writer.writeln("var res=null;");
+                        writer.writeln("e=null;catchError(e) {"); // BEGIN CATCH
+
+                        writer.writeln(getExportScriptForAttribute(fieldmap));
+                        var cellType = checkString(fieldmap.getCtgItemAttrib("SC003-IMS_AttribsMap/excelCellType"), "");
+                        writer.writeln("    if (null != res && res != \"\") {");
+                        writer.writeln("        cell.setCellType(\"" + cellType + "\");");
+                        if (cellType == "STRING") {
+                            writer.writeln("        cell.setStringCellValue(res);");
+                        }
+                        if (cellType == "DATE") {
+                            writer.writeln("        cell.setDateCellValue(res);");
+                        }
+                        if (cellType == "NUMERIC") {
+                            writer.writeln("        cell.setNumericCellValue(toDouble(res));");
+                        }
+                        writer.writeln("    }else{cell.setCellType(\"BLANK\");}");
+
+                        writer.writeln("    }");// END CATCH
+                        //writer.writeln("if (e!=null){res=checkString(res,\"\")+ \" - \" + e.substring(1,300);cell.setCellType(\"STRING\");cell.setStringCellValue(res);}");// END CATCH
+                        writer.writeln("if (e!=null){res=null;cell.setCellType(\"BLANK\");}");// END CATCH
+                        writer.writeln("    }");
+                        writer.writeln("");
+
+                    }
+                }
+                writer.writeln("}");
+                writer.writeln("// ######## ");
+
+            }
+        }
+    }
+    writer.writeln("}");
+
+}
+
+function generateExportScript(writer, level) {
+    var fieldSet = getAllFieldsToMap(level);
+    // write excel header
+    writeScriptForHeader(writer, level, fieldSet);
+    writeScriptForBody(writer, level, fieldSet);
+}
+
+function generateExportScriptForLevel(level) {
+    var writer = createOtherOut("testScript");
+    generateExportScript(writer, level);
+    writer.save("/scripts/triggers/LG.IMS.DynamicExportScript." + level);
+    writer.close();
+}
+
+// ims_mapping_path = Product or Item
+function generateExcelExportFromIMSCA(ims_mapping_path) {
+    var dynScript = getScriptByPath("/scripts/triggers/LG.IMS.DynamicExportScript." + ims_mapping_path);
+    var createHeader = dynScript.getFunctionByName("createHeader");
+    var mapFields = dynScript.getFunctionByName("mapFields");
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+    var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+    hmGlobals["LOGGER"] = getLogger("default");
+    var techFunc = lib.getFunctionByName("tech");
+
+    var item;
+    // For Excel create a book and sheet to export to.
+    var book = new ExcelBook(null, "XLSX");
+    var sheet = book.createExcelSheet(ims_mapping_path);
+    var row;
+    var rowIndex = 0;
+    var style;
+
+    createHeader.invoke(hmGlobals, sheet, rowIndex, techFunc);
+    rowIndex++;
+
+    var ca = getColAreaByName("IMS");
+    var entrySet = ca.getEntriesInStep("SEND_TO_IMS");
+
+    // for each item to export
+    forEachEntrySetElement(entrySet, entry){
+        var oEntryType = substring(entry.getPrimaryKey(), 4, 5);
+        if ((ims_mapping_path.endsWith("Product") && oEntryType == "P") || (ims_mapping_path.endsWith("Item") && oEntryType == "I")) {
+            var target_item = entry.getEntryRelationshipAttrib("SC002-IMS/KheopsItem");
+            var item = getCtgByName(target_item[0]).getCtgItemByPrimaryKey(target_item[1]);
+            // call the dynamically generated export script LG.IMS.DynamicExportScript.* to generate an excel row
+            rowIndex = mapFields.invoke(hmGlobals, item, sheet, rowIndex, techFunc);
+        }
+    }
+    // Save to the docstore
+    book.saveToDocStore("/ims/export." + ims_mapping_path + ".xlsx", true);
+}
+
+
+function exportRec(hmGlobals, techFunc, mapFields, sheet, rowIndex, srcItem) {
+    var count=0;
+    if (srcItem != null) {
+        out.writeln("Exporting " + srcItem.getPrimaryKey());
+        var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+        var tech = lib.getFunctionByName("tech");
+        //var count = 0;
+        var status = hmGlobals["FN_GET_STATUS"].invoke(srcItem);//Recuperation du statut de l'item
+        var itemLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(srcItem);//Recuperation du type de l'item
+        var getChildItems = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+
+        var pk = srcItem.getPrimaryKey();
+        hmGlobals["LOGGER"].loggerDebug("Processing " + pk);
+
+        if (status == "ACTIVE") { // statut ACTIF
+            var isInCatalog = tech.invoke(hmGlobals, srcItem, "06DN0346-IsInCatalog", null, "ChannelOfDistributionGroup", "06DN0422-ChannelOfDistribution", "[01] - Negoce", 0);
+            if ((isInCatalog.size() > 0) && (isInCatalog[0] == true)) { // item au catalogue
+
+                if (itemLevel == "PItem") { // Export only PItems
+                    mapFields.invoke(hmGlobals, srcItem, sheet, rowIndex, techFunc);
+                    count=1;
+                }
+                
+                // try to export children first
+                var children = [];
+                children = getChildItems.invoke(hmGlobals, srcItem);
+                
+                if (children.size() > 0) {
+                    forEachHmElement(children, i, child) {
+                        var itemChild = getCtgByName(children[i]["itemCatalog"]).getEntryByPrimaryKey(children[i]["itemPrimaryKey"]);
+                        count = count + exportRec(hmGlobals, techFunc, mapFields, sheet, rowIndex+count, itemChild);
+                    }
+                }
+            }
+        }
+    }
+    return count;
+}
+
+// -----------------------------------------------------------------------------
+// Export all Prod + Items, starting point = prods in selection.
+function generateExcelExportFromProdCatalogSelections() {
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+    var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+    hmGlobals["LOGGER"] = getLogger("default");
+    var techFunc = lib.getFunctionByName("tech");
+
+    // For Excel create a book and sheet to export to.
+    var cats = [];
+    cats.add("Product");
+    cats.add("Item");
+    p = [];
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path] = [];
+        p[ims_mapping_path]["book"] = new ExcelBook(null, "XLSX");
+        p[ims_mapping_path]["sheet"] = p[ims_mapping_path]["book"].createExcelSheet(ims_mapping_path);
+        p[ims_mapping_path]["dynScript"] = getScriptByPath("/scripts/triggers/LG.IMS.DynamicExportScript." + ims_mapping_path);
+        p[ims_mapping_path]["rowIndex"] = 1;
+        p[ims_mapping_path]["mapFields"] = p[ims_mapping_path]["dynScript"].getFunctionByName("mapFields");
+        // create headers.
+        p[ims_mapping_path]["dynScript"].getFunctionByName("createHeader").invoke(hmGlobals, p[ims_mapping_path]["sheet"], 0, techFunc);
+
+    }
+
+    //Build list of all selection in NEGOCE
+    var ctgs = getCatalogNamesList();
+    var exportedSelections = [];
+    forEachHmElement(ctgs, oKey, ctgName){
+        var ctg = getCtgByName(ctgName);
+        var sels = ctg.getSelectionNamesList();
+        forEachHmElement(sels, oKey, selName){
+            if (selName.endsWith("Prod_OnWebsite")) {
+                exportedSelections.add(selName);
+            }
+        }
+    }
+    out.writeln(exportedSelections);
+
+
+    //for each selection, export all products and descendants items.
+    forEachHmElement(exportedSelections, oKey, selName){
+        sel = getSelectionByName(selName);
+        var itemSet = sel.getItemSetForSelection();
+
+        // for each item to export
+        forEachItemSetElement(itemSet, item){
+            //export Product to product sheet
+            out.writeln("exporting " + item.getPrimaryKey());
+            p["Product"]["mapFields"].invoke(hmGlobals, item, p["Product"]["sheet"], p["Product"]["rowIndex"], techFunc);
+            
+            p["Product"]["rowIndex"] = p["Product"]["rowIndex"] + 1;
+            // export all children
+            p["Item"]["rowIndex"] = p["Item"]["rowIndex"] + exportRec(hmGlobals, techFunc, p["Item"]["mapFields"], p["Item"]["sheet"], p["Item"]["rowIndex"], item);
+        }
+    }
+    // Save to the docstore
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path]["book"].saveToDocStore("/ims/export." + ims_mapping_path + ".xlsx", true);
+    }
+}
+// -----------------------------------------------------------------------------------
+// Export all Prod + Items, starting point = items & prod selections
+// -----------------------------------------------------------------------------------
+function generateExcelExportFromCatalogSelections() {
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+    var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+    hmGlobals["LOGGER"] = getLogger("default");
+    var techFunc = lib.getFunctionByName("tech");
+
+    // For Excel create a book and sheet to export to.
+    var cats = [];
+    cats.add("Product");
+    cats.add("Item");
+    p = [];
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path] = [];
+        p[ims_mapping_path]["book"] = new ExcelBook(null, "XLSX");
+        p[ims_mapping_path]["sheet"] = p[ims_mapping_path]["book"].createExcelSheet(ims_mapping_path);
+        p[ims_mapping_path]["dynScript"] = getScriptByPath("/scripts/triggers/LG.IMS.DynamicExportScript." + ims_mapping_path);
+        p[ims_mapping_path]["rowIndex"] = 1;
+        p[ims_mapping_path]["mapFields"] = p[ims_mapping_path]["dynScript"].getFunctionByName("mapFields");
+        // create headers.
+        p[ims_mapping_path]["dynScript"].getFunctionByName("createHeader").invoke(hmGlobals, p[ims_mapping_path]["sheet"], 0, techFunc);
+
+    }
+
+    //Build list of all selection in NEGOCE
+    var ctgs = getCatalogNamesList();
+    var exportedItemSelections = [];
+    var exportedProdSelections = [];
+    forEachHmElement(ctgs, oKey, ctgName){
+        var ctg = getCtgByName(ctgName);
+        var sels = ctg.getSelectionNamesList();
+        forEachHmElement(sels, oKey, selName){
+            if (selName.endsWith("PItem_OnWebsite")) {
+                exportedItemSelections.add(selName);
+            }
+            if (selName.endsWith("Prod_OnWebsite")) {
+                exportedProdSelections.add(selName);
+            }
+        }
+    }
+    out.writeln(exportedSelections);
+
+
+    //Export selected products
+    forEachHmElement(exportedProdSelections, oKey, selName){
+        sel = getSelectionByName(selName);
+        var itemSet = sel.getItemSetForSelection();
+
+        // for each item to export
+        forEachItemSetElement(itemSet, item){
+            //export Product to product sheet
+            out.writeln("exporting " + item.getPrimaryKey());
+            p["Product"]["mapFields"].invoke(hmGlobals, item, p["Product"]["sheet"], p["Product"]["rowIndex"], techFunc);
+            p["Product"]["rowIndex"] = p["Product"]["rowIndex"] + 1;
+        }
+    }
+
+    //Export selected items
+    forEachHmElement(exportedItemSelections, oKey, selName){
+        sel = getSelectionByName(selName);
+        var itemSet = sel.getItemSetForSelection();
+        // for each item to export
+        forEachItemSetElement(itemSet, item){
+            //export Item to Item sheet
+            out.writeln("exporting " + item.getPrimaryKey());
+            p["Item"]["mapFields"].invoke(hmGlobals, item, p["Item"]["sheet"], p["Item"]["rowIndex"], techFunc);
+            p["Item"]["rowIndex"] = p["Item"]["rowIndex"] + 1;
+        }
+    }
+
+
+    // Save to the docstore
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path]["book"].saveToDocStore("/ims/export." + ims_mapping_path + ".xlsx", true);
+    }
+}
+
+
+
+// -----------------------------------------------------------------------------------
+// Export all Prod + Items, starting point = H002 hierarchy
+// -----------------------------------------------------------------------------------
+function generateExcelExportFromExportHierarchy() {
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+    var lib2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+    var getItemAtLevel = lib2.getFunctionByName("getItemAtLevel");//BUnit Prod  PItem
+    var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+    hmGlobals["LOGGER"] = getLogger("default");
+    var techFunc = lib.getFunctionByName("tech");
+
+    // For Excel create a book and sheet to export to.
+    var cats = [];
+    cats.add("Product");
+    cats.add("Item");
+    p = [];
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path] = [];
+        p[ims_mapping_path]["book"] = new ExcelBook(null, "XLSX");
+        p[ims_mapping_path]["sheet"] = p[ims_mapping_path]["book"].createExcelSheet(ims_mapping_path);
+        p[ims_mapping_path]["dynScript"] = getScriptByPath("/scripts/triggers/LG.IMS.DynamicExportScript." + ims_mapping_path);
+        p[ims_mapping_path]["rowIndex"] = 1;
+        p[ims_mapping_path]["mapFields"] = p[ims_mapping_path]["dynScript"].getFunctionByName("mapFields");
+        // create headers.
+        p[ims_mapping_path]["dynScript"].getFunctionByName("createHeader").invoke(hmGlobals, p[ims_mapping_path]["sheet"], 0, techFunc);
+
+    }
+
+    //Build list of all selection in NEGOCE
+    var ctgs = getCatalogNamesList().sort();
+    var hie = getCategoryTreeByName("H002-ExportHierarchy");
+    var productsMap=[];
+
+    // Export selected items
+    // and build list of corresponding products to export
+    forEachHmElement(ctgs, oKey, ctgName){
+        if (ctgName.startsWith("C")){
+            out.writeln("Export Items for " + ctgName);
+            productsMap[ctgName]=[];
+            var ctg = getCtgByName(ctgName);
+            var cat = hie.getCategoryByPath ("IMS/WebSite", "/" ,true,true);
+            var itemSet = cat.getItemSetForCategory(ctg,false);
+            // for each item to export
+            forEachItemSetElement(itemSet, item){
+                //export Item to Item sheet
+                out.writeln("exporting " + item.getPrimaryKey());
+                p["Item"]["mapFields"].invoke(hmGlobals, item, p["Item"]["sheet"], p["Item"]["rowIndex"], techFunc);
+                p["Item"]["rowIndex"] = p["Item"]["rowIndex"] + 1;
+                // add the corresponding product to the export list.
+                // use a hashmap to benefit from the de-duplication :)
+                var product=getItemAtLevel.invoke(item,"Prod");
+                if (product!=null){
+                    productsMap[ctgName].add(product.getPrimaryKey());
+                }
+            }
+        }
+    }
+    
+    //Export selected products
+    forEachHmElement(productsMap, ctgName, aProducts){
+        out.writeln("Export Products for " + ctgName);
+        var ctg=getCtgByName(ctgName);
+        var itemSet=ctg.getItemSetForPrimaryKeys(aProducts, true);
+        forEachItemSetElement(itemSet, item){
+            //export Product to product sheet
+            out.writeln("exporting " +  item.getPrimaryKey());
+            p["Product"]["mapFields"].invoke(hmGlobals, item, p["Product"]["sheet"], p["Product"]["rowIndex"], techFunc);
+            p["Product"]["rowIndex"] = p["Product"]["rowIndex"] + 1;
+        }
+    }
+
+    // Save to the docstore
+    forEachHmElement(cats, i, ims_mapping_path){
+        p[ims_mapping_path]["book"].saveToDocStore("/ims/export." + ims_mapping_path + ".xlsx", true);
+    }
+}
+
+
+// for debugging
+//generateExportScript(out,"Product");
+//generateExportScript(out,"Item");
+
+// generate export scripts
+generateExportScriptForLevel("Product");
+generateExportScriptForLevel("Item");
+
+// generateExcelExportFromIMSCA(entries, "Product");
+// generateExcelExportFromIMSCA(entries, "Item");
+// generateExcelExportFromCatalogSelections();
+generateExcelExportFromExportHierarchy();
+

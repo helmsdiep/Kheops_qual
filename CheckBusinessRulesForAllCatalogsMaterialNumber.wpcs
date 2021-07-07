@@ -1,0 +1,54 @@
+var logPath = "/verifications/checkBusinessRules-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"]=getLogger("Lafarge.BusinessRules");
+var script = getScriptByPath("/scripts/triggers/LG.Business.Utils");
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var strCatalogCode = substring(ctgName,0,4);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	var oitem;
+	forEachItemSetElement(isItemSet,oitem) {
+		var strItemStatus="";
+		var oItemStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0548-Status");
+		if(oItemStatusEn!=null) {
+			strItemStatus = checkString(oItemStatusEn[0].getEntryNodeValue(),"");
+		}
+		var strMaterialNumber="";
+		var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+		if(oItemMaterialNumberEn!=null) {
+			strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+		}
+		//if (strItemStatus=="[ACTIVE] - Actif") {
+		if (oItemMaterialNumberEn!="" && oItemMaterialNumberEn!="null" && oItemMaterialNumberEn!=null) {
+			var strItemPK = oitem.getPrimaryKey();
+			logDebug("Item PK="+strItemPK);
+			//
+			var result = [];
+			result = script.getFunctionByName("checkBusinessRules").invoke(hmGlobals, oitem );
+			if (result.size()<1) {
+				logOut.writeln(strItemStatus+"|"+strCatalogCode+"|"+ctgName+"|"+strItemPK+"|"+strMaterialNumber+"|Aucune erreur|Aucune erreur|Aucune erreur");
+			} 
+			else {
+				var strItemNbErreurs = result.size();
+				for (var i=0; i<result.size(); i++) {
+					logOut.writeln(strItemStatus+"|"+strCatalogCode+"|"+ctgName+"|"+strItemPK+"|"+strMaterialNumber+"|"+strItemNbErreurs+"|"+result[i]+"|"+substring(result[i],0,8));
+				}
+			}
+		}
+	}
+}
+
+logOut.save(logPath);

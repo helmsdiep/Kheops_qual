@@ -1,0 +1,185 @@
+function getValue(hmGlobals, item, sNodeName){
+    var nodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+    if (nodes == null || nodes.size() < 1 ) {
+        return null;
+    }
+    return nodes[0].getEntryNodeValue();
+}
+
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getFirstEn(hmGlobals, item, sNodeName){
+    var nodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+    if (nodes == null || nodes.size() < 1 ) {
+        return null;
+    }
+    return nodes[0];
+}
+
+function getSurface(item,hmGlobals) {
+	var loc = getCompanyLocales();
+    var hmGlobalConst = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+    var lkpTableNormalizedUnits = getLkpByName("L210-Unités normées - normalized units");
+    
+	var surface;
+	
+    var enLength = getEn(hmGlobals,item,"04CP0103-Length");
+    var enLengthUnits = getEn(hmGlobals,item,"04CP0104-LengthUnits");
+    //Si l'item est pertinent sur les attributs 04CP0103-Length et 04CP0104-LengthUnits
+    if(enLength!=null && enLengthUnits!=null) {
+    
+        //CALCUL DE LA LONGUEUR EN METRES
+        var nLength = enLength[0].getEntryNodeValue();
+        var lkpLengthUnits = enLengthUnits[0].getEntryNodeValue();
+        if(lkpLengthUnits!=null) {
+            //Si 04CP0104-LengthUnits est en CMT ==> Conversion de 04CP0103-Length en METRES (*0.01)
+            if(lookupValues(lkpTableNormalizedUnits,lkpLengthUnits)[0]=="CMT") {
+                nLength = nLength * 0.01;
+            }
+            //Si 04CP0104-LengthUnits est en MMT ==> Conversion de 04CP0103-Length en METRES (*0.001)
+            else if (lookupValues(lkpTableNormalizedUnits,lkpLengthUnits)[0]=="MMT") {
+                nLength = nLength * 0.001;
+            }   
+        }
+        
+        //CALCUL DE LA LARGEUR EN METRES
+        var enWidth = getEn(hmGlobals,item,"04CP0095-Width");
+        var enWidthUnit = getEn(hmGlobals,item,"04CP0097-WidthUnit");
+        var nWidth;
+        var lkpWidthUnit;
+        //Si l'item est pertinent sur les attributs 04CP0095-Width et 04CP0097-WidthUnit
+        if(enWidth!=null && enWidthUnit!=null) {
+            nWidth = enWidth[0].getEntryNodeValue();
+            lkpWidthUnit = enWidthUnit[0].getEntryNodeValue();
+            //Si on a trouvé 04CP0097-WidthUnit dans la table des unités 
+            if(lkpWidthUnit!=null) {
+                //Si 04CP0097-WidthUnit est en CMT ==> conversion en METRES (*0.01)
+                if(lookupValues(lkpTableNormalizedUnits,lkpWidthUnit)[0]=="CMT") {
+                    nWidth = nWidth * 0.01;
+                }
+                //Si 04CP0097-WidthUnit est en MMT ==> conversion en METRES (*0.001)
+                else if (lookupValues(lkpTableNormalizedUnits,lkpWidthUnit)[0]=="MMT") {
+                    nWidth = nWidth * 0.001;
+                }
+            }
+        }
+        //Si l'item n'est pas pertinent sur les attributs 04CP0095-Width et 04CP0097-WidthUnit
+        //On va aller récupérer ces attributs sur l'item parent
+        else {
+            //On récupère l'item parent
+            var parentItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem").invoke(hmGlobalConst,item);
+            //On récupère 04CP0095-Width chez le parent
+            var enParentWidth = getEn(hmGlobals,parentItem,"04CP0095-Width");
+            //On récupère 04CP0097-WidthUnit chez le parent
+            var enParentWidthUnit = getEn(hmGlobals,parentItem,"04CP0097-WidthUnit");
+            //Si l'item parent est pertinent sur les attributs 04CP0095-Width et 04CP0097-WidthUnit
+            if(enParentWidth!=null && enParentWidthUnit!=null) {
+                nWidth = enParentWidth[0].getEntryNodeValue();
+                lkpWidthUnit = enParentWidthUnit[0].getEntryNodeValue();
+            }
+            //Si on a trouvé 04CP0097-WidthUnit dans la table des unités 
+            if(lkpWidthUnit!=null) {
+                //Si 04CP0097-WidthUnit est en CMT ==> conversion en METRES (*0.01)
+                if(lookupValues(lkpTableNormalizedUnits,lkpWidthUnit)[0]=="CMT") {
+                    nWidth = nWidth * 0.01;
+                }
+                //Si 04CP0097-WidthUnit est en MMT ==> conversion en METRES (*0.001)
+                else if (lookupValues(lkpTableNormalizedUnits,lkpWidthUnit)[0]=="MMT") {
+                    nWidth = nWidth * 0.001;
+                }
+            }
+        }
+		surface = nWidth * nLength;
+    }
+	return surface;
+}
+
+var logPath = "/masseupdate/updateSurface-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var strCategoryTreeName="H000-Typology";
+var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initGlobals").invoke();
+
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	//
+	var oCatalog = getCtgByName(ctgName);
+	//
+	// ******************************************
+	// BUnit
+	// ******************************************
+	var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+	var oitemBUnit;
+	forEachItemSetElement(oBUnitItemSet,oitemBUnit) {
+		var strItemPK=oitemBUnit.getPrimaryKey();
+		//
+		var surface = getSurface(oitemBUnit,hmGlobals);
+		//
+		out.writeln(strItemPK);
+		//
+		if(surface!=null && surface>0) {
+			var oSurfaceAreaEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0105-SurfaceArea");
+			if(oSurfaceAreaEn!=null) {
+				oSurfaceAreaEn.setEntryNodeValue(surface);
+			}
+			var oSurfaceAreaUnitsEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0106-SurfaceAreaUnits");
+			if(oSurfaceAreaUnitsEn!=null) {
+				oSurfaceAreaUnitsEn.setEntryNodeValue("[MTK] - Mètre carré");
+			}
+			//
+			logOut.writeln(strItemPK+"-"+surface);
+			//
+			var test = oitemBUnit.saveCtgItem();
+			out.writeln(test);
+		}
+	}
+}
+
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+out.writeln("Fin Traitement");
+
+logOut.save(logPath);

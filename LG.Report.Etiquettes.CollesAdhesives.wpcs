@@ -1,0 +1,7 @@
+//
+// Export CollesAdhesives - Export Kheops pour étiquetage 
+//
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.CollesAdhesives").getFunctionByName("getFullCSV").invoke();
+outWriter.writeln(str);
+out.writeln(str);

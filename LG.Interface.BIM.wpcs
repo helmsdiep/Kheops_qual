@@ -1,0 +1,383 @@
+//
+// Export BIM Data Exchange Platform
+// christophe.garde@evodi.biz
+
+//
+// technical utils functions
+//
+// if vPREPARE_FLAG is set to true then all lookup table columns will be exported regardless of the column being specified or not
+// usefull for determining which column makes sense !
+var vPREPARE_FLAG = false;
+var vMAX_ITEMS = 200000;
+
+function addMapElement(mapEl, key, val) {
+  getScriptByPath("/scripts/triggers/LG.Library.Utils")
+    .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+  return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+    .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey) {
+  return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+    .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getMultiValues(oitem, nodeName) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getMultiValues").invoke(oitem, nodeName);
+}
+
+function getLkpMultiValuesStd(oItem, nodeName, lkpColumn) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getLkpMultiValues").invoke(oItem, nodeName, lkpColumn);
+}
+
+
+function getDateValue(oitem, nodeName) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getDateValue").invoke(oitem, nodeName, "dd/MM/yyyy HH:mm:ss");
+}
+
+function getLkpValueStd(item, nodeName, lkpColumn) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getLkpValue").invoke(item, nodeName, lkpColumn);
+}
+
+function getPublishingItemAtLevel(oitem, sLevel) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+function getItemLevel(oitem) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName) {
+  return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem, nodeName);
+}
+
+
+function buildDelimKheops(vSep, vQuote, vArray) {
+  var str = "";
+  forEachHmElement(vArray, oKey, oValue) {
+    if (oKey > 0) {
+      str = concat(str, vSep);
+    }
+    str = concat(str, oValue);
+  }
+  return str;
+}
+
+
+function getLkpValue(item, nodeName, lkpColumn) {
+//  out.writeln("getting value for " + nodeName);
+  if (vPREPARE_FLAG == false) {
+    return getLkpValueStd(item, nodeName, lkpColumn);
+  }
+
+  if (item == null) {
+    return "";
+  }
+
+  var enitem = getEn(item, nodeName);
+  if (enitem == null || enitem.size() < 1) {
+    return "";
+  }
+  // get the lkp table linked to this node
+
+  var lkpName = enitem[0].getNodeFromEntryNode().getNodeLookupTableName();
+
+  //var lkpName="L035-Codes natures SDC - SDC nature codes";
+  //out.writeln(lkpName);
+  var lookup = getCtgByName(lkpName);
+  var spec = lookup.getCtgSpec();
+  var specname = spec.getSpecName();
+  var attrs = spec.getSpecAttribNames();
+  var str = "";
+  var sep = ", ";
+  var c=0;
+  forEachCtgItem(lkpName, lkp_item) {
+    forEachHmElement(attrs, key, vlkpColumn) {
+      str = str + "[" + vlkpColumn + "]=" + checkString(lkp_item.getCtgItemAttrib(specname + "/" + vlkpColumn), "") + sep;
+    }
+    str=str+" ### ";
+    c++;
+    if (c>2){
+      break;
+    }
+  }
+
+  return str;
+
+}
+
+function getLkpMultiValues(oitem, nodeName, lkpColumn) {
+  if (vPREPARE_FLAG == false) {
+    return getLkpMultiValuesStd(item, nodeName, lkpColumn);
+  } else {
+    var arr = [];
+    arr.add(getLkpValue(item, nodeName, lkpColumn));
+    return arr;
+  }
+}
+
+
+function getPItemData(oitem) {
+  var DATA = [];
+  addMapElement(DATA, "01AC0012-LongName", getSimpleValue(oitem, "01AC0012-LongName"));
+  addMapElement(DATA, "01AC0044-ERPCode", getSimpleValue(oitem, "01AC0044-ERPCode"));
+  addMapElement(DATA, "01AC0548-Status", getLkpValue(oitem, "01AC0548-Status", "C01-Code"));
+  addMapElement(DATA, "01AC0006-CreationDate", getDateValue(oitem, "01AC0006-CreationDate"));
+  addMapElement(DATA, "01AC0005-CreationUser", getSimpleValue(oitem, "01AC0005-CreationUser"));
+  addMapElement(DATA, "01AC0004-LastUpdate", getDateValue(oitem, "01AC0004-LastUpdate"));
+  addMapElement(DATA, "01AC0003-LastUpdateUser", getSimpleValue(oitem, "01AC0003-LastUpdateUser"));
+  addMapElement(DATA, "01AC0007-BlockedDate", getDateValue(oitem, "01AC0007-BlockedDate"));
+  addMapElement(DATA, "01AC0008-BlockedUser", getSimpleValue(oitem, "01AC0008-BlockedUser"));
+  addMapElement(DATA, "01AC0009-UnblockedDate", getDateValue(oitem, "01AC0009-UnblockedDate"));
+  addMapElement(DATA, "01AC0010-UnblockedUser", getSimpleValue(oitem, "01AC0010-UnblockedUser"));
+  addMapElement(DATA, "01AC0042-GTIN", getSimpleValue(oitem, "01AC0042-GTIN"));
+  addMapElement(DATA, "04CP0114-Height", getSimpleValue(oitem, "04CP0114-Height"));
+  addMapElement(DATA, "04CP0115-HeightUnits", getLkpValue(oitem, "04CP0115-HeightUnits", "C01-Code"));
+  addMapElement(DATA, "04CP0118-PItemWidth", getSimpleValue(oitem, "04CP0118-PItemWidth"));
+  addMapElement(DATA, "04CP0120-PItemWidthUnits", getLkpValue(oitem, "04CP0120-PItemWidthUnits", "C01-Code"));
+  addMapElement(DATA, "04CP0116-Depth", getSimpleValue(oitem, "04CP0116-Depth"));
+  addMapElement(DATA, "04CP0117-DepthUnits", getLkpValue(oitem, "04CP0117-DepthUnits", "C01-Code"));
+  addMapElement(DATA, "04CP0213-netWeight", getSimpleValue(oitem, "04CP0213-netWeight"));
+  addMapElement(DATA, "04CP0214-netWeightUnit", getLkpValue(oitem, "04CP0214-netWeightUnit", "C01-Code"));
+  addMapElement(DATA, "04CP0215-grossWeight", getSimpleValue(oitem, "04CP0215-grossWeight"));
+  addMapElement(DATA, "04CP0216-grossWeightUnit", getLkpValue(oitem, "04CP0216-grossWeightUnit", "C01-Code"));
+  addMapElement(DATA, "04CP0217-RoughVolume", getSimpleValue(oitem, "04CP0217-RoughVolume"));
+  addMapElement(DATA, "04CP0218-RoughVolumeUnit", getLkpValue(oitem, "04CP0218-RoughVolumeUnit", "C01-Code"));
+  addMapElement(DATA, "06DN0347-TradeItemOrderable", getSimpleValue(oitem, "06DN0347-TradeItemOrderable"));
+  addMapElement(DATA, "06DN0356-ItemBillable", getSimpleValue(oitem, "06DN0356-ItemBillable"));
+  addMapElement(DATA, "06DN0351-orderQuantityMultiple", getSimpleValue(oitem, "06DN0351-orderQuantityMultiple"));
+  addMapElement(DATA, "06DN0352-orderQuantityMini", getSimpleValue(oitem, "06DN0352-orderQuantityMini"));
+  addMapElement(DATA, "06DN0357-orderQuantityMaxi", getSimpleValue(oitem, "06DN0357-orderQuantityMaxi"));
+  addMapElement(DATA, "06DN0407-TotalQuantityOfNextLowerLevel", getSimpleValue(oitem, "06DN0407-TotalQuantityOfNextLowerLevel"));
+  addMapElement(DATA, "06DN0405-quantityOfNextLowerLevel", getSimpleValue(oitem, "06DN0405-quantityOfNextLowerLevel"));
+  addMapElement(DATA, "06DN0402-NumberOfPackagedItems", getSimpleValue(oitem, "06DN0402-NumberOfPackagedItems"));
+  addMapElement(DATA, "06DN0408-quantityOfChildren", getSimpleValue(oitem, "06DN0408-quantityOfChildren"));
+  addMapElement(DATA, "06DN0411-Assembly", getLkpValue(oitem, "06DN0411-Assembly", "C02-Libellé"));
+  addMapElement(DATA, "06DN0412-Stacking", getLkpValue(oitem, "06DN0412-Stacking", "C02-Libellé"));
+  addMapElement(DATA, "06DN0413-Support", getLkpValue(oitem, "06DN0413-Support", "C02-Libellé"));
+  addMapElement(DATA, "06DN0414-Covering", getLkpValue(oitem, "06DN0414-Covering", "C02-Libellé"));
+  addMapElement(DATA, "06DN0415-Hooping", getLkpValue(oitem, "06DN0415-Hooping", "C02-Libellé"));
+  //  addMapElement(DATA, "99CTL100-ParentItem", getSimpleValue(oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem"), "01AC0044-ERPCode"));
+  addMapElement(DATA, "99CTL100-ParentItem", oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem").getPrimaryKey());
+
+  return DATA;
+}
+
+function getBUnitData(oitem) {
+  var DATA = [];
+  addMapElement(DATA, "01AC0012-LongName", getSimpleValue(oitem, "01AC0012-LongName"));
+  addMapElement(DATA, "01AC0044-ERPCode", getSimpleValue(oitem, "01AC0044-ERPCode"));
+  addMapElement(DATA, "01AC0548-Status", getLkpValue(oitem, "01AC0548-Status", "C01-Code"));
+  addMapElement(DATA, "01AC0006-CreationDate", getDateValue(oitem, "01AC0006-CreationDate"));
+  addMapElement(DATA, "01AC0005-CreationUser", getSimpleValue(oitem, "01AC0005-CreationUser"));
+  addMapElement(DATA, "01AC0004-LastUpdate", getDateValue(oitem, "01AC0004-LastUpdate"));
+  addMapElement(DATA, "01AC0003-LastUpdateUser", getSimpleValue(oitem, "01AC0003-LastUpdateUser"));
+  addMapElement(DATA, "01AC0007-BlockedDate", getDateValue(oitem, "01AC0007-BlockedDate"));
+  addMapElement(DATA, "01AC0008-BlockedUser", getSimpleValue(oitem, "01AC0008-BlockedUser"));
+  addMapElement(DATA, "01AC0009-UnblockedDate", getDateValue(oitem, "01AC0009-UnblockedDate"));
+  addMapElement(DATA, "01AC0010-UnblockedUser", getSimpleValue(oitem, "01AC0010-UnblockedUser"));
+  addMapElement(DATA, "01AC0042-GTIN", getSimpleValue(oitem, "01AC0042-GTIN"));
+  addMapElement(DATA, "04CP0095-Width", getSimpleValue(oitem, "04CP0095-Width"));
+  addMapElement(DATA, "04CP0097-WidthUnit", getLkpValue(oitem, "04CP0097-WidthUnit", "C01-Code"));
+  addMapElement(DATA, "04CP0103-Length", getSimpleValue(oitem, "04CP0103-Length"));
+  addMapElement(DATA, "04CP0104-LengthUnits", getLkpValue(oitem, "04CP0104-LengthUnits", "C01-Code"));
+  addMapElement(DATA, "04CP0213-netWeight", getSimpleValue(oitem, "04CP0213-netWeight"));
+  addMapElement(DATA, "04CP0214-netWeightUnit", getLkpValue(oitem, "04CP0214-netWeightUnit", "C01-Code"));
+  addMapElement(DATA, "04CP0215-grossWeight", getSimpleValue(oitem, "04CP0215-grossWeight"));
+  addMapElement(DATA, "04CP0216-grossWeightUnit", getLkpValue(oitem, "04CP0216-grossWeightUnit", "C01-Code"));
+  addMapElement(DATA, "06DN0347-TradeItemOrderable", getSimpleValue(oitem, "06DN0347-TradeItemOrderable"));
+  addMapElement(DATA, "06DN0356-ItemBillable", getSimpleValue(oitem, "06DN0356-ItemBillable"));
+  addMapElement(DATA, "06DN0351-orderQuantityMultiple", getSimpleValue(oitem, "06DN0351-orderQuantityMultiple"));
+  addMapElement(DATA, "06DN0352-orderQuantityMini", getSimpleValue(oitem, "06DN0352-orderQuantityMini"));
+  addMapElement(DATA, "06DN0357-orderQuantityMaxi", getSimpleValue(oitem, "06DN0357-orderQuantityMaxi"));
+  //addMapElement(DATA, "99CTL100-ParentItem", getSimpleValue(oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem"), "01AC0044-ERPCode"));
+  addMapElement(DATA, "99CTL100-ParentItem", oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem").getPrimaryKey());
+  return DATA;
+}
+
+function getProdData(oitem) {
+  var DATA = [];
+  addMapElement(DATA, "01AC0012-LongName", getSimpleValue(oitem, "01AC0012-LongName"));
+  addMapElement(DATA, "01AC0044-ERPCode", getSimpleValue(oitem, "01AC0044-ERPCode"));
+  addMapElement(DATA, "01AC0548-Status", getLkpValue(oitem, "01AC0548-Status", "C02-Libellé"));
+  addMapElement(DATA, "01AC0006-CreationDate", getDateValue(oitem, "01AC0006-CreationDate"));
+  addMapElement(DATA, "01AC0005-CreationUser", getSimpleValue(oitem, "01AC0005-CreationUser"));
+  addMapElement(DATA, "01AC0004-LastUpdate", getDateValue(oitem, "01AC0004-LastUpdate"));
+  addMapElement(DATA, "01AC0003-LastUpdateUser", getSimpleValue(oitem, "01AC0003-LastUpdateUser"));
+  addMapElement(DATA, "01AC0007-BlockedDate", getDateValue(oitem, "01AC0007-BlockedDate"));
+  addMapElement(DATA, "01AC0008-BlockedUser", getSimpleValue(oitem, "01AC0008-BlockedUser"));
+  addMapElement(DATA, "01AC0009-UnblockedDate", getDateValue(oitem, "01AC0009-UnblockedDate"));
+  addMapElement(DATA, "01AC0010-UnblockedUser", getSimpleValue(oitem, "01AC0010-UnblockedUser"));
+  addMapElement(DATA, "01AC0042-GTIN", getSimpleValue(oitem, "01AC0042-GTIN"));
+  addMapElement(DATA, "02FR0836-PEFCCUrlLien", getSimpleValue(oitem, "02FR0836-PEFCCUrlLien"));
+  addMapElement(DATA, "02FR0839-NaturePlusUrlLien", getSimpleValue(oitem, "02FR0839-NaturePlusUrlLien"));
+  addMapElement(DATA, "05PC0300-ThermalResistance", getSimpleValue(oitem, "05PC0300-ThermalResistance"));
+  addMapElement(DATA, "05PC0301-ThermalConductivityLambda", getSimpleValue(oitem,"05PC0301-ThermalConductivityLambda"));
+  addMapElement(DATA, "05PC0305-EuroclasseClassification", getLkpValue(oitem, "05PC0305-EuroclasseClassification", "C01-Code"));
+  addMapElement(DATA, "05PC0306-ClassificationM", getLkpValue(oitem, "05PC0306-ClassificationM", "C02-Libellé"));
+  addMapElement(DATA, "05PC0308-ORReactionFire", getLkpValue(oitem, "05PC0308-ORReactionFire", "C01-N° de procès verbal"));
+  addMapElement(DATA, "05PG0243-NFReference", getLkpValue(oitem, "05PG0243-NFReference", "C01-N° de norme"));
+  addMapElement(DATA, "05PG0244-NFProductType", getLkpValue(oitem, "05PG0244-NFProductType", "C02-Référence de la norme française"));
+  addMapElement(DATA, "05PG0245-ENReference",  getLkpValue(oitem, "05PG0245-ENReference", "C01-N° de norme"));
+  addMapElement(DATA, "05PG0246-ENProductType", getLkpValue(oitem, "05PG0246-ENProductType", "C03-Référence de la norme européenne"));
+  addMapElement(DATA, "05PG0247-ENBoardType", getLkpValue(oitem, "05PG0247-ENBoardType", "C01-Type de produit selon la norme en code"));
+  addMapElement(DATA, "05PG0248-NFCertified", getSimpleValue(oitem, "05PG0248-NFCertified"));
+  addMapElement(DATA, "05PG0249-CECertified", getSimpleValue(oitem, "05PG0249-CECertified"));
+  addMapElement(DATA, "05PG0340-TechnicalNote", getSimpleValue(oitem, "05PG0340-TechnicalNote"));
+  addMapElement(DATA, "05PG0341-TechnicalNoteRef", buildDelimKheops(":", "#", getMultiValues(oitem, "05PG0341-TechnicalNoteRef", "C02-Libellé")));
+  addMapElement(DATA, "05PG0339-UseReference", buildDelimKheops(":", "#",getMultiValues(oitem, "05PG0339-UseReference", "C02-Libellé")));
+  addMapElement(DATA, "05PG0342-LabelQuality", getLkpValue(oitem, "05PG0342-LabelQuality", "C01-Libellé"));
+  addMapElement(DATA, "05PG0343-LabelVertCertificate", getLkpValue(oitem, "05PG0343-LabelVertCertificate", "C01-N°du Label Vert"));
+  addMapElement(DATA, "05PG0767-DOPNumber", getSimpleValue(oitem, "05PG0767-DOPNumber"));
+  addMapElement(DATA, "05PG0768-ProductTypeID", getSimpleValue(oitem, "05PG0768-ProductTypeID"));
+  addMapElement(DATA, "05PG0769-DOPUrl", getSimpleValue(oitem, "05PG0769-DOPUrl"));
+  addMapElement(DATA, "05PG0770-ProductUsage", getSimpleValue(oitem, "05PG0770-ProductUsage"));
+  addMapElement(DATA, "05PG0773-OrganismNotified", getSimpleValue(oitem, "05PG0773-OrganismNotified"));
+  addMapElement(DATA, "07MO0483-EmissionDangerousSubstances", buildDelimKheops(":", "#", getMultiValues(oitem, "07MO0483-EmissionDangerousSubstances")));
+  addMapElement(DATA, "07MO0484-SecurityBasicData", getSimpleValue(oitem, "07MO0484-SecurityBasicData"));
+  addMapElement(DATA, "08IE0488-EnvironmentalBasicData", getSimpleValue(oitem, "08IE0488-EnvironmentalBasicData"));
+  return DATA;
+}
+
+function canExport(oitem) {
+  // if (!getSimpleValue(oitem, "01AC0548-Status").contains("[ACTIVE] - Actif")) {
+  //   return false;
+  // }
+  // if (!getSimpleValue(oitem, "01AC0042-GTIN").contains("3334160205485")) {
+  //   return false;
+  // }
+  return true;
+}
+
+function getData(oitem) {
+  var level = getItemLevel(oitem);
+  if (level == 1) {
+    return getProdData(oitem);
+  }
+  if (level == 2) {
+    return getBUnitData(oitem);
+  }
+  if (level > 2) {
+    return getPItemData(oitem);
+  }
+
+  return [];
+}
+
+function generateReports(ctgs, writers) {
+  var oitem;
+  var csv = "";
+  var headerDone = [];
+  for (var i = 1; i < writers.size() + 1; i++) {
+    headerDone[i] = false;
+  }
+
+  var finished = false;
+
+  var catalogs = getCatalogNamesList(); //La variable ctgs contient la liste des catalogues disponibles
+  forEachHmElement(catalogs, oKey, ctg) { //Pour chaque element d'un catalogue de la liste de catalogues
+    var must_export = false;
+    forEachHmElement(ctgs, pKey, shortctg) {
+      if (ctg.startsWith(shortctg)) {
+        must_export = true;
+        break;
+      }
+    }
+    if (must_export) {
+      out.writeln("Export Complet : " + ctg);
+      var c = 0;
+      forEachCtgItem(ctg, oitem) {
+        var e;
+
+        catchError(e) {
+          if (!canExport(oitem)) {
+            continue;
+          }
+          out.writeln("Export " + oitem.getPrimaryKey());
+
+          var level = getItemLevel(oitem);
+          var data = getData(oitem);
+
+          if (!headerDone[level]) {
+            writers[level].write(buildMapElementCSV(data, true));
+            headerDone[level] = true;
+          }
+          writers[level].write(buildMapElementCSV(data, false));
+        }
+        if (e != null) {
+          out.writeln(oitem.getPrimaryKey() + " " + e);
+          c = c + 1;
+          // e=null;
+        }
+
+        // export only one item if we are preparing
+        if (c > vMAX_ITEMS) {
+          break;
+        }
+      }
+    }
+  }
+}
+
+//
+// Export Cloisons - Export Kheops pour Ã©tiquetage
+//
+var ctgs = [];
+ctgs.add("C010");
+ctgs.add("C015");
+ctgs.add("C020");
+ctgs.add("C025");
+ctgs.add("C030");
+ctgs.add("C035");
+ctgs.add("C040");
+ctgs.add("C045");
+ctgs.add("C135");
+ctgs.add("C145");
+ctgs.add("C065");
+ctgs.add("C070");
+ctgs.add("C075");
+ctgs.add("C080");
+ctgs.add("C085");
+ctgs.add("C095");
+ctgs.add("C100");
+ctgs.add("C105");
+ctgs.add("C140");
+ctgs.add("C050");
+ctgs.add("C055");
+ctgs.add("C060");
+ctgs.add("C600");
+ctgs.add("C605");
+ctgs.add("C610");
+ctgs.add("C700");
+ctgs.add("C705");
+ctgs.add("C710");
+ctgs.add("C800");
+
+out.writeln("starting BIM Export");
+var writers = [];
+writers[1] = createOtherOut("Prod.csv", "utf-8");
+writers[2] = createOtherOut("BUnit.csv", "utf-8");
+writers[3] = createOtherOut("PItem1.csv", "utf-8");
+writers[4] = createOtherOut("PItem2.csv", "utf-8");
+
+generateReports(ctgs, writers);
+

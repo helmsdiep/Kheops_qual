@@ -1,0 +1,117 @@
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var strCategoryTreeName="H000-Typology";
+var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initGlobals").invoke();
+
+forEachHmElement(ctgs,oKey,ctgName) {
+	if(ctgName.contains("C010") || ctgName.contains("C015") || ctgName.contains("C020") || ctgName.contains("C025") || ctgName.contains("C030") || ctgName.contains("C035") || ctgName.contains("C040") || ctgName.contains("C045") || ctgName.contains("C065") || ctgName.contains("C070") || ctgName.contains("C075") || ctgName.contains("C110") || ctgName.contains("C115") || ctgName.contains("C120") || ctgName.contains("C130") || ctgName.contains("C135") || ctgName.contains("C145")) {
+		logDebug("ctgName="+ctgName);
+		//
+		var oCatalog = getCtgByName(ctgName);
+		var strCatalogCode = substring(ctgName,1,4);
+		//
+		// ******************************************
+		// Prod
+		// ******************************************
+		var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+		var oProdItem;
+		var xmlBody="";
+		forEachItemSetElement(oProdItemSet,oProdItem) {
+			var strItemPK=oProdItem.getPrimaryKey();
+			//
+			if(strItemPK=="K010P01621" || strItemPK=="K015P04813" || strItemPK=="K020P45120" || strItemPK=="K065P04786" || strItemPK=="K135P43480" || strItemPK=="K025P04059" || strItemPK=="K030P00124" || strItemPK=="K040P04779" || strItemPK=="K110P39142" || strItemPK=="K030P00122" || strItemPK=="K035P04955" || strItemPK=="K070P04811" || strItemPK=="K135P00220" || strItemPK=="K145P00234" ) {
+				//
+				var strProdItemStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oProdItem);
+				if (strProdItemStatus=="ACTIVE") {
+					xmlBody = "<?xml version='1.0' encoding='UTF-8'?>"+getScriptByPath("/scripts/triggers/LG.Library.XML").getFunctionByName("getItemXML").invoke(hmGlobals,oProdItem);
+					//
+					var logPathFicheProduit = "file://fichesproduits-20150218/"+strCatalogCode+"/"+strItemPK+".xml";
+					var logDocFicheProduit = getDocByPath(logPathFicheProduit);	
+					if (logDocFicheProduit != null) {
+						logDocFicheProduit.deleteDoc();
+					}
+					var logOutFicheProduit = createOtherOut(logPathFicheProduit);
+					logOutFicheProduit.writeln(xmlBody);
+					logOutFicheProduit.save(logPathFicheProduit);
+					//
+					// ******************************************
+					// BUnit
+					// ******************************************
+					var itemChildren = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,oProdItem);
+					var child;
+					var i;
+					forEachHmElement(itemChildren,i,child) {
+						var itemBUnit = getCtgByName(itemChildren[i]["itemCatalog"]).getEntryByPrimaryKey(itemChildren[i]["itemPrimaryKey"]);
+						var itemChildStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(itemBUnit);
+						if (itemChildStatus=="ACTIVE") {
+							var strItemChildPK=itemBUnit.getPrimaryKey();
+							xmlBody = "<?xml version='1.0' encoding='UTF-8'?>"+getScriptByPath("/scripts/triggers/LG.Library.XML").getFunctionByName("getItemXML").invoke(hmGlobals,itemBUnit);
+							//
+							var logPathFicheProduitChild = "file://fichesproduits-20150218/"+strCatalogCode+"/"+strItemChildPK+".xml";
+							var logDocFicheProduitChild = getDocByPath(logPathFicheProduitChild);	
+							if (logDocFicheProduitChild != null) {
+								logDocFicheProduitChild.deleteDoc();
+							}
+							var logOutFicheProduitChild = createOtherOut(logPathFicheProduitChild);
+							logOutFicheProduitChild.writeln(xmlBody);
+							logOutFicheProduitChild.save(logPathFicheProduitChild);
+							//
+							// ******************************************
+							// PItem1
+							// ******************************************
+							var itemChildren1 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,itemBUnit);
+							var child1;
+							var j;
+							forEachHmElement(itemChildren1,j,child) {
+								var itemPItem1 = getCtgByName(itemChildren1[j]["itemCatalog"]).getEntryByPrimaryKey(itemChildren1[j]["itemPrimaryKey"]);
+								var itemChildStatus1 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(itemPItem1);
+								if (itemChildStatus1=="ACTIVE") {
+									var strItemChild1PK=itemPItem1.getPrimaryKey();
+									xmlBody = "<?xml version='1.0' encoding='UTF-8'?>"+getScriptByPath("/scripts/triggers/LG.Library.XML").getFunctionByName("getItemXML").invoke(hmGlobals,itemPItem1);
+									//
+									var logPathFicheProduitChild1 = "file://fichesproduits-20150218/"+strCatalogCode+"/"+strItemChild1PK+".xml";
+									var logDocFicheProduitChild1 = getDocByPath(logPathFicheProduitChild1);	
+									if (logDocFicheProduitChild1 != null) {
+										logDocFicheProduitChild1.deleteDoc();
+									}
+									var logOutFicheProduitChild1 = createOtherOut(logPathFicheProduitChild1);
+									logOutFicheProduitChild1.writeln(xmlBody);
+									logOutFicheProduitChild1.save(logPathFicheProduitChild1);
+									//
+									// ******************************************
+									// PItem2
+									// ******************************************
+									var itemChildren2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,itemPItem1);
+									var child;
+									var k;
+									forEachHmElement(itemChildren2,k,child) {
+										var itemPItem2 = getCtgByName(itemChildren2[k]["itemCatalog"]).getEntryByPrimaryKey(itemChildren2[k]["itemPrimaryKey"]);
+										var itemChildStatus2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(itemPItem2);
+										if (itemChildStatus2=="ACTIVE") {
+											var strItemChild2PK=itemPItem2.getPrimaryKey();
+											xmlBody = "<?xml version='1.0' encoding='UTF-8'?>"+getScriptByPath("/scripts/triggers/LG.Library.XML").getFunctionByName("getItemXML").invoke(hmGlobals,itemPItem2);
+											//
+											var logPathFicheProduitChild2 = "file://fichesproduits-20150218/"+strCatalogCode+"/"+strItemChild2PK+".xml";
+											var logDocFicheProduitChild2 = getDocByPath(logPathFicheProduitChild2);	
+											if (logDocFicheProduitChild2 != null) {
+												logDocFicheProduitChild2.deleteDoc();
+											}
+											var logOutFicheProduitChild2 = createOtherOut(logPathFicheProduitChild2);
+											logOutFicheProduitChild2.writeln(xmlBody);
+											logOutFicheProduitChild2.save(logPathFicheProduitChild2);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

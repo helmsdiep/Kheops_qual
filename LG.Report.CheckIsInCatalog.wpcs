@@ -1,0 +1,38 @@
+
+var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+
+var ctgs = getCatalogNamesList();//La variable ctgs contient la liste des catalogues disponibles
+
+var oKey;//Clef de la hash map
+var ctg;//Catalogue utilis�
+var tech = lib.getFunctionByName("tech");
+
+out.writeln("catalog,item pkey,materialNumber,item status,item in catalog,parent pkey,parent status,parent in catalog");
+forEachHmElement(ctgs, oKey, ctg) {//Pour chaque element d'un catalogue de la liste de catalogues
+    //   if (ctg.startsWith("C015")) {
+    forEachCtgItem(ctg, item) {//Pour chaque item du catalogue
+        var status = hmGlobals["FN_GET_STATUS"].invoke(item);//Recuperation du statut de l'item
+        //            if (status == "ACTIVE") {
+        var itemLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);//Recuperation du type de l'item
+        var isInCatalog = tech.invoke(hmGlobals, item, "06DN0346-IsInCatalog", null, "ChannelOfDistributionGroup", "06DN0422-ChannelOfDistribution", "[01] - Negoce", 0)[0];
+        var materialNumber = tech.invoke(hmGlobals, item, "01AC0664-MaterialNumber", null, "", "", "", 0)[0];
+        if (materialNumber == null) {
+            materialNumber = "";
+        }
+        //logDebug("Export Complet : "+item.getPrimaryKey());//On inscrite la cl� primaire de l'item dans le log pour garder une trace des modifications effectuees
+        if (itemLevel != "Prod") {
+
+            // vérifions si le parent est aussi actif et au catalogue
+            var parent = lib.getFunctionByName("getParentItem").invoke(hmGlobals["FN_GET_CONST"].invoke(), item);
+            if (parent != null) {
+                parentStatus = hmGlobals["FN_GET_STATUS"].invoke(parent);
+                parentIsInCatalog = tech.invoke(hmGlobals, parent, "06DN0346-IsInCatalog", null, "ChannelOfDistributionGroup", "06DN0422-ChannelOfDistribution", "[01] - Negoce", 0)[0];
+                out.writeln(ctg + "," + item.getPrimaryKey() + "," + materialNumber + "," + status + "," + checkString(isInCatalog, "") + "," + parent.getPrimaryKey() + "," + parentStatus + "," + checkString(parentIsInCatalog, ""));
+            }
+
+        }
+    }
+    //        }
+    //    }
+}

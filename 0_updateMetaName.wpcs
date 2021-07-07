@@ -1,0 +1,30 @@
+var script = getScriptByPath("/scripts/triggers/LG.Business.Rules").getFunctionByName("fn01AC0013_Ctl");
+var ctgs = getCatalogNamesList();
+var start = false;
+forEachHmElement(ctgs, oKey, catalogName) {
+	if (catalogName.startsWith("C")) {
+		//if (catalogName.startsWith("C010")) {
+		out.writeln("Processing catalog " + catalogName);
+		var oCatalog = getCtgByName(catalogName);
+		var isItemSet = oCatalog.getItemSetForCatalog();
+		forEachItemSetElement(isItemSet, item) {
+			//		if (item.getPrimaryKey() == "K010I01062") {
+			catchError(e){
+				if (checkString(item.getEntryAttrib("SC000-GlobPrim/01AC0013-MetaName"), "") == "") {
+					if (!item.isEntryCheckedOut()) {
+						script.invoke([], item, null, true);
+						var res = item.saveCtgItem();
+						out.writeln(res);
+					}
+				}
+			}
+			if (e != null) {
+				out.writeln("Error processing item " + item.getCtgItemPrimaryKey());
+			}
+
+			//		}
+		}
+	}
+}
+
+out.writeln("Fin Traitement");

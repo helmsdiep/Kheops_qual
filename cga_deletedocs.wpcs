@@ -1,0 +1,10 @@
+var docs;
+var paths=getDocStoreFilesInDirectory("/test");
+docs=getDocListByPaths(paths);
+var count=paths.size();
+var i=0;
+forEachDocument(docs, doc) {
+    doc.deleteDoc();
+    i=i+1;
+    setScriptProgress(i/count);
+}

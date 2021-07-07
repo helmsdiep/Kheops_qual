@@ -1,0 +1,145 @@
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initGlobals").invoke();
+
+var logPath = "/majmasse/UpdateItemPurchasedPItemValue-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	out.writeln("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+	//
+	var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+	var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+	//
+	var oitemBUnit;
+	forEachItemSetElement(oBUnitItemSet,oitemBUnit) {
+		var bToSave=false;
+		//
+		var oItemPurchasedEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"02FR0051-ItemPurchased");
+		if(oItemPurchasedEn!=null) {		
+			var strItemPurchasedBUnit = oItemPurchasedEn.getEntryNodeValue();
+			if(strItemPurchasedBUnit==null) {
+				var itemChildren = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,oitemBUnit);
+				//
+				var child;
+				var i;
+				forEachHmElement(itemChildren,i,child) {
+					var itemChild = getCtgByName(itemChildren[i]["itemCatalog"]).getEntryByPrimaryKey(itemChildren[i]["itemPrimaryKey"]);
+					var strItemPItem1PK = itemChild.getPrimaryKey();
+					if (getStatus(itemChild)=="ACTIVE"){
+						var oItemPurchasedPItem1En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itemChild,"02FR0051-ItemPurchased");
+						if(oItemPurchasedPItem1En!=null) {		
+							var strItemPurchasedPItem1 = oItemPurchasedPItem1En.getEntryNodeValue();
+							if(strItemPurchasedPItem1==null) {
+								oItemPurchasedPItem1En.setEntryNodeValue(strItemPurchasedBUnit);
+								logOut.writeln(strItemPItem1PK+"-"+checkString(strItemPurchasedBUnit,""));
+								var test = itemChild.saveCtgItem();
+								logOut.writeln(test);
+							}
+							var itemChildren2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,itemChild);
+							var child2;
+							var j;
+							forEachHmElement(itemChildren2,j,child2) {
+								var itemChild2 = getCtgByName(itemChildren2[j]["itemCatalog"]).getEntryByPrimaryKey(itemChildren2[j]["itemPrimaryKey"]);
+								var strItemPItem2PK = itemChild2.getPrimaryKey();
+								if (getStatus(itemChild2)=="ACTIVE"){
+									var oItemPurchasedPItem2En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itemChild2,"02FR0051-ItemPurchased");
+									if(oItemPurchasedPItem2En!=null) {		
+										var strItemPurchasedPItem2 = oItemPurchasedPItem2En.getEntryNodeValue();
+										if(strItemPurchasedPItem2==null) {
+											if(strItemPurchasedPItem1!=null) {
+												oItemPurchasedPItem2En.setEntryNodeValue(strItemPurchasedPItem1);
+												logOut.writeln(strItemPItem2PK+"-"+checkString(strItemPurchasedPItem1,""));
+												var test = itemChild2.saveCtgItem();
+												logOut.writeln(test);
+											}
+											else {
+												oItemPurchasedPItem2En.setEntryNodeValue(strItemPurchasedBUnit);
+												logOut.writeln(strItemPItem2PK+"-"+checkString(strItemPurchasedBUnit,""));
+												var test = itemChild2.saveCtgItem();
+												logOut.writeln(test);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if(bToSave==true && strItemPurchasedBUnit!=null){
+				oItemPurchasedEn.setEntryNodeValue(strItemPurchasedBUnit);
+
+			}
+		}
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logOut.save(logPath);
+out.writeln("Fin Traitement");

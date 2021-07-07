@@ -1,0 +1,40 @@
+var logPath = "/verifications/checkPlaceOfStorageValues-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"]=getLogger("Lafarge.BusinessRules");
+var script = getScriptByPath("/scripts/triggers/LG.Business.Utils");
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var strCatalogCode = substring(ctgName,0,4);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	var oitem;
+	forEachItemSetElement(isItemSet,oitem) {
+		var strItemPK = oitem.getPrimaryKey();
+		//
+		var placeOfStorageGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"PlaceOfStorageGroup");
+		var i;
+		if(placeOfStorageGroup!=null) {
+			for(i=0;i<placeOfStorageGroup.size();i++) {
+				var enPlant = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"PlaceOfStorageGroup#"+i+"/06DN0679-Plant");
+				if(enPlant!=null) {
+					var strPlant = checkString(enPlant.getEntryNodeValue(),"");
+					logOut.writeln(strCatalogCode+"|"+strItemPK+"|"+strPlant);
+				}
+			}
+		}
+	}
+}	
+
+logOut.save(logPath);

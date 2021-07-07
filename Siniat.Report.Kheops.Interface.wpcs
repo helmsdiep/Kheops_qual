@@ -1,0 +1,9 @@
+//
+// Import SAP data / External Products catalog
+//
+var errorList = getScriptByPath("/scripts/triggers/Siniat.Kheops.Interface").getFunctionByName("processSAPDataImport").invoke();
+if(errorList!=null && errorList.size()>0) {
+	for(var i=0;i<errorList.size();i++) {
+		logDebug(errorList[i]);
+	}
+}

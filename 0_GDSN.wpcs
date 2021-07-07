@@ -1,0 +1,23 @@
+// this report takes all items in gdsn_C010 selection
+// and produces an xml in /opt/ibm/MDM/gdsn/mdm_to_gdsn/in/
+// this xml will be processed by a script which will output gdsn messages in 
+// and produces an xml in /opt/ibm/MDM/gdsn/mdm_to_gdsn/out/
+
+var lib=getScriptByPath("/scripts/triggers/LG.Library.XML");
+var getItemXML=lib.getFunctionByName("getItemXML");
+var getEntryNodeFromAttrPath=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath");
+var path="file:///opt/ibm/MDM/gdsn/mdm_to_gdsn/in/";
+var hmGlobals=[];
+var sel=getSelectionByName("gdsn_C010");
+var itemSet=sel.getItemSetForSelection();
+forEachItemSetElement(itemSet, item){
+    var gtin=getEntryNodeFromAttrPath.invoke(item,"01AC0042-GTIN").getEntryNodeValue();
+    out.writeln("processing "+gtin);
+
+    var ctgCode=substring(item.getCatalog().getCtgName(),1,4);
+    var writer = createOtherOut(path+"C"+ ctgCode + "_" + gtin + ".xml", "UTF8");
+    writer.write(getItemXML.invoke(hmGlobals,item));
+    writer.save();
+}
+var writer = createOtherOut(path+"go.txt", "UTF8");
+writer.save();
