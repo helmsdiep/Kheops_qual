@@ -1,0 +1,1159 @@
+function createHeader(hmGlobals, sheet, rowIndex , tech) {
+    var cell;
+    var row;
+    row = sheet.createRow(rowIndex);
+// ProductBenefits_fr-FR
+    cell = row.createExcelCell(7);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductBenefits_fr-FR");
+    cellIndex++;
+// ProductShoreC
+    cell = row.createExcelCell(36);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductShoreC");
+    cellIndex++;
+// ProductIndicativeYield
+    cell = row.createExcelCell(31);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductIndicativeYield");
+    cellIndex++;
+// ProductShortDescription_fr-FR
+    cell = row.createExcelCell(16);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductShortDescription_fr-FR");
+    cellIndex++;
+// ProductColour
+    cell = row.createExcelCell(9);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductColour");
+    cellIndex++;
+// ProductName
+    cell = row.createExcelCell(3);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductName");
+    cellIndex++;
+// ProductMetaTitle_fr-FR
+    cell = row.createExcelCell(14);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMetaTitle_fr-FR");
+    cellIndex++;
+// ProductApplicationType
+    cell = row.createExcelCell(5);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductApplicationType");
+    cellIndex++;
+// ProductVapourPermeability
+    cell = row.createExcelCell(45);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductVapourPermeability");
+    cellIndex++;
+// ProductFireReactionClass
+    cell = row.createExcelCell(11);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductFireReactionClass");
+    cellIndex++;
+// ProductCompressibilityClass
+    cell = row.createExcelCell(41);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductCompressibilityClass");
+    cellIndex++;
+// ProductUsageTimeRemark_fr-FR
+    cell = row.createExcelCell(37);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductUsageTimeRemark_fr-FR");
+    cellIndex++;
+// ProductApproved
+    cell = row.createExcelCell(17);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductApproved");
+    cellIndex++;
+// ProductBrand
+    cell = row.createExcelCell(8);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductBrand");
+    cellIndex++;
+// ProductPerformanceCategory
+    cell = row.createExcelCell(15);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductPerformanceCategory");
+    cellIndex++;
+// ProductReworkTimeRemark_fr-FR
+    cell = row.createExcelCell(34);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductReworkTimeRemark_fr-FR");
+    cellIndex++;
+// ProductDeformationMax
+    cell = row.createExcelCell(43);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductDeformationMax");
+    cellIndex++;
+// ProductMixingRatioRemark_fr-FR
+    cell = row.createExcelCell(33);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMixingRatioRemark_fr-FR");
+    cellIndex++;
+// sys_segmentID
+    cell = row.createExcelCell(23);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("sys_segmentID");
+    cellIndex++;
+// ProductCoreMaterial
+    cell = row.createExcelCell(27);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductCoreMaterial");
+    cellIndex++;
+// ProductApplication_fr-FR
+    cell = row.createExcelCell(6);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductApplication_fr-FR");
+    cellIndex++;
+// ProductCompressionResistance
+    cell = row.createExcelCell(39);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductCompressionResistance");
+    cellIndex++;
+// ProductCommercialName_fr-FR
+    cell = row.createExcelCell(4);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductCommercialName_fr-FR");
+    cellIndex++;
+// ProductSpecificHeatCapacity
+    cell = row.createExcelCell(38);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductSpecificHeatCapacity");
+    cellIndex++;
+// ProductPermeanceClass
+    cell = row.createExcelCell(40);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductPermeanceClass");
+    cellIndex++;
+// ProductMetaDescription_fr-FR
+    cell = row.createExcelCell(12);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMetaDescription_fr-FR");
+    cellIndex++;
+// ProductIsole
+    cell = row.createExcelCell(44);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductIsole");
+    cellIndex++;
+// ProductLookupNr
+    cell = row.createExcelCell(2);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductLookupNr");
+    cellIndex++;
+// ProductDeformation
+    cell = row.createExcelCell(42);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductDeformation");
+    cellIndex++;
+// ProductTechnicalApproved
+    cell = row.createExcelCell(21);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductTechnicalApproved");
+    cellIndex++;
+// ProductChannel
+    cell = row.createExcelCell(18);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductChannel");
+    cellIndex++;
+// ProductMarket
+    cell = row.createExcelCell(20);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMarket");
+    cellIndex++;
+// ProductShelfLife
+    cell = row.createExcelCell(35);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductShelfLife");
+    cellIndex++;
+// ProductBoardType
+    cell = row.createExcelCell(24);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductBoardType");
+    cellIndex++;
+// ProductSubCategory
+    cell = row.createExcelCell(1);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductSubCategory");
+    cellIndex++;
+// sys_fieldset
+    cell = row.createExcelCell(22);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("sys_fieldset");
+    cellIndex++;
+// ProductProductUsageCategory
+    cell = row.createExcelCell(28);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductProductUsageCategory");
+    cellIndex++;
+// ProductSurfaceTreatment
+    cell = row.createExcelCell(29);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductSurfaceTreatment");
+    cellIndex++;
+// ProductApplicationMethod
+    cell = row.createExcelCell(30);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductApplicationMethod");
+    cellIndex++;
+// ProductThermalResistance
+    cell = row.createExcelCell(25);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductThermalResistance");
+    cellIndex++;
+// ProductCategory
+    cell = row.createExcelCell(0);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductCategory");
+    cellIndex++;
+// ProductDescription_fr-FR
+    cell = row.createExcelCell(10);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductDescription_fr-FR");
+    cellIndex++;
+// ProductMixingMethod
+    cell = row.createExcelCell(32);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMixingMethod");
+    cellIndex++;
+// ProductWaterAbsorptionClass
+    cell = row.createExcelCell(26);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductWaterAbsorptionClass");
+    cellIndex++;
+// ProductMetaName_fr-FR
+    cell = row.createExcelCell(13);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductMetaName_fr-FR");
+    cellIndex++;
+// ProductComplete
+    cell = row.createExcelCell(19);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductComplete");
+    cellIndex++;
+}
+function mapFields(hmGlobals, item, sheet, rowIndex , tech) {
+    var cell;
+    var row;
+    var attrDate;
+    var attrString;
+    var attrNum;
+    var e;
+    var en_US = new Locale("en", "US");
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+    var convertL210NumberToUnit = lib.getFunctionByName("convertL210NumberToUnit");
+    row = sheet.createRow(rowIndex);
+    var itemCat=checkString(tech.invoke(hmGlobals, item, "01AC0050-WebSiteCategory",2,"","","",0)[0],"");
+// Category = COMMON
+if (1==1) {
+// COMMON attributes
+// COMMON:Product:ProductCategory-ProductCategory
+    cell = row.createExcelCell(0);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0050-WebSiteCategory",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductSubCategory-ProductSubCategory
+    cell = row.createExcelCell(1);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0050-WebSiteCategory",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductLookupNr-ProductLookupNr
+    cell = row.createExcelCell(2);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="SF_" + tech.invoke(hmGlobals, item, "01AC0044-ERPCode",null,"","","",1)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductName-ProductName
+    cell = row.createExcelCell(3);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0012-LongName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductCommercialName_fr-FR-ProductCommercialName_fr-FR
+    cell = row.createExcelCell(4);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0012-LongName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductApplicationType-ProductApplicationType
+    cell = row.createExcelCell(5);
+if(true){
+var res=null;
+e=null;catchError(e) {
+var hm=tech.invoke(hmGlobals, item, "07MO0441-ProductMarket",2,"","","",null);
+res="";
+first=true;
+forEachHmElement(hm,oKey,oValue){
+	if (oValue!=null) {
+		res=res + (first ? "":";") + oValue;
+		first=false;
+	}
+}
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductApplication_fr-FR-ProductApplication_fr-FR
+    cell = row.createExcelCell(6);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0066-TradeItemDescriptionShort",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductBenefits_fr-FR-ProductBenefits_fr-FR
+    cell = row.createExcelCell(7);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0067-ProductQualities",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductBrand-ProductBrand
+    cell = row.createExcelCell(8);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0036-brandName",11,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductColour-ProductColour
+    cell = row.createExcelCell(9);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0181-colourCode",4,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductDescription_fr-FR-ProductDescription_fr-FR
+    cell = row.createExcelCell(10);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0065-DescriptionLong",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductFireReactionClass-ProductFireReactionClass
+    cell = row.createExcelCell(11);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0305-EuroclasseClassification",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductMetaDescription_fr-FR-ProductMetaDescription_fr-FR
+    cell = row.createExcelCell(12);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0066-TradeItemDescriptionShort",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductMetaName_fr-FR-ProductMetaName_fr-FR
+    cell = row.createExcelCell(13);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0013-MetaName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductMetaTitle_fr-FR-ProductMetaTitle_fr-FR
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0012-LongName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductPerformanceCategory-ProductPerformanceCategory
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+var hm=tech.invoke(hmGlobals, item, "05PG0252-PerformanceCategory",2,"","","",null);
+res="";
+first=true;
+forEachHmElement(hm,oKey,oValue){
+	if (oValue!=null) {
+		res=res + (first ? "":";") + oValue;
+		first=false;
+	}
+}
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductShortDescription_fr-FR-ProductShortDescription_fr-FR
+    cell = row.createExcelCell(16);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0051-TagLine",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductApproved-ProductApproved
+    cell = row.createExcelCell(17);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="True";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductChannel-ProductChannel
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="Web";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductComplete-ProductComplete
+    cell = row.createExcelCell(19);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="True";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductMarket-ProductMarket
+    cell = row.createExcelCell(20);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="FR";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:ProductTechnicalApproved-ProductTechnicalApproved
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="True";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:sys_fieldset-sys_fieldset
+    cell = row.createExcelCell(22);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="BPLWCProduct";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Product:sys_segmentID-sys_segmentID
+    cell = row.createExcelCell(23);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="1";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatBoards
+if (itemCat=="SiniatBoards"){
+// SiniatBoards:Product:ProductBoardType-ProductBoardType
+    cell = row.createExcelCell(24);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PG0246-ENProductType",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Product:ProductColour-ProductColour
+    cell = row.createExcelCell(9);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0163-FrontFacingColour",4,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Product:ProductThermalResistance-ProductThermalResistance
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0300-ThermalResistance",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Product:ProductWaterAbsorptionClass-ProductWaterAbsorptionClass
+    cell = row.createExcelCell(26);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0280-WaterClassOfBehavior",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatAlveolarPartitions
+if (itemCat=="SiniatAlveolarPartitions"){
+// SiniatAlveolarPartitions:Product:ProductThermalResistance-ProductThermalResistance
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0300-ThermalResistance",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatOther
+if (itemCat=="SiniatOther"){
+// SiniatOther:Product:ProductCoreMaterial-ProductCoreMaterial
+    cell = row.createExcelCell(27);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0226-Material",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Product:ProductProductUsageCategory-ProductProductUsageCategory
+    cell = row.createExcelCell(28);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0068-ProductFunction",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Product:ProductSurfaceTreatment-ProductSurfaceTreatment
+    cell = row.createExcelCell(29);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0188-Galvanised",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatPlasters
+if (itemCat=="SiniatPlasters"){
+// SiniatPlasters:Product:ProductApplicationMethod-ProductApplicationMethod
+    cell = row.createExcelCell(30);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0451-ModeOfApplication",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductIndicativeYield-ProductIndicativeYield
+    cell = row.createExcelCell(31);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0472-ConsumptionOfFacing",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductMixingMethod-ProductMixingMethod
+    cell = row.createExcelCell(32);
+if(true){
+var res=null;
+e=null;catchError(e) {
+var hm=tech.invoke(hmGlobals, item, "07MO0452-ModeOfMixing",1,"","","",null);
+res="";
+forEachHmElement(hm,oKey,oValue){
+if (oValue!=null){
+res=res + (oKey==0 ? "":";") + oValue;
+}}
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductMixingRatioRemark_fr-FR-ProductMixingRatioRemark_fr-FR
+    cell = row.createExcelCell(33);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0447-PowderWaterRatio",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductReworkTimeRemark_fr-FR-ProductReworkTimeRemark_fr-FR
+    cell = row.createExcelCell(34);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0460-LatencyFor2ndMasterKey",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductShelfLife-ProductShelfLife
+    cell = row.createExcelCell(35);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0486-ShelfLife",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductShoreC-ProductShoreC
+    cell = row.createExcelCell(36);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0257-HardnessInShoreC",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Product:ProductUsageTimeRemark_fr-FR-ProductUsageTimeRemark_fr-FR
+    cell = row.createExcelCell(37);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0454-TimeOfUse",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatCeilingWallPanels
+if (itemCat=="SiniatCeilingWallPanels"){
+// SiniatCeilingWallPanels:Product:ProductSpecificHeatCapacity-ProductSpecificHeatCapacity
+    cell = row.createExcelCell(38);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0822-SpecificHeat",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Product:ProductThermalResistance-ProductThermalResistance
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0300-ThermalResistance",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatInsulationBoards
+if (itemCat=="SiniatInsulationBoards"){
+// SiniatInsulationBoards:Product:ProductCompressionResistance-ProductCompressionResistance
+    cell = row.createExcelCell(39);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0267-ServiceabilityCompressionStrength",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Product:ProductPermeanceClass-ProductPermeanceClass
+    cell = row.createExcelCell(40);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0297-PermeabilityClass",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatInsulation
+if (itemCat=="SiniatInsulation"){
+// SiniatInsulation:Product:ProductCompressibilityClass-ProductCompressibilityClass
+    cell = row.createExcelCell(41);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0565-SCClassification",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductCompressionResistance-ProductCompressionResistance
+    cell = row.createExcelCell(39);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0267-ServiceabilityCompressionStrength",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductDeformation-ProductDeformation
+    cell = row.createExcelCell(42);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0268-ServiceabilityDeformation",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductDeformationMax-ProductDeformationMax
+    cell = row.createExcelCell(43);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0651-ServiceabilityDeformationMaxi",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductIsole-ProductIsole
+    cell = row.createExcelCell(44);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0264-ISOLE",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductThermalResistance-ProductThermalResistance
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0300-ThermalResistance",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Product:ProductVapourPermeability-ProductVapourPermeability
+    cell = row.createExcelCell(45);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0296-PermeabilityToVapour",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatAdhesiveJointBondCompounds
+if (itemCat=="SiniatAdhesiveJointBondCompounds"){
+// SiniatAdhesiveJointBondCompounds:Product:ProductApplicationMethod-ProductApplicationMethod
+    cell = row.createExcelCell(30);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0451-ModeOfApplication",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductIndicativeYield-ProductIndicativeYield
+    cell = row.createExcelCell(31);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0472-ConsumptionOfFacing",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductMixingMethod-ProductMixingMethod
+    cell = row.createExcelCell(32);
+if(true){
+var res=null;
+e=null;catchError(e) {
+var hm=tech.invoke(hmGlobals, item, "07MO0452-ModeOfMixing",1,"","","",null);
+res="";
+forEachHmElement(hm,oKey,oValue){
+if (oValue!=null){
+res=res + (oKey==0 ? "":";") + oValue;
+}}
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductMixingRatioRemark_fr-FR-ProductMixingRatioRemark_fr-FR
+    cell = row.createExcelCell(33);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0447-PowderWaterRatio",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductProductUsageCategory-ProductProductUsageCategory
+    cell = row.createExcelCell(28);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "03FN0068-ProductFunction",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductShelfLife-ProductShelfLife
+    cell = row.createExcelCell(35);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0486-ShelfLife",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Product:ProductUsageTimeRemark_fr-FR-ProductUsageTimeRemark_fr-FR
+    cell = row.createExcelCell(37);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0454-TimeOfUse",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatPlasterBlocks
+if (itemCat=="SiniatPlasterBlocks"){
+// SiniatPlasterBlocks:Product:ProductThermalResistance-ProductThermalResistance
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0300-ThermalResistance",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatMetalProfiles
+if (itemCat=="SiniatMetalProfiles"){
+// SiniatMetalProfiles:Product:ProductSurfaceTreatment-ProductSurfaceTreatment
+    cell = row.createExcelCell(29);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0188-Galvanised",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+}

@@ -1,0 +1,8 @@
+<%
+var jobId = runJob("LG.IMS.Interface", "REPORTEXE");
+%>
+<html>
+    <body>
+        <p>IMS Report runs with jobid=<%=jobId %></p>
+    </body>
+</html>

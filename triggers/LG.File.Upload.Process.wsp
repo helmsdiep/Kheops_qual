@@ -1,0 +1,73 @@
+<%
+// =========================================================================================
+// Trigger Script : APP_Upload_Process
+//
+// Purpose :
+// Upload single files into public_html
+//
+// =========================================================================================
+
+%>
+<head>
+<link rel='stylesheet' href='/suppliers/<%=getCompanyCode()%>/apps/css/edito.css'>
+</head>
+<body>
+<%
+
+var UNZIP = checkString(getScriptContextValue("UNZIP"), "no");
+var DELETEBEFORE = checkString(getScriptContextValue("DELETEBEFORE"), "no");
+var PATH = checkString(getScriptContextValue("PATH"), "");
+if (PATH.endsWith("/") == false) {
+  PATH = PATH + "/";
+}
+
+if (DELETEBEFORE == "yes") {
+  out.writeln("Deleting files in " + PATH + "<br>");
+  var tDocs = getDocStoreFilesInDirectory(PATH);
+  for (var i=0; i<tDocs.size(); i++) {
+    var doc = getDocByPath(tDocs[i]);
+    if (doc != null) {
+      doc.deleteDoc();
+    }
+  }
+}
+
+saveMultipartRequestData("TMP");
+var sToday = today().formatDate("yyyyMMdd_HHmmss");
+// Get uploaded files
+var tDocsPath = getDocStoreFilesInDirectory("/archives/multipart/uploaded/TMP");
+var doc;
+var i;
+var v;
+forEachHmElement(tDocsPath, i, v) {
+  var doc = getDocByPath(v);
+  var sName = getNameFromPath(v);
+  if (sName.contains("http-params.txt") == true) {
+    doc.deleteDoc();
+  }
+  else {
+    var j = sName.indexOf("-");
+    var s = substring(sName, j+1);
+//    s = sName.parseDelim("-", 1);
+    if (toUpperCase(s).endsWith("ZIP") && UNZIP == "yes") {
+      out.writeln("Unzipping:" + v + " into:"  + PATH + "<br>");
+      if (unzip(v, PATH)) {
+        doc.deleteDoc();
+      }
+      else {
+        out.writeln("Error in UNZIP<br>");
+      }
+    }
+    else {
+      out.writeln("saved : " + PATH + s + "<br>");
+      doc.moveDoc(PATH + s);
+    }
+  }
+}
+%>
+File Uploaded.<br>
+<input type="button" value="close" onclick='window.close();;'>
+</body>
+<%
+  //
+%>

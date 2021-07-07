@@ -1,0 +1,8 @@
+var log = getLogger("default");
+
+log.loggerInfo("BEGIN-CGA-Debug Catalog Export Script");
+log.loggerInfo(in);
+log.loggerInfo(input);
+log.loggerInfo("END-CGA-Debug Catalog Export Script");
+
+

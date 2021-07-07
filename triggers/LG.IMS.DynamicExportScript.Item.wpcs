@@ -1,0 +1,1324 @@
+function createHeader(hmGlobals, sheet, rowIndex , tech) {
+    var cell;
+    var row;
+    row = sheet.createRow(rowIndex);
+// ItemSurfaceWaterAbsorbency
+    cell = row.createExcelCell(19);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemSurfaceWaterAbsorbency");
+    cellIndex++;
+// ItemPerforation
+    cell = row.createExcelCell(16);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemPerforation");
+    cellIndex++;
+// ItemConsumption_fr-FR
+    cell = row.createExcelCell(27);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemConsumption_fr-FR");
+    cellIndex++;
+// ItemCommercialName_fr-FR
+    cell = row.createExcelCell(5);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemCommercialName_fr-FR");
+    cellIndex++;
+// ItemWeight
+    cell = row.createExcelCell(10);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemWeight");
+    cellIndex++;
+// ItemMarket
+    cell = row.createExcelCell(11);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemMarket");
+    cellIndex++;
+// ItemWidth
+    cell = row.createExcelCell(21);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemWidth");
+    cellIndex++;
+// ItemInsulationType
+    cell = row.createExcelCell(30);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemInsulationType");
+    cellIndex++;
+// ItemProductSubCategory
+    cell = row.createExcelCell(0);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemProductSubCategory");
+    cellIndex++;
+// sys_segmentID
+    cell = row.createExcelCell(12);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("sys_segmentID");
+    cellIndex++;
+// ItemName
+    cell = row.createExcelCell(3);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemName");
+    cellIndex++;
+// ItemFinish
+    cell = row.createExcelCell(28);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemFinish");
+    cellIndex++;
+// ItemInertiaVertical
+    cell = row.createExcelCell(33);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemInertiaVertical");
+    cellIndex++;
+// ProductLookupNr
+    cell = row.createExcelCell(2);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ProductLookupNr");
+    cellIndex++;
+// ItemLookupNr
+    cell = row.createExcelCell(1);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemLookupNr");
+    cellIndex++;
+// ItemPackaging
+    cell = row.createExcelCell(8);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemPackaging");
+    cellIndex++;
+// ItemInternalDiameter
+    cell = row.createExcelCell(24);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemInternalDiameter");
+    cellIndex++;
+// ItemEdgeType
+    cell = row.createExcelCell(14);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemEdgeType");
+    cellIndex++;
+// ItemBrand
+    cell = row.createExcelCell(6);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemBrand");
+    cellIndex++;
+// ItemBulkDensity
+    cell = row.createExcelCell(31);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemBulkDensity");
+    cellIndex++;
+// ItemInertiaHorizontal
+    cell = row.createExcelCell(32);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemInertiaHorizontal");
+    cellIndex++;
+// ItemThermalConductivityAt10C
+    cell = row.createExcelCell(17);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemThermalConductivityAt10C");
+    cellIndex++;
+// ItemHeadType
+    cell = row.createExcelCell(23);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemHeadType");
+    cellIndex++;
+// ItemPackageQuantity
+    cell = row.createExcelCell(7);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemPackageQuantity");
+    cellIndex++;
+// sys_fieldset
+    cell = row.createExcelCell(13);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("sys_fieldset");
+    cellIndex++;
+// ItemThreadType
+    cell = row.createExcelCell(26);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemThreadType");
+    cellIndex++;
+// ItemSAPMaterial
+    cell = row.createExcelCell(9);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemSAPMaterial");
+    cellIndex++;
+// ItemWeightPerSQM
+    cell = row.createExcelCell(20);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemWeightPerSQM");
+    cellIndex++;
+// ItemPointType
+    cell = row.createExcelCell(25);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemPointType");
+    cellIndex++;
+// ItemMetaName_fr-FR
+    cell = row.createExcelCell(4);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemMetaName_fr-FR");
+    cellIndex++;
+// ItemHeadShape
+    cell = row.createExcelCell(22);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemHeadShape");
+    cellIndex++;
+// ItemLength
+    cell = row.createExcelCell(15);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemLength");
+    cellIndex++;
+// ItemThickness
+    cell = row.createExcelCell(18);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemThickness");
+    cellIndex++;
+// ItemInsulationThickness
+    cell = row.createExcelCell(29);
+    cell.setCellType("STRING");
+    cell.setStringCellValue("ItemInsulationThickness");
+    cellIndex++;
+}
+function mapFields(hmGlobals, item, sheet, rowIndex , tech) {
+    var cell;
+    var row;
+    var attrDate;
+    var attrString;
+    var attrNum;
+    var e;
+    var en_US = new Locale("en", "US");
+    var lib = getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+    var convertL210NumberToUnit = lib.getFunctionByName("convertL210NumberToUnit");
+    row = sheet.createRow(rowIndex);
+    var itemCat=checkString(tech.invoke(hmGlobals, item, "01AC0050-WebSiteCategory",2,"","","",0)[0],"");
+// Category = COMMON
+if (1==1) {
+// COMMON attributes
+// COMMON:Item:ItemProductSubCategory-ItemProductSubCategory
+    cell = row.createExcelCell(0);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0050-WebSiteCategory",3,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemLookupNr-ItemLookupNr
+    cell = row.createExcelCell(1);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="SF_" + tech.invoke(hmGlobals, item, "01AC0044-ERPCode",null,"","","",0)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ProductLookupNr-ProductLookupNr
+    cell = row.createExcelCell(2);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="SF_" + tech.invoke(hmGlobals, item, "01AC0044-ERPCode",null,"","","",1)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemName-ItemName
+    cell = row.createExcelCell(3);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0014-invoiceName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemMetaName_fr-FR-ItemMetaName_fr-FR
+    cell = row.createExcelCell(4);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0013-MetaName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemCommercialName_fr-FR-ItemCommercialName_fr-FR
+    cell = row.createExcelCell(5);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0014-invoiceName",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemBrand-ItemBrand
+    cell = row.createExcelCell(6);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "01AC0036-brandName",11,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Item:ItemPackageQuantity-ItemPackageQuantity
+    cell = row.createExcelCell(7);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0402-NumberOfPackagedItems",null,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemPackaging-ItemPackaging
+    cell = row.createExcelCell(8);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0399-SupportOfPacking",6,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemSAPMaterial-ItemSAPMaterial
+    cell = row.createExcelCell(9);
+if(true){
+var res=null;
+e=null;catchError(e) {
+var res = tech.invoke(hmGlobals, item, "01AC0664-MaterialNumber",null,"","","",null)[0]; 
+if (res==null){
+res=tech.invoke(hmGlobals, item, "01AC0664-MaterialNumber",null,"","","",2)[0]; 
+}
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemWeight-ItemWeight
+    cell = row.createExcelCell(10);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0213-netWeight",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:ItemMarket-ItemMarket
+    cell = row.createExcelCell(11);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="FR";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:sys_segmentID-sys_segmentID
+    cell = row.createExcelCell(12);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="1";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// COMMON:Item:sys_fieldset-sys_fieldset
+    cell = row.createExcelCell(13);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res="BPLWCItem";
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatBoards
+if (itemCat=="SiniatBoards"){
+// SiniatBoards:Item:ItemEdgeType-ItemEdgeType
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0160-LongitudinalEdgeType",5,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemPerforation-ItemPerforation
+    cell = row.createExcelCell(16);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0170-Perforation",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemThermalConductivityAt10C-ItemThermalConductivityAt10C
+    cell = row.createExcelCell(17);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0301-ThermalConductivityLambda",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemSurfaceWaterAbsorbency-ItemSurfaceWaterAbsorbency
+    cell = row.createExcelCell(19);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0277-WaterAbsorptionSurfaceBoard",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemWeightPerSQM-ItemWeightPerSQM
+    cell = row.createExcelCell(20);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0254-IndicativeSurfaceMass",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatBoards:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatAlveolarPartitions
+if (itemCat=="SiniatAlveolarPartitions"){
+// SiniatAlveolarPartitions:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAlveolarPartitions:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAlveolarPartitions:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAlveolarPartitions:Item:ItemEdgeType-ItemEdgeType
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0160-LongitudinalEdgeType",5,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatOther
+if (itemCat=="SiniatOther"){
+// SiniatOther:Item:ItemHeadShape-ItemHeadShape
+    cell = row.createExcelCell(22);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0185-HeadShape",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Item:ItemHeadType-ItemHeadType
+    cell = row.createExcelCell(23);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0494-HeadType",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Item:ItemInternalDiameter-ItemInternalDiameter
+    cell = row.createExcelCell(24);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res=tech.invoke(hmGlobals, item, "04CP0152-BodyDiameter",null,"","","",0)[0];
+if (res!=null){
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0152-BodyDiameter",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0153-BodyDiameterUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+}
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+l=    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0];
+if (l!=null){
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+}else{
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0116-Depth",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0117-DepthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+
+}
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Item:ItemPointType-ItemPointType
+    cell = row.createExcelCell(25);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0186-PointType",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatOther:Item:ItemThreadType-ItemThreadType
+    cell = row.createExcelCell(26);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0187-ThreadType",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatPlasters
+if (itemCat=="SiniatPlasters"){
+// SiniatAdhesiveJointBondCompounds:Item:ItemPackaging-ItemPackaging
+    cell = row.createExcelCell(8);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0399-SupportOfPacking",6,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Item:ItemWeight-ItemWeight
+    cell = row.createExcelCell(10);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0213-netWeight",null,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemPackageQuantity-ItemPackageQuantity
+    cell = row.createExcelCell(7);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0405-quantityOfNextLowerLevel",null,"","","",3)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Item:ItemConsumption_fr-FR-ItemConsumption_fr-FR
+    cell = row.createExcelCell(27);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0474-UsageSqMBagThickness",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasters:Item:ItemFinish-ItemFinish
+    cell = row.createExcelCell(28);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0446-AspectType",1,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatCeilingWallPanels
+if (itemCat=="SiniatCeilingWallPanels"){
+// SiniatCeilingWallPanels:Item:ItemEdgeType-ItemEdgeType
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0160-LongitudinalEdgeType",5,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Item:ItemInsulationThickness-ItemInsulationThickness
+    cell = row.createExcelCell(29);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Item:ItemInsulationType-ItemInsulationType
+    cell = row.createExcelCell(30);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0172-InsulationType",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+l=    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0];
+if (l!=null){
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+}else{
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0116-Depth",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0117-DepthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+
+}
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatCeilingWallPanels:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatInsulationBoards
+if (itemCat=="SiniatInsulationBoards"){
+// SiniatInsulationBoards:Item:ItemEdgeType-ItemEdgeType
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0160-LongitudinalEdgeType",5,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemInsulationThickness-ItemInsulationThickness
+    cell = row.createExcelCell(29);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0089-InsulationThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0090-InsulationThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemInsulationType-ItemInsulationType
+    cell = row.createExcelCell(30);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0172-InsulationType",2,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemThermalConductivityAt10C-ItemThermalConductivityAt10C
+    cell = row.createExcelCell(17);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0301-ThermalConductivityLambda",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+thickness2=tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0];
+if (thickness2!=null){
+res = convertL210NumberToUnit.invoke(
+    thickness2,
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+}else {res=null;}
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulationBoards:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatInsulation
+if (itemCat=="SiniatInsulation"){
+// SiniatInsulation:Item:ItemBulkDensity-ItemBulkDensity
+    cell = row.createExcelCell(31);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0263-ApparentBulkDensity",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Item:ItemEdgeType-ItemEdgeType
+    cell = row.createExcelCell(14);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0160-LongitudinalEdgeType",5,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Item:ItemThermalConductivityAt10C-ItemThermalConductivityAt10C
+    cell = row.createExcelCell(17);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0301-ThermalConductivityLambda",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+thickness=tech.invoke(hmGlobals, item, "04CP0089-InsulationThickness",null,"","","",0)[0];
+if (thickness!=null){
+res = convertL210NumberToUnit.invoke(thickness,
+    tech.invoke(hmGlobals, item, "04CP0090-InsulationThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");}
+else{
+thickness2=tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0];
+if (thickness2!=null){
+res = convertL210NumberToUnit.invoke(
+    thickness2,
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+}else {res=null;}}
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatInsulation:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatAdhesiveJointBondCompounds
+if (itemCat=="SiniatAdhesiveJointBondCompounds"){
+// SiniatAdhesiveJointBondCompounds:Item:ItemConsumption_fr-FR-ItemConsumption_fr-FR
+    cell = row.createExcelCell(27);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "07MO0474-UsageSqMBagThickness",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Item:ItemPackageQuantity-ItemPackageQuantity
+    cell = row.createExcelCell(7);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0402-NumberOfPackagedItems",null,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Item:ItemPackaging-ItemPackaging
+    cell = row.createExcelCell(8);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0399-SupportOfPacking",6,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatAdhesiveJointBondCompounds:Item:ItemWeight-ItemWeight
+    cell = row.createExcelCell(10);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "04CP0213-netWeight",null,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatPlasterBlocks
+if (itemCat=="SiniatPlasterBlocks"){
+// SiniatPlasterBlocks:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasterBlocks:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatPlasterBlocks:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+// Category = SiniatMetalProfiles
+if (itemCat=="SiniatMetalProfiles"){
+// SiniatAdhesiveJointBondCompounds:Item:ItemPackaging-ItemPackaging
+    cell = row.createExcelCell(8);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0399-SupportOfPacking",6,"","","",2)[0];
+    if (null != res && res != "") {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemInertiaHorizontal-ItemInertiaHorizontal
+    cell = row.createExcelCell(32);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0260-InertiaFlat",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemInertiaVertical-ItemInertiaVertical
+    cell = row.createExcelCell(33);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "05PC0261-InertiaSection",null,"","","",null)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemLength-ItemLength
+    cell = row.createExcelCell(15);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0103-Length",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0104-LengthUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemPackageQuantity-ItemPackageQuantity
+    cell = row.createExcelCell(7);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = tech.invoke(hmGlobals, item, "06DN0405-quantityOfNextLowerLevel",null,"","","",3)[0];
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemThickness-ItemThickness
+    cell = row.createExcelCell(18);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0082-RealThickness",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0084-RealThicknessUnits",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+// SiniatMetalProfiles:Item:ItemWidth-ItemWidth
+    cell = row.createExcelCell(21);
+if(true){
+var res=null;
+e=null;catchError(e) {
+res = convertL210NumberToUnit.invoke(
+    tech.invoke(hmGlobals, item, "04CP0095-Width",null,"","","",0)[0],
+    tech.invoke(hmGlobals, item, "04CP0097-WidthUnit",null,"","","",0)[0],
+    "[MMT] - Millimètre");
+    if (null != res && res != "") {
+        cell.setCellType("NUMERIC");
+        cell.setNumericCellValue(toDouble(res));
+    }else{cell.setCellType("BLANK");}
+    }
+if (e!=null){res=null;cell.setCellType("BLANK");}
+    }
+
+}
+// ######## 
+}

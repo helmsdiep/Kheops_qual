@@ -1,0 +1,590 @@
+// ---------------------------------------------------------------------------
+// Title:       LDAPLibrary.wpcs  - The library utilities for various LDAP related funtionality
+// Date:        Nov 09 2005
+// Description: The ldap library script has utility functions to 
+//                a. Bind a ldap user
+//                b. Locate roles for a user
+//                c. Get the entryDN for a user 
+//                d. Get Ldap User Info
+//                e. Get User's info under a particular Parent DN
+
+// Usage:       
+// Audit:       Nov 09 2005 Manish.
+//                Template for the Ldap Library script
+//                Nov 12 2005 Sadagopan.
+//                Modified signature of the functions to remove hard-coding of naming attribute , parent DN etc
+//                Nov 23 2005 Sadagopan.
+//                Added new function to get Entry DN
+//                Modified the signature of getRootLDAPContext function to pass the required params
+//                Feb 01 2006
+//                Removed the getRootLdapContext function, commented the init functions
+// ---------------------------------------------------------------------------
+function init()
+{
+    var constants                    = [];
+    constants["LDAP_CTX_FACTORY"]    = "com.sun.jndi.ldap.LdapCtxFactory";
+    return constants;
+}
+
+
+// ------------------------------------------------------------
+// Name            : simpleBind()
+// Description     : Simple Bind of a user with a LDAP server
+// Input Param     : ldap_url       - The url of the LDAP server
+//                   principal       - The entry DN of the user
+//                   password       - password
+// Return Values   : The LDAP context of the user
+//-------------------------------------------------------------
+
+function simpleBind(principal, password, ldap_url)
+{
+    var ee;
+    var ctx = null;
+    catchError(ee)
+    {
+        var constants      = init();
+        var initialLdapCtx = createJavaConstructor("javax.naming.ldap.InitialLdapContext", "java.util.Hashtable","javax.naming.ldap.Control[]");
+
+
+        var ldapProperties = [];
+        ldapProperties["java.naming.provider.url"]            = ldap_url;
+        ldapProperties["java.naming.security.principal"]      = principal;
+        ldapProperties["java.naming.security.credentials"]    = password;
+        ldapProperties["java.naming.security.authentication"] = "simple";
+        ldapProperties["java.naming.factory.initial"]         = constants["LDAP_CTX_FACTORY"];
+
+        var hashtable = createJavaConstructor("java.util.Hashtable" , "java.util.Map");
+        var val       = runJavaConstructor(hashtable, ldapProperties);
+
+        ctx = runJavaConstructor(initialLdapCtx , val, null);
+    }
+    if ( ee != null )
+    {
+        ctx = null;
+    }
+    return ctx;
+}
+
+// ------------------------------------------------------------
+// Name            : saslBind()
+// Description     : saslBind Bind of a user with a LDAP server
+// Input Param     : ldap_url       - The url of the LDAP server
+//                   principal       - The naming attribute value of the user
+//                   password       - password
+// Return Values   : The LDAP context of the user
+//-------------------------------------------------------------
+
+function saslBind(principal, password, ldap_url,saslMechs)
+{
+    var ee;
+    var ctx = null;
+    catchError(ee)
+    {
+        var initialLdapCtx = createJavaConstructor("javax.naming.ldap.InitialLdapContext", "java.util.Hashtable","javax.naming.ldap.Control[]");
+
+        var constants      = init();
+
+        var ldapProperties = [];
+        ldapProperties["java.naming.provider.url"]            = ldap_url;
+        ldapProperties["java.naming.security.principal"]      = principal;
+        ldapProperties["java.naming.security.credentials"]    = password;
+        ldapProperties["java.naming.security.authentication"] = saslMechs;
+        ldapProperties["java.naming.factory.initial"]         = constants["LDAP_CTX_FACTORY"];
+
+        var hashtable = createJavaConstructor("java.util.Hashtable" , "java.util.Map");
+        var val = runJavaConstructor(hashtable, ldapProperties);
+
+        ctx = runJavaConstructor(initialLdapCtx , val, null);
+    }
+    if ( ee != null )
+    {
+        ctx = null;
+    }
+return ctx;
+
+}
+// ------------------------------------------------------------
+// Name            : sslBind()
+// Description     : ssl Bind of a user with a LDAP server
+// Input Param     : ldap_url       - The url of the LDAP server
+//                   principal       - The naming attribute value of the user
+//                   password       - password
+//                   keystore       - The location of the certificate that is extracted in to the JVM
+//                   sslBindType  - simple/DIGEST-MD5
+// Return Values   : The LDAP context of the user
+//-------------------------------------------------------------
+function sslBind(principal, password, ldap_url,keystore,sslBindType)
+{
+    var ee;
+    var ctx = null;
+    catchError(ee)
+    {
+        var initialLdapCtx = createJavaConstructor("javax.naming.ldap.InitialLdapContext", "java.util.Hashtable","javax.naming.ldap.Control[]");
+
+        var constants      = init();
+        //System.setProperty("javax.net.ssl.trustStore",keystore);
+
+        var setPropertyMethod = createJavaMethod("java.lang.System","setProperty","java.lang.String","java.lang.String");
+        runJavaMethod(null , setPropertyMethod ,"javax.net.ssl.trustStore",keystore );
+        //out.writeln(" KeyStore = " + keystore + " principal = " + principal + " ldap_url = " + ldap_url + " password= " + password +" sslBindType = " +sslBindType );
+        var ldapProperties = [];
+
+        ldapProperties["java.naming.provider.url"]            = ldap_url;
+        ldapProperties["java.naming.security.principal"]      = principal;
+        ldapProperties["java.naming.security.credentials"]    = password;
+        ldapProperties["java.naming.security.authentication"] = sslBindType;
+        ldapProperties["java.naming.factory.initial"]         = constants["LDAP_CTX_FACTORY"];
+        ldapProperties["java.naming.security.protocol"]       = "ssl";
+
+        var hashtable = createJavaConstructor("java.util.Hashtable" , "java.util.Map");
+        var val = runJavaConstructor(hashtable, ldapProperties);
+
+        ctx = runJavaConstructor(initialLdapCtx , val, null);
+    }
+    if ( ee != null )
+    {
+        ctx = null;
+    }
+
+    return ctx;
+
+}
+
+// ------------------------------------------------------------
+// Name            : getSearchControlObject()
+// Description    : The Search Control object that will be used in search
+// Input Param    : returnAttrs - The attributes that are needed to be returned by this search
+// Return Values: The Search Control object
+//-------------------------------------------------------------
+function getSearchControlObject(returnAttrs)
+{
+
+    var searchCtrlsConstructor  = createJavaConstructor("javax.naming.directory.SearchControls");
+    var searchCtrlsObj          = runJavaConstructor(searchCtrlsConstructor);
+    var setSearchScopeMethod    = createJavaMethod("javax.naming.directory.SearchControls", "setSearchScope", "int");
+    var searchScope             = getStringValueForClassMember("javax.naming.directory.SearchControls", "SUBTREE_SCOPE"); //"2" -SUB_TREE_SCOPE
+
+    // create Double Constructor
+    var IntegerConstructor      = createJavaConstructor("java.lang.Integer","java.lang.String");
+    // run Integer Constructor
+    var inputInt                = runJavaConstructor(IntegerConstructor ,searchScope);
+
+    //set the search scope on the search controls object.
+    runJavaMethod(searchCtrlsObj , setSearchScopeMethod , inputInt );
+
+    // set the returnAttribtues required
+
+    if(returnAttrs != null)
+    {
+        var searchCtrlsObj    = runJavaConstructor(searchCtrlsConstructor);
+
+        var javaStringArray   = createJavaArray("java.lang.String", returnAttrs.size());
+        var setMethod         = createJavaMethod("java.lang.reflect.Array","set","java.lang.Object","int","java.lang.Object");
+        for(var i = 0 ; i<returnAttrs.size() ; i++)
+        {
+            var returnAttr = returnAttrs[i]; 
+            runJavaMethod(null,setMethod,javaStringArray,i,returnAttr);
+        }
+        var setReturningAttribtuesMethod = createJavaMethod("javax.naming.directory.SearchControls", "setReturningAttributes", "java.lang.String[]");
+        runJavaMethod(searchCtrlsObj , setReturningAttribtuesMethod , javaStringArray);
+    }
+    return searchCtrlsObj;
+}
+
+
+// ------------------------------------------------------------
+// Name            : search()
+// Description    : A Ldap search will be performed and the results returned as a SearchResult Array
+// Input Param    : m_ctx         - The LDAP Context on which this search will be performed ( Typically Root Context)
+//                  searchDN   - The DN under which this search will be performed in SUB_TREE SCOPE
+//                  filter     - The LDAP Query
+//                  searchCtrl - The Search Control Object
+// Return Values: The Search Control object
+//-------------------------------------------------------------
+function search(m_ctx, searchDN, filter, searchctrl)
+{
+
+    var searchResults = [];
+    var referenceError;
+    catchError(referenceError)
+    {
+        var searchMethod  = createJavaMethod  ("javax.naming.ldap.InitialLdapContext", "search", "java.lang.String" , "java.lang.String", "javax.naming.directory.SearchControls");
+        var searchResult  = runJavaMethod(m_ctx, searchMethod, searchDN, filter, searchctrl );
+
+        var hasMoreMethod = createJavaMethod("javax.naming.NamingEnumeration", "hasMore");
+        var nextMethod    = createJavaMethod("javax.naming.NamingEnumeration", "next");
+        var count = 0;
+        while(runJavaMethod(searchResult, hasMoreMethod ))
+        {
+            searchResults[count] = runJavaMethod(searchResult, nextMethod);
+            count++;
+        }
+    }
+
+    if(referenceError != null)
+    {
+        //Since Microsoft Directory Server throws PartialException we simply eat that. 
+    }
+
+
+    return searchResults;
+}
+
+
+// ------------------------------------------------------------
+// Name            : searchRoles()
+// Description     : The roles (Groups) associated with the user
+// Input Param     : m_ctx                     - The LDAP Context on which this search will be performed ( Typically Root Context)
+//                   nameDN                 - The DN under which this search will be performed in SUB_TREE SCOPE
+//                   searchFilter             - The LDAP Query
+//                   searchCtrls             - The Search Control Object
+//                   group_naming_attribute - The naming attribute of the groups class
+// Return Values  : The Search Control object
+//-------------------------------------------------------------
+
+function searchRoles(m_ctx,searchCtrls, nameDN, searchFilter,group_naming_attribute)
+{
+    var res = search(m_ctx,  nameDN,searchFilter,searchCtrls);
+    var count = res.size();
+	//out.writeln("Inside searchRoles = " + count);
+
+    //Create a java array from the scripting array.
+    var results = createJavaArray("javax.naming.directory.SearchResult", count);
+ 	var setMethod = createJavaMethod("java.lang.reflect.Array","set","java.lang.Object","int","java.lang.Object");
+
+    for(var k=0; k<count; k++)
+    {
+        var sRes = res[k];
+        runJavaMethod(null,setMethod,results,k,sRes);
+    }
+
+
+
+    var getMethod = createJavaMethod("java.lang.reflect.Array","get","java.lang.Object","int");
+
+    var roles = [];
+    var roleCnt = 0;
+
+    //Iterate through the SearchResult Objects
+    for(var l=0; l<count; l++)
+    {
+        var searchResult = runJavaMethod(null,getMethod,results ,l);
+        if(searchResult == null)
+        {
+            continue;
+        }
+
+        //Get the attribute set from the SearchResult.
+        var getAttributesMethod = createJavaMethod("javax.naming.directory.SearchResult", "getAttributes");
+        var attributesObj       = runJavaMethod(searchResult, getAttributesMethod);
+
+        //Get the enumeration object of the attribute set.
+        var getAllMethod        = createJavaMethod("javax.naming.directory.Attributes","getAll");
+        var namingAttrObj       = runJavaMethod(attributesObj, getAllMethod);
+
+        var hasMoreMethod       = createJavaMethod("javax.naming.NamingEnumeration", "hasMore");
+        var nextMethod          = createJavaMethod("javax.naming.NamingEnumeration", "next");
+        var getIDMethod         = createJavaMethod("javax.naming.directory.Attribute", "getID");
+        var getAttrMethod       = createJavaMethod("javax.naming.directory.Attribute", "get");
+
+        //Iterate through the attribute set using the enumeration object.
+        while(runJavaMethod(namingAttrObj, hasMoreMethod ))
+        {
+            var attr  = runJavaMethod(namingAttrObj, nextMethod);
+
+            if(attr != null)
+            {
+                var attrID = runJavaMethod(attr, getIDMethod);
+
+                if(attrID != null && attrID == group_naming_attribute)
+                {
+                    var role = runJavaMethod(attr, getAttrMethod);
+                    roles[roleCnt] = role;
+                    roleCnt++;
+                    //out.writeln("Role-->>" + role);
+                }
+
+            }//end of if - when attr is not null
+        }//end of while
+    }
+    return roles;
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : printLDAPUsersInfo()
+// Description     : Print the LDAP User information to a docstore file
+// Input Param     : users            - The array of users whose information needs to be printed
+//                   attributes    - The array of required attributes e.g cn,homephone,mobile etc
+//                   filename        - The name of the file in docstore in which the user details will be written
+// Return Values   : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+
+function printLDAPUsersInfo(users,attributes,filename)
+{
+    var res = users;
+    var count = res.size();
+    //Create a java array from the scripting array.
+    var results = createJavaArray("javax.naming.directory.SearchResult", count);
+
+
+    var writer = createOtherOut(filename, "UTF-8");
+
+    var getMethod = createJavaMethod("java.lang.reflect.Array","get","java.lang.Object","int");
+    var setMethod = createJavaMethod("java.lang.reflect.Array","set","java.lang.Object","int","java.lang.Object");
+
+    for(var k=0; k<count; k++)
+    {
+        var sRes = res[k];
+        //out.writeln("sRes-->" + sRes);
+        runJavaMethod(null,setMethod,results,k,sRes);
+    }
+
+    //Iterate through the SearchResult Objects
+    for(var l=0; l<count; l++)
+    {
+        var searchResult = runJavaMethod(null,getMethod,results ,l);
+        if(searchResult == null)
+        {
+            continue;
+        }
+        //Get the attribute set from the SearchResult.
+        var getAttributesMethod = createJavaMethod("javax.naming.directory.SearchResult", "getAttributes");
+        var attributesObj = runJavaMethod(searchResult, getAttributesMethod);
+
+        //Get the enumeration object of the attribute set.
+        var getAllMethod = createJavaMethod("javax.naming.directory.Attributes","getAll");
+        var namingAttrObj = runJavaMethod(attributesObj, getAllMethod);
+
+        var hasMoreMethod = createJavaMethod("javax.naming.NamingEnumeration", "hasMore");
+        var nextMethod    = createJavaMethod("javax.naming.NamingEnumeration", "next");
+        var getIDMethod   = createJavaMethod("javax.naming.directory.Attribute", "getID");
+        var getAttrMethod = createJavaMethod("javax.naming.directory.Attribute", "get");
+
+        //Iterate through the attribute set using the enumeration object.
+        while(runJavaMethod(namingAttrObj, hasMoreMethod ))
+        {
+            var attr  = runJavaMethod(namingAttrObj, nextMethod);
+            if(attr != null)
+            { 
+                var attrID = runJavaMethod(attr, getIDMethod);
+                for ( var i=0; i<attributes.size(); i++ )
+                {
+                    if(attrID != null && attrID == attributes[i])
+                    {
+                        var attrValue = runJavaMethod(attr, getAttrMethod);
+                        //out.writeln ( "attrID="+ attrID + ": attrID = " + attrValue );
+                        writer.writeln( attrID + ":" + attrValue + "|");
+                    }
+                } // for each of the required attribute
+            }// when attr != null
+        }//end of while
+    }//end of for
+    writer.save(filename);
+}
+
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : getLDAPUserData()
+// Description     : Get LDAPUser data
+// Input Param     : ctx         - The context in which the search has to be performed
+//                   parentDNs     - The list of parent DNs
+//                   query         - The LDAP Query for searching the user.
+//                   
+// Return Values   : the SearchResult of the query (user search).
+//----------------------------------------------------------------------------------------------------------------------
+
+function getLDAPUserData(ctx,parentDNs,query)
+{
+    var searchCtrls = getSearchControlObject(null);
+    var parentDN;
+    var userInfo;
+    for(var dn=0; dn < parentDNs.size(); dn++)
+    {  
+        parentDN = parentDNs[dn];
+        parentDN     = checkString(parentDN,"");
+        userInfo    = search(ctx, parentDN,query, searchCtrls);
+        if( userInfo != null && userInfo.size() > 0 )
+        {
+            break;
+        }
+    }
+    
+    var count = userInfo.size();//The count should be one if the query is proper.
+    //Create a java array from the scripting array.
+    var results = createJavaArray("javax.naming.directory.SearchResult", count);
+    var setMethod = createJavaMethod("java.lang.reflect.Array","set","java.lang.Object","int","java.lang.Object");
+    
+    for(var k=0; k<count; k++)
+    {
+        var sRes = userInfo[k];
+        //out.writeln("sRes-->" + sRes);
+        var ret = runJavaMethod(null,setMethod,results,k,sRes);
+    }
+    
+    var getMethod = createJavaMethod("java.lang.reflect.Array","get","java.lang.Object","int");
+    //Get the first element, which is our user.
+    var searchResult = runJavaMethod(null,getMethod,results ,0);
+    
+    return searchResult;
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : getLDAPUserAttribs()
+// Description     : Get LDAPUser data
+// Input Param     : user         - The user for which the attributes are to be fetched.
+//                   attributes     - The attributes which are required to be fetched.
+//                   
+// Return Values   : A HashMap of the attribute names and values.
+//----------------------------------------------------------------------------------------------------------------------
+
+
+function getLDAPUserAttribs(user,attributes)
+{
+    var out = createOtherOut("triggerLogger");
+    
+
+    //var writer = createOtherOut(filename);
+    var attribs = [];
+
+    
+
+    
+    var searchResult = user;
+    if(searchResult == null)
+    {
+        return attribs;
+    }
+    //Get the attribute set from the SearchResult.
+    var getAttributesMethod = createJavaMethod("javax.naming.directory.SearchResult", "getAttributes");
+    var attributesObj = runJavaMethod(searchResult, getAttributesMethod);
+
+    //Get the enumeration object of the attribute set.
+    var getAllMethod = createJavaMethod("javax.naming.directory.Attributes","getAll");
+    var namingAttrObj = runJavaMethod(attributesObj, getAllMethod);
+
+    var hasMoreMethod = createJavaMethod("javax.naming.NamingEnumeration", "hasMore");
+    var nextMethod    = createJavaMethod("javax.naming.NamingEnumeration", "next");
+    var getAllMethod  = createJavaMethod("javax.naming.directory.Attribute", "getAll");
+    var getIDMethod   = createJavaMethod("javax.naming.directory.Attribute", "getID");
+    var getAttrMethod = createJavaMethod("javax.naming.directory.Attribute", "get");
+
+    //Iterate through the attribute set using the enumeration object.
+    while(runJavaMethod(namingAttrObj, hasMoreMethod ))
+    {
+        var attr  = runJavaMethod(namingAttrObj, nextMethod);
+        if(attr != null)
+        { 
+            var attrID = runJavaMethod(attr, getIDMethod);
+            for ( var i=0; i<attributes.size(); i++ )
+            {
+                out.writeln("attrIDChk::"+ attrID + " attrValueChk::" + attributes[i]);
+                if(attrID != null && attrID == attributes[i])
+                {
+                    var attrValue = runJavaMethod(attr, getAttrMethod);
+                    out.writeln ( "attrID="+ attrID + ": attrID = " + attrValue );
+                   // writer.writeln( attrID + ":" + attrValue + "|");
+                    attribs[attrID] = attrValue;
+                }
+            } // for each of the required attribute
+        }// when attr != null
+    }//end of while
+    
+    out.save("triggerLogger");
+ return attribs;
+}
+
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : getLDAPUserInfo()
+// Description     : Get LDAPUser information
+// Input Param     : ctx         - The context in which the search has to be performed
+//                   parentDN     - The parent DN
+//                   query         - The LDAP Query
+//                   attributes - The array of required attributes e.g cn,homephone,mobile etc
+//                   filename   - The name of the file in docstore in which the user details will be written
+// Return Values   : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+
+function getLDAPUserInfo(ctx,parentDN,query,attributes,filename)
+{
+    var searchCtrls = getSearchControlObject(null);
+    //out.writeln( " The saerch ctrl = " + searchCtrls);
+    var userInfo    = search(ctx, parentDN,query, searchCtrls);
+    //out.writeln(" The user info = " + userInfo);
+    printLDAPUsersInfo(userInfo,attributes,filename);
+
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : getAllLDAPUsers()
+// Description     : Get all Users information under a particular parentDN
+// Input Param     : ctx            - The context in which the search has to be performed
+//                   parentDN        - The parent DN
+//                   searchFilter    - The LDAP Query
+//                   attributes    - The array of required attributes e.g cn,homephone,mobile etc
+//                   filename        - The name of the file in docstore in which the user details will be written
+// Return Values  : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+function getAllLDAPUsers(ctx,parentDN,searchFilter,attributes,filename)
+{
+    var searchCtrls = getSearchControlObject(null);
+
+    var res = search(ctx, parentDN, searchFilter, searchCtrls);
+    printLDAPUsersInfo(res,attributes,filename);
+
+}
+
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name           : getEntryDnFromContext()
+// Description    : Get Entry DN of the user from the context // not working in Tivoli
+// Input Param    : m_ctx         - The context in which the search has to be performed
+//                  parentDN     - The parent DN
+//                  query         - The LDAP Query
+// Return Values  : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+function getEntryDnFromContext(m_ctx) 
+{
+    var entryDN             = null;
+    var getNameSpaceMethod  = createJavaMethod("javax.naming.directory.DirContext","getNameInNamespace");
+    entryDN                 = runJavaMethod(m_ctx,getNameSpaceMethod);
+    return entryDN;
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name           : getEntryDn()
+// Description    : Get Entry DN of the user
+// Input Param    : m_ctx         - The context in which the search has to be performed
+//                  parentDN     - The parent DN
+//                  query         - The LDAP Query
+// Return Values  : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+function getEntryDn(m_ctx , parentDN , query) 
+{
+    var srcControl    = getSearchControlObject(null);
+    //out.writeln( " Inside getEntryDN() call the searchResults");
+    var searchResults = search(m_ctx, parentDN, query, srcControl);
+    var entryDN       = null;
+    //out.writeln( " the searchResults size is " + searchResults.size());
+    for( var i=0; i<searchResults.size(); i++ )
+    {
+        var searchResult  = searchResults[i];
+        var getNameMethod = createJavaMethod("javax.naming.directory.SearchResult","getName");
+        entryDN           = runJavaMethod(searchResult,getNameMethod);
+        break;
+    }
+    return entryDN;
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+// Name            : close()
+// Description     : Close the LDAP Context
+// Input Param     : ctx         - The context that has to be closed
+// Return Values   : none
+//-----------------------------------------------------------------------------------------------------------------------------------
+
+function closeLdapContext(ctx)
+{
+    var closeMethod = createJavaMethod("javax.naming.ldap.InitialLdapContext","close");
+    runJavaMethod(ctx, closeMethod);
+}

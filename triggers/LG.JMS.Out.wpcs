@@ -1,0 +1,486 @@
+//
+// Script to process outbound JMS messagees.
+//
+
+function FileExist(sERPCode){
+
+var strPath = "/TO_SAP/"; 
+
+var tDocsPath = getDocStoreFilesInDirectory(strPath);
+var doc;
+var sName;
+var i;
+var v;
+var sFileExist = "False";
+
+forEachHmElement(tDocsPath, i, v) {
+  doc = getDocByPath(v);
+  sName = getNameFromPath(v);
+
+  if (sName.contains(sERPCode) == true) {
+      sFileExist = "True";
+      break;
+  }
+}  
+	return(sFileExist) ;
+}
+
+// utility functions
+function isJMS_OUTBOUND_ENABLED(){
+  	var L902 = getLkpByName("L902-KheopsConstants");
+	return (checkString(lookupValues(L902,"JMS_OUTBOUND_ENABLED")[0],"") == "True" ? true : false);
+}
+
+function getValue(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+function getEn(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName);
+}
+
+
+// @brief deleteValueFromHashMap(hm,value) create a new tab like hm without the value asked
+// @param hm,value
+// @param type HashMap|String
+// @return HashMap
+function deleteValueFromHashMap(hm,value){
+	var hmRes=[];
+	var i;
+	var hmValue;
+	forEachHmElement(hm,i,hmValue) {
+		if (hmValue!=value) {
+			hmRes[i] = hmValue;
+		}
+	}
+	return(hmRes);
+}
+
+
+// @brief transformFieldmod(fieldmod)  : delete the specs ' names in the attributes paths
+// @param fieldmod
+// @param type HashMap
+// @return HashMap
+function getRidOfRootNamex(fieldmod) {
+	var i;
+	var res=[];
+	for (i=0;i<fieldmod.size();i++){
+		res[i]=getRidOfRootName(fieldmod[i]);
+	}
+	return (res);
+}
+
+// filterOutOverloadedAttributes
+// @desc filter out overloaded attributes from field mod.
+// @param item item
+// @param fieldmod list of modified attributes.
+// @param prof depth of the item (0=modified item)
+function filterOutOverloadedAttributes(item,fieldmod,prof){
+	// filtre sur les attributs overloadés
+	if(prof>0) {
+		//On récupère la liste des attributs de l'item
+		var sAttribsList = getRidOfRootNamex(item.getCtgItemAttribsList());
+		var i;
+		var fieldmodValue;
+		//On parcourt la liste des attributs en cherchant si elle contient des attributs modifiés
+		forEachHmElement(fieldmod,i,fieldmodValue) {
+			if(sAttribsList.containsValue(fieldmodValue)) {
+				//On supprime fieldmodValue de fieldmod
+				fieldmod = deleteValueFromHashMap(fieldmod,fieldmodValue);
+			}
+		}
+	}
+	return fieldmod;
+}
+
+// ================================================================================
+//
+// @brief sendMessageToBroker(hm,xml) send the message on the Broker
+// @param hm HashMap for JMS properties|String
+// @param body JMS Messsage Body|String
+// @return JMS message sent.
+function sendMessageToBroker(hmGlobals,hm,body,myQueueSession,myQueue){
+	var log = hmGlobals["LOGGER"];
+	log.loggerDebug("BEGIN: sendMessageToBroker");
+
+
+	var jmsUtilConstructor = createJavaConstructor("com.ibm.wpc.pim.jms.Util");
+	var jmsUtil = runJavaConstructor(jmsUtilConstructor);
+	var jmsSetMessagePropertiesMethod = createJavaMethod(
+		"com.ibm.wpc.pim.jms.Util",
+		"jmsSetMessageProperties",
+		"javax.jms.TextMessage",
+		"java.util.HashMap");
+	var msg=myQueueSession.jmsCreateTextMsg(body);
+	runJavaMethod (jmsUtil,jmsSetMessagePropertiesMethod,msg,hm);	
+	var msgSent = null;
+	log.loggerDebug("BEGIN: isJMS_OUTBOUND_ENABLED "+isJMS_OUTBOUND_ENABLED);
+	if (isJMS_OUTBOUND_ENABLED())
+	{
+		log.loggerDebug("msgSent: "+ msg + " " + myQueue);
+		msgSent = myQueueSession.jmsSendMsgToQueue(msg,myQueue);
+	}
+	else
+	{
+		log.loggerDebug("!!!!!!!!!!!!!!! NOT SENDING JMS Message as JMS OUTBOUND is disabled in lookup L902.");
+	}
+
+	log.loggerDebug("END: sendMessageToBroker");
+	return msgSent;
+}
+
+
+
+// updateTargetSystemGroupSetMSGTOBESENT
+// @desc set MSGTOBESENT in Target System Group
+// @param item item
+// @param iRevNum revision number (revnum=0 => CREATION)
+// @param fieldmod modified attributes.
+function updateTargetSystemGroupSetMSGTOBESENT(item,iRevNum,fieldmod,log){
+	var outTechnicalStatus= "";
+
+	var attrsToDisplay;
+	var j=0;
+	var lkpInterfaces = getLkpByName("L900-Interfaces - Interfaces");
+	var enTargetSystemGroup = getEn(item,"99CTL200-TargetSystemGroup");
+	
+	if(enTargetSystemGroup.size()!=null) {
+		for(j=0;j<enTargetSystemGroup.size();j++) {
+			var sTargetSystemId = checkString(getValue(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL210-TargetSystemId"),"");
+			var enInformation = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL250-Information")[0];
+			var enMessageStatus = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL220-MessageStatus")[0];	
+			var enTechnicalStatus = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL230-TechnicalStatus")[0];	
+
+		   	var logText  = "sTargetSystemId : ";
+		   	var logValue = sTargetSystemId;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+			
+			if(sTargetSystemId!="") {
+			
+				var lkpTargetSystemIds = lookupValues(lkpInterfaces,sTargetSystemId);
+				if(lkpTargetSystemIds.size()!=0) {
+						   												   					
+					if(lkpTargetSystemIds[0]=="BROKER_FLOW") {
+						var enModifiedAttrs = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL260-ModifiedAttrs")[0];
+						var enModifiedAttrsValues = enModifiedAttrs.getEntryNodeValue();
+						if(iRevNum == 0) {
+							item.setEntryAttrib(enModifiedAttrs.getEntryNodeExactPath(),"ALL");
+						}
+						else {
+							if(enModifiedAttrsValues!="ALL") {
+								if(checkString(enModifiedAttrsValues,"")!="") {
+									var hmModifiedAttrsValues = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("csvToArray").invoke(enModifiedAttrsValues);
+									attrsToDisplay = mergeValues(hmModifiedAttrsValues,fieldmod);
+								}
+								else {
+									attrsToDisplay = fieldmod;
+								}
+								var modifiedAttribsCsv = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("arrayToCsv").invoke(attrsToDisplay);
+								item.setEntryAttrib(enModifiedAttrs.getEntryNodeExactPath(),modifiedAttribsCsv);
+							}
+							else {	
+								var fieldmodCsv = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("arrayToCsv").invoke(fieldmod);
+								item.setEntryAttrib(enModifiedAttrs.getEntryNodeExactPath(),fieldmodCsv);
+							}						
+						}
+//						item.setEntryAttrib(enInformation.getEntryNodeExactPath(),"");
+//						item.setEntryAttrib(enTechnicalStatus.getEntryNodeExactPath(),"");
+						item.setEntryAttrib(enMessageStatus.getEntryNodeExactPath(),"MSGTOBESENT"); 
+					}
+				}
+			}
+		}
+	}
+}
+// updateTargetSystemGroupSetMSGSENT
+// @desc update Target System Group set MSGSENT
+// @param item item
+// @param jmsMsgSent return value from sensJMSmessage
+function updateTargetSystemGroupSetMSGSENT(item,jmsMsgSent,log){
+	var j=0;
+	var enTargetSystemGroup = getEn(item,"99CTL200-TargetSystemGroup");
+	var lkpInterfaces = getLkpByName("L900-Interfaces - Interfaces");
+
+	for(j=0;j<enTargetSystemGroup.size();j++) {
+		
+		var enMessageStatus = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL220-MessageStatus")[0];		
+		var enLastMessageId = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL240-LastMessageId")[0];
+		var enInformation   = getEn(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL250-Information")[0];
+		
+		var sTargetSystemId = checkString(getValue(item,"99CTL200-TargetSystemGroup#"+j+"/99CTL210-TargetSystemId"),"");
+		
+		var nowMethod = createJavaMethod("java.time.Instant", "now");
+		var TodayUTC = runJavaMethod(null, nowMethod);
+		var valInformation = "Material saved/created at " + TodayUTC;
+
+		if(sTargetSystemId!="") {
+		
+		var lkpTargetSystemIds = lookupValues(lkpInterfaces,sTargetSystemId);
+	
+		if(lkpTargetSystemIds.size()!=0) {
+						   		
+			if(lkpTargetSystemIds[0]=="BROKER_FLOW") {
+				if(jmsMsgSent != null) {
+					item.setEntryAttrib(enMessageStatus.getEntryNodeExactPath(),"MSGSENT");
+					item.setEntryAttrib(enLastMessageId.getEntryNodeExactPath(),"Message sent.");
+					item.setEntryAttrib(enInformation.getEntryNodeExactPath(),valInformation);
+					}
+				else 
+					{
+					item.setEntryAttrib(enMessageStatus.getEntryNodeExactPath(),"ERROR");
+					item.setEntryAttrib(enLastMessageId.getEntryNodeExactPath(),null);
+					item.setEntryAttrib(enInformation.getEntryNodeExactPath(),"Message could not be sent.");
+					}
+				}
+			}
+	 	}
+	}
+}
+
+// ================================================================================
+//
+// @brief publishItemOnBrokerRec(item,fieldmod,prof) publish the item and the children's item on the broker (recursive function)
+// @param item,fieldmod,prof
+// @param type item|String[]|integer
+// @return HashMap
+function publishItemOnBrokerRec(hmGlobals,item,fieldmod,prof,myQueueSession,myQueue) {
+	var log  = getLogger("JmsLog");
+	var moni = getLogger("Monitor");	
+	var inout = getLogger("Inout");	
+		
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var XI_Active = lookupValues(lkpTableKheopsConstants,"XI_Active")[0];
+    	
+	var outTechnicalStatus = "";
+	
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("BEGIN: publishItemOnBrokerRec - " + item.getCtgItemPrimaryKey());
+
+	var lkpTableLogging = getLkpByName("L902-KheopsConstants");
+	logging = lookupValues(lkpTableLogging,"LOG")[0];
+	log.loggerDebug("Logging: " + logging);
+	
+		// First of all, before publishing this item, make sure there is no validation errors !!!
+		var errors=item.saveCtgItem();
+		if (errors.getGlobalErrors().size()>0){
+			// Errors were found, so we have to checkout this item.
+			var ca=getColAreaByName("CA" + substring(item.getCatalog().getCtgName(),1));
+			var hm=ca.checkOutEntry(item,"Dispatch",false); 
+			log.loggerDebug("Item has validation errors, checking it out for corrections.");
+//			return "";
+		}
+		
+		var iRevNum = getValue(item,"99CTL010-RevNum");	
+		if (prof!=0) {
+			iRevNum=iRevNum+1;
+			item.setEntryAttrib("SC000-GlobPrim/99CTL010-RevNum",iRevNum);
+		}
+		
+		//Création de la Hashmap à envoyer
+		var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+		var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+		
+	   	var logText  = "myTargetSystemId : ";
+	   	var logValue = myTargetSystemId;
+	   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	   			
+		var hmHeading = [];
+		hmHeading["sMessageType"]="ITEM_FLOW";
+		hmHeading["s01AC0044_ERPCode"]=getValue(item,"01AC0044-ERPCode");
+		hmHeading["s01AC0012_LongName"]=getValue(item,"01AC0012-LongName");
+		hmHeading["s99CTL010_RevNum"]=getValue(item,"99CTL010-RevNum").formatNumber("0",null);
+		hmHeading["s99CTL210_TargetSystemId"]=myTargetSystemId;	
+		
+		//hmHeading["s99CTL210_TargetSystemId"]=getValue(item,"99CTL210-TargetSystemId");
+		//hmHeading["s99CTL230_TechnicalStatus"]=getValue(item,"99CTL230-TechnicalStatus");
+		//hmHeading["s99CTL240_LastMessageId"]=getValue(item,"99CTL240-LastMessageId");
+		//hmHeading["s99CTL250_Information"]=getValue(item,"99CTL250-Information");
+			
+		// We remove overloaded attributes from list of modified attributes.
+		// ex: if attribute A is present on BUnit and on PItem
+		// it means that even if it has been modified on the BUnit, it has been overloaded on PItem
+		// thus it can be considered as "non modified". => so we take it out from fieldmod.
+		var fieldmod=filterOutOverloadedAttributes(item,fieldmod,prof);
+	
+		// Update TargetSystemGroup to set MSGTOBESENT.	
+		updateTargetSystemGroupSetMSGTOBESENT(item,iRevNum,fieldmod,log);
+
+					
+		//Génération du xml
+		// The generated XML will be cached in hmGlobals[].
+		var xmlBody = "<?xml version='1.0' encoding='UTF-8'?>"+getScriptByPath("/scripts/triggers/LG.Library.XML").getFunctionByName("getItemXML").invoke(hmGlobals,item);
+	
+	   	var logText  = "xmlBody : ";
+	   	var logValue = xmlBody;
+	   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		
+
+		if (XI_Active == "N") {
+			// envoi du xml sur le broker.
+			var jmsMsgSent = sendMessageToBroker(hmGlobals,hmHeading,xmlBody,myQueueSession,myQueue);
+	
+			// Update TargetSystemGroup to set MSGSENT.	
+			updateTargetSystemGroupSetMSGSENT(item,jmsMsgSent,log);
+							
+							} else {
+			var Path_XI	= lookupValues(lkpTableLogging,"Path_XI")[0];
+			var name = Path_XI + "FullExport_" + checkString(hmHeading["s01AC0044_ERPCode"], "") + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+	
+			// Check existence of outputfile
+			var FileSave = FileExist("FullExport_" + checkString(hmHeading["s01AC0044_ERPCode"], ""));
+			if (FileSave == "False") {
+			var Writer = createOtherOut(name, "UTF-8");
+			
+			Writer.writeln(xmlBody);
+			Writer.save(name); 
+				moni.loggerDebug("*** To SAP (Full MATMAS)" + name);
+			} else {
+				moni.loggerDebug("*** Alreay (Full MATMAS) exported To SAP " + name);	
+			}
+			
+			updateTargetSystemGroupSetMSGSENT(item,"X",log);
+			 			}
+	 								
+    	moni.loggerDebug("Message OUTBOUND " + checkString(hmHeading["s01AC0044_ERPCode"], "") + " Message sent");
+    	
+	
+		// saving the item.
+		item.saveCtgItem();
+		moni.loggerDebug("Message OUTBOUND " + checkString(hmHeading["s01AC0044_ERPCode"], "") + " Saved" );
+		
+		inout.loggerDebug("MDM-OUTFULL" + ";" +"OUTBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(hmHeading["s99CTL210_TargetSystemId"],"") + ";" + checkString(hmHeading["s01AC0044_ERPCode"], "") + ";" + checkString(getValue(item,"01AC0664-MaterialNumber"),""));
+
+		// Sending item children...
+		// children are in the catalog !
+		var ctgItem;
+		if (colArea!=null) {
+			log.loggerDebug("Message OUTBOUND colArea" );
+			
+		    var sErrMsg = null;
+			catchError(sErrMsg) {
+				// getting the item from the catalog if we're in colab area, so we can get its children later on.
+				ctgItem = colArea.getColAreaSrcContainer().getEntryByPrimaryKey(item.getPrimaryKey());
+				
+				// log.loggerDebug("INFO: colArea " + ctgItem.getCtgItemPrimaryKey());
+						}
+			if (sErrMsg != null) {
+				log.loggerDebug("Message OUTBOUND colArea Primary Key not Found" );				
+				log.loggerDebug("Message OUTBOUND colArea " + sErrMsg );				
+								}
+				
+		}
+		else
+		{
+			ctgItem=item;
+			moni.loggerDebug("Message OUTBOUND " + item.getCtgItemPrimaryKey() + " No colArea" );
+			
+			log.loggerDebug("INFO: ctgItem " + item.getCtgItemPrimaryKey());
+		}
+	
+		// getting item children
+		if (ctgItem!=null) {  // TODO : see why this is usefull when creating a new, duplicated Prod
+		  var itemChildren = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,ctgItem);
+		  var child;
+		  var i;
+		  forEachHmElement(itemChildren,i,child) {
+			var itemChild = getCtgByName(itemChildren[i]["itemCatalog"]).getEntryByPrimaryKey(itemChildren[i]["itemPrimaryKey"]);
+			if (getStatus(itemChild )=="INACTIVE") 
+			{
+				log.loggerDebug("INFO: NOT publishing INACTIVE item " + itemChild.getCtgItemPrimaryKey());
+			}
+			else
+			{
+				log.loggerDebug("INFO: Child " + itemChild.getCtgItemPrimaryKey());
+				moni.loggerDebug("Message OUTBOUND Child " + checkString(itemChild.getCtgItemPrimaryKey(), "") );
+				
+				var r=publishItemOnBrokerRec(hmGlobals,itemChild,fieldmod,prof+1,myQueueSession,myQueue);
+			}
+		  }
+		}
+	
+	return "";
+}	
+
+
+// ================================================================================
+//
+// @brief publishItemOnBroker(item) publish an item on the broker
+// @param item
+// @param type item
+function publishItemOnBroker(item,colArea){
+	var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+	var log = getLogger("JmsLog");
+		
+	log.loggerDebug("BEGIN: publishItemOnBroker");
+	log.loggerDebug("INFO: Publishing item " + item.getPrimaryKey());
+	hmGlobals["LOGGER"]=log;
+
+
+	// modified field list.
+	var fieldmodAttrVal = [];
+
+	if (colArea!=null)
+	{
+	// On récupère la liste des champs modifiés.
+		var ctgItem = colArea.getColAreaSrcContainer().getEntryByPrimaryKey(item.getPrimaryKey());
+		if (ctgItem!=null)
+		{
+			var oEntryChangedData = getEntryChangedData(ctgItem,item);
+			
+			var fieldmod = oEntryChangedData.getModifiedAttributePathsNewEntry();
+
+			//On transforme la liste des champs modifiés en ne conservant que le nom de l'attribut
+			fieldmodAttrVal = getRidOfRootNamex(fieldmod);
+			// on incrémente le no de révision.
+			log.loggerDebug("Incrementing Revision Number");
+			item.setEntryAttrib("SC000-GlobPrim/99CTL010-RevNum",ctgItem.getEntryAttrib("SC000-GlobPrim/99CTL010-RevNum")+1);
+
+		}
+		else
+		{
+			log.loggerDebug("Source item not found in catalog, guess it is a CREATION.");
+			// il s'agit donc d'une création !
+			fieldmodAttrVal[0] = "ALL";
+			item.setEntryAttrib("SC000-GlobPrim/99CTL010-RevNum",0);
+		}
+
+	}		
+	else
+	{
+		log.loggerDebug("ColArea is null !!!");
+		fieldmodAttrVal[0] = "ALL";
+	}
+
+	log.loggerDebug("Modified attrs : " + fieldmodAttrVal);
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+
+//	var JMSQueue   				= lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[0];
+	
+//	var MQManager 	= lookupValues(lkpTableKheopsConstants,"MQ_Queue_Manager")[0];	
+//	var MQHost	 	= lookupValues(lkpTableKheopsConstants,"MQ_Host")[0];	
+//	var MQServer 	= lookupValues(lkpTableKheopsConstants,"MQ_Server_Connection")[0];	
+//	var MQPort	 	= checkInt(lookupValues(lkpTableKheopsConstants,"MQ_Port")[0],0);	
+//	log.loggerDebug("MQManager : " + MQManager);
+//	log.loggerDebug("MQHost    : " + MQHost);
+//	log.loggerDebug("MQServer  : " + MQServer);
+//	log.loggerDebug("MQPort    : " + MQPort);
+	
+
+//	var myConnectionFactory=jmsGetMQConnectionFactory(MQManager,MQHost,MQServer,MQPort);
+	
+//	var myQueueConnection=myConnectionFactory.jmsGetQueueConnection();
+//	var myQueueSession= myQueueConnection.jmsGetQueueSession();
+//	var myQueue=myQueueSession.jmsGetQueue(JMSQueue);
+	
+	// call recursive publishing.
+	publishItemOnBrokerRec(hmGlobals,item,fieldmodAttrVal,0,myQueueSession,myQueue);
+
+//	log.loggerDebug("Deconnection de la Q");
+//	myQueueSession.jmsDisconnect(myQueueConnection);
+//	log.loggerDebug("END: publishItemOnBroker");
+}
+

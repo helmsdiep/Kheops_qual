@@ -1,0 +1,181 @@
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+
+function getTargetGroup(Children,TargetGroup,Mode,itmProcessingItem,log) {
+var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+
+var strCode = itmProcessingItem.getEntryAttrib("SC000-GlobPrim/01AC0044-ERPCode");
+Exist = 0;
+
+//log.loggerDebug("************************ " + strCode);
+//log.loggerDebug("************************ " + TargetGroup + "/" + Mode);
+//log.loggerDebug("************************ " + myTargetSystemId);
+
+forEachHmElement(Children, intCount, enChild){
+	var strTargetSystemId = checkString(enChild.getEntryNode("/99CTL210-TargetSystemId").getEntryNodeValue(), "");								
+	
+//	log.loggerDebug("********************** " + strTargetSystemId);
+	
+	if(strTargetSystemId == TargetGroup){
+		Exist = 1;
+					
+		var enPOS = enChild.getEntryNode("/99CTL210-TargetSystemId");				
+		if(enPOS != null){
+			var strPOS = checkString(enChild.getEntryNode("/99CTL210-TargetSystemId").getEntryNodeValue(), "");
+				if (Mode ==  1) {
+//					log.loggerDebug("Delete : " + strPOS + " From  :  " + strCode);
+					enChild.deleteEntryNode();
+					res = itmProcessingItem.saveCtgItem();
+					var aGlobalErrors = res.getGlobalErrors();
+					if ( aGlobalErrors.size() > 0 ) {
+						Exist = 2;
+						// case we are not abble to modify the attribute of the item
+						// an error has been sent to jms.log
+						var j;
+						var sError = "Unable to modify this item.";
+						for (j=0;j<aGlobalErrors.size();j++ ){
+							sError = sError + aGlobalErrors[j];
+								}
+						// an error message is sent to jms.log	
+//						log.loggerDebug(strCode + " !! Target NOT Deleted !!");			
+						// log.loggerDebug( sError);
+				 		} 
+					}
+
+				if (Mode ==  2) {
+//					log.loggerDebug("Update : " + strPOS + " To  :  " + myTargetSystemId);
+					enChild.getEntryNode("/99CTL210-TargetSystemId").setEntryNodeValue(myTargetSystemId);
+					res = itmProcessingItem.saveCtgItem();
+					var aGlobalErrors = res.getGlobalErrors();
+					if ( aGlobalErrors.size() > 0 ) {
+						Exist = 2;
+						// case we are not abble to modify the attribute of the item
+						// an error has been sent to jms.log
+						var j;
+						var sError = "Unable to modify this item.";
+						for (j=0;j<aGlobalErrors.size();j++ ){
+							sError = sError + aGlobalErrors[j];
+								}
+						// an error message is sent to jms.log	
+//						log.loggerDebug(strCode + " !! Target NOT Updated !!");			
+						// log.loggerDebug( sError);
+				 		} 
+					}					
+				}
+			}						
+		}
+
+	return(Exist);
+}
+
+function Reorganise(InMode, InCatalog, InAfterSystemCopie) {
+
+var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+var log = getLogger("JmsLog");
+
+var ctgs = getCatalogNamesList();
+var switchUpdate = InMode;
+var switchTargetSystemId = 0;
+var switchTargetSystemIdNull = 0;
+var switchUpdTargetSystem = 0;
+
+if (InMode == 1) {
+	log.loggerDebug("******************** Update Mode Active !! Reorganize Target Group - " + checkString(InCatalog, " ")  + " ******************");
+			} else if (InMode == 0) {
+	log.loggerDebug("******************** Update Mode NOT Active !! Reorganize Target Group - " + checkString(InCatalog, " ") + " ******************");					
+						}
+			
+forEachHmElement(ctgs,oKey,ctg){
+ 	var switchTargetSystemId = 0;
+	var switchTargetSystemIdNull = 0;
+	
+	var catCataglog = getCtgByName(ctg);
+	var isItemSet = catCataglog.getItemSetForCatalog();
+	
+	var strCatalogCode = substring(ctg,0,4);
+	if ( (strCatalogCode == InCatalog && InCatalog != null) || InCatalog == null) {
+//		log.loggerDebug("******************** " + ctg);
+		forEachItemSetElement(isItemSet, itmProcessingItem){
+		
+				if(!itmProcessingItem.isEntryCheckedOut()){
+					
+					var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+					var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(catCataglog)[0].getSpecName();
+					var strCode = itmProcessingItem.getEntryAttrib("SC000-GlobPrim/01AC0044-ERPCode");
+	
+					var strTargetSystemId = null;
+					var intCount = null;
+							
+					var enRoot = itmProcessingItem.getRootEntryNode();
+					var enPOSG = enRoot.getEntryNode("SC000-GlobPrim//99CTL200-TargetSystemGroup");
+					var hmenChildren = enPOSG.getEntryNodeChildren();
+					
+
+//					log.loggerDebug("********************** " + strCode);
+					if (InAfterSystemCopie == 1) {
+ 						switchUpdTargetSystem = getTargetGroup(hmenChildren, "SP1CLNT100",0,itmProcessingItem,log);
+											}
+
+//					log.loggerDebug("************************ Empty");
+					switchTargetSystemIdNull = getTargetGroup(hmenChildren, "",0,itmProcessingItem,log);
+//					log.loggerDebug("************************ " + switchTargetSystemIdNull);
+					
+//					log.loggerDebug("************************ " + myTargetSystemId);
+					switchTargetSystemId = getTargetGroup(hmenChildren, myTargetSystemId,0,itmProcessingItem,log);
+//					log.loggerDebug("************************ " + switchTargetSystemId);
+						
+					if (switchTargetSystemIdNull == 1 && switchTargetSystemId == 1) {	
+							if (switchUpdate ==  0) {
+								log.loggerDebug(strCode + " Empty Target To Be Deleted");	
+												}																								 
+						
+							if (switchUpdate ==  1) {	
+								switchTargetSystemIdNull = getTargetGroup(hmenChildren, "",1,itmProcessingItem,log);
+								if (switchTargetSystemIdNull ==  1) {
+									log.loggerDebug(strCode + " Empty Target Deleted");	
+													} else if (switchTargetSystemIdNull ==  2) {
+									log.loggerDebug(strCode + " Empty Target NOT Deleted.  Errors occured");	
+													}
+												}
+										}
+						
+					if (switchTargetSystemIdNull == 1 && switchTargetSystemId == 0) {
+							if (switchUpdate ==  0) {
+								log.loggerDebug(strCode + " - " +  myTargetSystemId + " Target To Be Updated");	
+												}					
+	
+							if (switchUpdate ==  1) {
+								switchTargetSystemId = getTargetGroup(hmenChildren, "",2,itmProcessingItem,log);
+								if (switchTargetSystemId ==  1) {
+									log.loggerDebug(strCode + " - " + myTargetSystemId + " Target Updated");	
+													} else if (switchTargetSystemId ==  2) {
+									log.loggerDebug(strCode + " - " +  myTargetSystemId + " Target NOT Updated.  Errors occured");	
+													}
+											}
+										}
+	
+					if (switchUpdTargetSystem == 1) {
+							if (switchUpdate ==  0) {
+								log.loggerDebug(strCode + " - " +  myTargetSystemId + " Target To Be Updated after system copie");
+												}
+																				
+							if (switchUpdate ==  1) {
+								switchUpdTargetSystem = getTargetGroup(hmenChildren, "SP1CLNT100",2,itmProcessingItem,log);
+								if (switchUpdTargetSystem ==  1) {
+									log.loggerDebug(strCode + " - " +  myTargetSystemId + " Target Updated");	
+													} else if (switchUpdTargetSystem ==  2) {
+									log.loggerDebug(strCode + " - " +  myTargetSystemId +  " Target NOT Updated.  Errors occured");	
+													}								
+											}
+										}
+										
+						
+											}				
+					
+			}
+	}
+}
+log.loggerDebug("******************** END ******************");
+}

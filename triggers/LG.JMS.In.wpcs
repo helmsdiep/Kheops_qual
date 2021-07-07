@@ -1,0 +1,547 @@
+//
+// Script to process inbound JMS messagees.
+//
+
+// utility functions
+
+
+function getValue(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getProductItem(item, strItemType){
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    if(strItemType == "Pitem2"){
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Pitem1") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Bunit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    return itmProdItem;
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+function saveItem(itm) {
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			out.writeln("ERROR", [], "Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			out.writeln("ERROR", [], "Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+function setMaterial(hmGlobals, inERPCode, inMaterial, log){
+
+var sCtgName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(inERPCode);
+//log.loggerDebug("sCtgName : " + checkString(sCtgName, ""));
+
+var ctgProcessingCatalog = getCtgByName(sCtgName);
+//log.loggerDebug("ctgProcessingCatalog : " + checkString(ctgProcessingCatalog, ""));
+
+var ctrcategoryTree = getCategoryTreeByName("H000-Typology");
+//log.loggerDebug("ctrcategoryTree : " + checkString(ctrcategoryTree, ""));
+
+log.loggerDebug("inERPCode : " + checkString(inERPCode, ""));
+var itmProcessingItem = ctgProcessingCatalog.getEntryByPrimaryKey(inERPCode);
+//log.loggerDebug("itmProcessingItem : " + checkString(itmProcessingItem, ""));
+
+if(itmProcessingItem != null){
+
+				itmProcessingItem.setEntryAttrib("SC000-GlobPrim/AttTechSave","techprocess");
+
+				var strItemType= getItemType(itmProcessingItem, hmGlobals);
+				log.loggerDebug("strItemType : " + checkString(strItemType, ""));
+//				log.loggerDebug("hmGlobals : " + checkString(hmGlobals, ""));
+// Get the Product belonging to this item
+			    var itmProdItem = getProductItem(itmProcessingItem, strItemType);
+//				log.loggerDebug("itmProdItem : " + checkString(itmProdItem, ""));
+							    
+				var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+//				log.loggerDebug("catProcessingItem : " + checkString(catProcessingItem, ""));
+								
+				var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+//				log.loggerDebug("strSecSpecName : " + checkString(strSecSpecName, ""));
+				
+				var specItemSpec = getSpecByName(strSecSpecName);
+//				log.loggerDebug("specItemSpec : " + checkString(specItemSpec, ""));
+
+				//set all the attributes
+				//All types of products (item, bunit and prod)
+				if(specItemSpec.getNodeByPath(strSecSpecName + "/01AC0664-MaterialNumber") != null){
+					
+					log.loggerDebug("inMaterial : " + checkString(inMaterial, ""));				
+				    log.loggerDebug("specItemSpec 2: " + checkString(specItemSpec.getNodeByPath(strSecSpecName + "/01AC0664-MaterialNumber"), ""));
+					itmProcessingItem.setEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber", inMaterial);
+				}
+
+ }
+ saveItem(itmProcessingItem);
+  }
+  
+function getErrors(hmGlobals,oJMSMessage){
+	var CRLF=hmGlobals["CRLF"];
+	var sXML=oJMSMessage.jmsGetTextFromMsg();
+	if (sXML==null || trim(sXML)=="") 
+	{
+		return "";	
+	}
+	
+	var xmlDoc=new XmlDocument(sXML);
+	var nNodes=xmlDoc.getXMLNodes("error");
+	var i=0;
+	var sErr="";
+	for (i=0;i<nNodes.size();i++)
+	{
+		sErr = sErr + CRLF + " - ";
+		sErr = sErr + nNodes[i].getXMLNodeValue("sAttributeCode") + " [" ;
+		sErr = sErr + nNodes[i].getXMLNodeValue("sValue") + "] => ";
+		sErr = sErr + nNodes[i].getXMLNodeValue("sErrMsg");
+	}
+	return sErr;
+}
+
+// ================================================================================
+//
+// @brief processJMSItemResponses Update TargetSystemGroup with status from TargetSystems.
+// @param hmGlobals globals
+// @param oJMSMessage JMS message received
+function processItemResponses(hmGlobals,oJMSMessage){
+
+	var log=hmGlobals["LOGGER"];
+	var moni  = getLogger("Monitor");	
+	var inout = getLogger("Inout");	
+		
+	var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();	
+	hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+	
+	log.loggerDebug("BEGIN: updateAttributeJmsStatus");
+		
+	var hmJMSProperties=oJMSMessage.jmsGetMessageProperties();
+	log.loggerDebug("BEGIN: hmJMSProperties "+hmJMSProperties);
+	
+	var valMsgId           = null;
+	var valTargetSystemId  = null;
+    var valMessageStatus   = null;
+    var valTechnicalStatus = null;
+    var valLastMessageId   = null;
+    var valInformation     = null;
+    var valERPCode         = null;    
+    var strXML             = null;
+	var valMaterial        = null;
+	
+//	log.loggerDebug("BEGIN: sXML ");
+	
+	var sXML=oJMSMessage.jmsGetTextFromMsg();
+	var xmlDoc=new XmlDocument(sXML);
+
+//	log.loggerDebug("BEGIN: xmlDoc "+xmlDoc);
+
+// Fill up necessary fields to continue .... BEMADVL
+	forEachXMLNode(xmlDoc, "", xml_node) {
+
+		forEachXMLNode(xml_node, "", xml_item_node) {
+        
+        strXML = xml_item_node.xmlDocToString();
+        
+	    valMsgId           = xml_item_node.getXMLNodeValue("msgid");
+        valTargetSystemId  = xml_item_node.getXMLNodeValue("s99CTL210_TargetSystemId");
+     	valMessageStatus   = xml_item_node.getXMLNodeValue("s99CTL220_MessageStatus");
+    	valTechnicalStatus = xml_item_node.getXMLNodeValue("s99CTL230_TechnicalStatus");
+    	valLastMessageId   = xml_item_node.getXMLNodeValue("s99CTL240_LastMessageId");
+    	valInformation     = xml_item_node.getXMLNodeValue("s99CTL250_Information");
+//    	valMaterial        = substring(checkString(xml_item_node.getXMLNodeValue("s01AC0664_MaterialNumber"), ""),1,18);
+    	valMaterial        = xml_item_node.getXMLNodeValue("s01AC0664_MaterialNumber");
+	 } 
+	}
+		                				
+	var bTargetSystem = "false";
+	
+    log.loggerDebug("*1* JMS: Processing message "+ hmJMSProperties["s01AC0044_ERPCode"]);
+    
+	moni.loggerDebug("*************************** Begin");
+	moni.loggerDebug("INBOUND "  + today().formatDate("yyyy/MM/dd HH:mm:ss") + checkString(valTargetSystemId,"") + checkString(hmJMSProperties["s01AC0044_ERPCode"], "") + checkString(valMaterial,""));
+	inout.loggerDebug("MDM" + ";" +"INBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(valTargetSystemId,"") + ";" + checkString(hmJMSProperties["s01AC0044_ERPCode"], "") + ";" + checkString(valMaterial,""));
+	moni.loggerDebug("                Material = " + checkString(valMaterial,""));
+	moni.loggerDebug("                ID       = " + checkString(valTargetSystemId,""));
+	moni.loggerDebug("                Status   = " + checkString(valTechnicalStatus,""));
+	moni.loggerDebug("                Inf      = " + checkString(valInformation,""));
+	moni.loggerDebug("                Message  = " + checkString(valMessageStatus,""));
+	    	
+	var sErpCode = hmJMSProperties["s01AC0044_ERPCode"];
+	
+//	log.loggerDebug("*2*  ERPCode: "        + sErpCode);
+//  log.loggerDebug("*2*  XML String: "     + strXML);
+//    log.loggerDebug("*2*  msgid: "          + valMsgId);
+//    log.loggerDebug("*2*  TargetSystemId: " + valTargetSystemId);
+//    log.loggerDebug("*2*  MessageStatus: "  + valMessageStatus);
+//    log.loggerDebug("*2*  TechnicalStatus: "+ valTechnicalStatus);
+//    log.loggerDebug("*2*  LastMessageId: "  + valLastMessageId);
+//    log.loggerDebug("*2*  Information: "    + valInformation);  
+//    log.loggerDebug("*2*  Material: "       + valMaterial);  
+            	    
+	var sCtgName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(sErpCode);
+//	log.loggerDebug("*3*   JMS: CatalogName "+ sCtgName );
+	log.loggerDebug("*3*   JMS: Processing message "+ valMsgId +" for "+ sErpCode );
+		
+	// catalog exist
+	if  (sCtgName != null){
+	
+		var ctg = getCtgByName(sCtgName);
+		var item = ctg.getEntryByPrimaryKey(sErpCode);
+//		var strItemType= getItemType(item, hmGlobals);
+//		log.loggerDebug("*3*   JMS: strItemType "+ strItemType );
+		
+		// item exist
+		if ( item != null ) {
+			// the item is not check out in a collaboration area
+			if ( ! item.isEntryCheckedOut() ){		
+				// 
+				item.setEntryAttrib("SC000-GlobPrim/AttTechSave","techprocess");
+				//
+				var node;
+				var i;
+			 	var nodes = item.getRootEntryNode().getEntryNodes("SC000-GlobPrim/99CTL200-TargetSystemGroup");
+                  			 	
+				forEachHmElement(nodes,i,node) {
+					var sTargetSytemId = node.getEntryNode("99CTL210-TargetSystemId").getEntryNodeValue();
+					var sLastMessageId = node.getEntryNode("99CTL240-LastMessageId").getEntryNodeValue();
+                    log.loggerDebug("*4*    sTargetId: " + sTargetSytemId + "==" +  valTargetSystemId);
+  		
+					// TargetID && MessageID is egual, we modify the different field information about JMS				
+					if ( sTargetSytemId == valTargetSystemId ){       
+					
+						bTargetSystem = "true";
+						
+//						if ( substring(sLastMessageId,3,51) == substring(valMsgId,0,50)) {
+																																						
+			 				nodes[i].getEntryNode("99CTL220-MessageStatus").setEntryNodeValue(valMessageStatus);							
+//							log.loggerDebug("*7*       MQ MessageStatus: Updated");
+																																							
+			 				nodes[i].getEntryNode("99CTL230-TechnicalStatus").setEntryNodeValue(valTechnicalStatus);							
+//							log.loggerDebug("*7*       MQ TechnicalStatus: Updated");
+																																								
+			 				nodes[i].getEntryNode("99CTL240-LastMessageId").setEntryNodeValue(valLastMessageId);							
+//							log.loggerDebug("*7*       MQ LastMessageId: Updated");
+																																								
+			 				nodes[i].getEntryNode("99CTL250-Information").setEntryNodeValue(valInformation);							
+//							log.loggerDebug("*7*       MQ Information: Updated");
+														
+//							var enMessage = node.getEntryNode("99CTL220-MessageStatus");
+//							var enTechnical = node.getEntryNode("99CTL230-TechnicalStatus");
+//							var enInformation = node.getEntryNode("99CTL250-Information");
+//							var enModifiedAttrs = node.getEntryNode("99CTL260-ModifiedAttrs");
+							
+//							enMessage.setEntryNodeValue(hmJMSProperties["s99CTL220_MessageStatus"]);
+//							enTechnical.setEntryNodeValue(hmJMSProperties["s99CTL230_TechnicalStatus"]);
+//							enMessage.setEntryNodeValue(valMessageStatus);
+//							enTechnical.setEntryNodeValue(valTechnicalStatus);
+							
+//							var sErr=valInformation;
+//							var sErr=hmJMSProperties["s99CTL250_Information"];							
+//							sErr=sErr+getErrors(hmGlobals,oJMSMessage);
+//							enInformation.setEntryNodeValue(sErr);
+							
+//							if (valTechnicalStatus=="OK")
+//							{
+//								enModifiedAttrs.setEntryNodeValue("");
+//							}
+// SAP Material Number
+																		
+							var res = item.saveCtgItem();
+							var aGlobalErrors = res.getGlobalErrors();
+							if ( aGlobalErrors.size() > 0 ) {
+								// case we are not abble to modify the attribute of the item
+								// an error has been sent to jms.log
+								var j;
+								var sError = "Unable to modify this item.";
+								for (j=0;j<aGlobalErrors.size();j++ ){
+									sError = sError + aGlobalErrors[j];
+								}
+								// an error message is sent to jms.log				
+								log.loggerError( sError);
+								moni.loggerDebug("                Error    = " + checkString(sError,""));
+								
+							} else {
+								// Info the item has been modified 
+								// an info message is sent to jms.log
+								log.loggerInfo("COMMIT");
+							}
+							
+							if ( valMaterial != null ) {
+								var strKheopsItemMaterialNumber="";
+								var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"01AC0664-MaterialNumber");
+								if(oItemMaterialNumberEn!=null) {
+									strKheopsItemMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+								}
+								if(strKheopsItemMaterialNumber=="") {
+									setMaterial(hmGlobals, sErpCode, valMaterial, log);
+//									item.setEntryAttrib("SC010-Plaques_de_platre_Gypsum_plasterBoards_PItem/01AC0664-MaterialNumber", valMaterial);
+									log.loggerDebug("********End Material ==> "+valMaterial);
+									moni.loggerDebug("                Updated  = " + checkString(valMaterial,""));
+								}
+								else {
+									log.loggerDebug("Material number can't be updated for the item "+sErpCode+" because it already exists");
+									log.loggerDebug("********End Material");
+								}
+														}
+																					
+//						} else {
+//						log.loggerWarn("msgid in WPC=" + sLastMessageId + ", msgid from JMS=" + valMsgId);
+//						}	
+					} 
+				}
+				// case the Target System didn't exist
+				// a fatal error is sent to jms.log
+				if ( bTargetSystem == "false" ) {
+					log.loggerFatal("Target system didn't exist " + valTargetSystemId);
+														
+					var TargetSystemGroup = getEn(hmGlobals, item,"99CTL200-TargetSystemGroup");
+					var TargetSystemGroupLen=TargetSystemGroup.size();
+										
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+TargetSystemGroupLen+"/99CTL210-TargetSystemId",valTargetSystemId);
+        			item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+TargetSystemGroupLen+"/99CTL220-MessageStatus",valMessageStatus);
+        			item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+TargetSystemGroupLen+"/99CTL230-TechnicalStatus",valTechnicalStatus);
+        			item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+TargetSystemGroupLen+"/99CTL250-Information",valInformation);
+        			item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+TargetSystemGroupLen+"/99CTL240-LastMessageId",valLastMessageId);
+        			
+					log.loggerDebug("TargetSystemGroup: Added");
+
+					if ( valMaterial != null ) {
+							
+						moni.loggerDebug("                Updated  = " + checkString(valMaterial,""));
+						setMaterial(hmGlobals, sErpCode, valMaterial, log);
+						log.loggerDebug("********End Material ==> "+valMaterial);
+														}
+														
+					var res = item.saveCtgItem();
+					var aGlobalErrors = res.getGlobalErrors();
+					if ( aGlobalErrors.size() > 0 ) {
+						// case we are not abble to modify the attribute of the item
+						// an error has been sent to jms.log
+						var j;
+						var sError = "Unable to modify this item.";
+						for (j=0;j<aGlobalErrors.size();j++ ){
+							sError = sError + aGlobalErrors[j];
+							}
+						// an error message is sent to jms.log				
+						log.loggerError( sError);
+								} else {
+						// Info the item has been modified 
+						// an info message is sent to jms.log
+						log.loggerInfo("COMMIT");
+							}
+																																										
+				}
+			} else {
+				// Info the Item is checkout
+				// a Warning is sent to jms.log
+				log.loggerWarn(sErpCode + " is checked out " + valLastMessageId = "123");
+			}
+		} else {
+			// The ERPCode provided doesn't exist in WPC
+			// a fatal error is sent to jms.log
+			log.loggerFatal(sErpCode + " ERPCode doesn't exists");
+		}
+	} else {
+		// The company provided in ERPCode doesn't exist 
+		// a fatal error is sent to jms.log
+		log.loggerFatal(sErpCode + " Catalog doesn't exists");
+	}
+	moni.loggerDebug("*************************** End");
+	
+	log.loggerDebug("END: updateAttributeJmsStatus");
+}
+// processBrokerInfo
+// @desc process information messages coming from the broker
+function processBrokerInfo(hmGlobals,oJMSMessage){
+	var log = hmGlobals["LOGGER"];
+	log.loggerDebug("BEGIN: processBrokerInfo");
+	var hmJMSProperties=oJMSMessage.jmsGetMessageProperties();
+
+	if (hmJMSProperties["s99CTL210_TargetSystemId"]=="AS400" && hmJMSProperties["sInformationType"]=="InfoLieux" )
+	{
+
+		var s01AC0044_ERPCode=checkString(hmJMSProperties["s01AC0044_ERPCode"],"");
+		log.loggerDebug("Processing Info Lieux coming from AS400 for entry " + s01AC0044_ERPCode);
+		
+		if (s01AC0044_ERPCode==""){
+			log.loggerDebug("ERROR: no ERP Code found");
+			return "";
+		}
+		var sXML=oJMSMessage.jmsGetTextFromMsg();
+		var xmlDoc=new XmlDocument(sXML);
+		var nNodes=xmlDoc.getXMLNodes("PlaceOfStorageGroup/PlaceOfStorage");
+		var i=0;
+		
+		// First build a hash from the xml message so that :
+		// the key is the PlaceOfStorageCode
+		// the value is the AS400 status of the place of Storage
+		var ctg=getCtgByName(getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(s01AC0044_ERPCode));
+		var entry=ctg.getEntryByPrimaryKey(s01AC0044_ERPCode);
+		if (entry==null){
+			log.loggerDebug("could not find entry with key " + s01AC0044_ERPCode);
+			return "";
+		}
+		var hmPlaceOfStorageStatus=[];
+		for (i=0;i<nNodes.size();i++)
+		{
+			hmPlaceOfStorageStatus[nNodes[i].getXMLNodeValue("s06DN0358_PlaceOfStorage")]=nNodes[i].getXMLNodeValue("s06DN0559_PlaceOfStorageAS400Status");
+		}
+	
+		// now we update the catalog entry.
+		var enPlaceOfStorageGroup=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"PlaceOfStorageGroup");
+		// get the Places of storage.
+		var places=enPlaceOfStorageGroup.getEntryNodeChildren();
+		var lkp= getLkpByName("L098-Lieux - Places");
+		// for each place of storage in Kheops Entry
+		for (i=0;i<places.size();i++){
+			var s06DN0358_PlaceOfStorage=lookupValues(lkp,places[i].getEntryNode("06DN0358-PlaceOfStorage").getEntryNodeValue())[0];
+			// update the AS400 status.
+			places[i].getEntryNode("06DN0559-PlaceOfStorageAS400Status").setEntryNodeValue(hmPlaceOfStorageStatus[s06DN0358_PlaceOfStorage]);
+			log.loggerDebug("updated AS400 status of " + s06DN0358_PlaceOfStorage + " => " + hmPlaceOfStorageStatus[s06DN0358_PlaceOfStorage]);
+		}
+		entry.setEntryAttrib("SC000-GlobPrim/AttTechSave","techprocess");
+		// finally, save the item.
+		entry.saveCtgItem();
+	}
+
+	log.loggerDebug("END: processBrokerInfo");
+	return "";
+}
+
+
+// getMessageFromBroker
+// @desc Get messages from broker.
+function getMessageFromBroker() {
+
+	var log = getLogger("JmsLog");
+	var moni = getLogger("Monitor");	
+	var hmGlobals=[];
+	hmGlobals["LOGGER"]=log;
+		 	
+	var iCpt = 0;
+	var bReceiveMessage = "true";
+
+	log.loggerDebug("BEGIN: getMessageFromBroker");
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	
+	var JMSQueue   				= lookupValues(lkpTableKheopsConstants,"JMS_INBOUND_QUEUE")[0];
+//	var JMSContext 				= lookupValues(lkpTableKheopsConstants,"JMS_CONTEXT_URL")[0];
+//	var JMSFactory 		 		= lookupValues(lkpTableKheopsConstants,"JMS_CONTEXT_JNDIFACTORY")[0];
+//	var JMSConnectionFactory 	= lookupValues(lkpTableKheopsConstants,"JMS_INBOUND_CONNECTION_FACTORY")[0];	
+//	log.loggerDebug("JMSQueue 				: "  +  checkString(JMSQueue,""));	
+//	log.loggerDebug("JMSContext 			: "  +  checkString(JMSContext,""));	
+//	log.loggerDebug("JMSFactory 			: "  +  checkString(JMSFactory,""));	
+//	log.loggerDebug("JMSConnectionFactory 	: "  +  checkString(JMSConnectionFactory,""));	
+
+	var MQManager 	= lookupValues(lkpTableKheopsConstants,"MQ_Queue_Manager")[0];	
+	var MQHost	 	= lookupValues(lkpTableKheopsConstants,"MQ_Host")[0];	
+	var MQServer 	= lookupValues(lkpTableKheopsConstants,"MQ_Server_Connection")[0];	
+	var MQPort	 	= checkInt(lookupValues(lkpTableKheopsConstants,"MQ_Port")[0],0);	
+	log.loggerDebug("MQManager : " + MQManager);
+	log.loggerDebug("MQHost    : " + MQHost);
+	log.loggerDebug("MQServer  : " + MQServer);
+	log.loggerDebug("MQPort    : " + MQPort);
+						
+	var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_INBOUND_QUEUE")[1];
+	log.loggerDebug("JMSQueue Descr: "  +  checkString(myTargetSystemId,""));	
+
+//	var myContext= jmsGetContext(lookupValues(lkpTableKheopsConstants,"JMS_CONTEXT_URL")[0],lookupValues(lkpTableKheopsConstants,"JMS_CONTEXT_JNDIFACTORY")[0]);
+//	var myConnectionFactory=myContext.jmsGetConnectionFactory(lookupValues(lkpTableKheopsConstants,"JMS_INBOUND_CONNECTION_FACTORY")[0]);
+//	var myQueue=myQueueSession.jmsGetQueue(lookupValues(lkpTableKheopsConstants,"JMS_INBOUND_QUEUE")[0]);
+	
+	var myConnectionFactory=jmsGetMQConnectionFactory(MQManager,MQHost,MQServer,MQPort);
+		
+//	var myContext= jmsGetContext(JMSContext,JMSFactory);
+//	log.loggerDebug("jmsContext : "+ JMSContext);
+//	log.loggerDebug("JMSFactory : "+ JMSFactory);
+//	log.loggerDebug("myContext : "+ myContext);
+	
+//	var myConnectionFactory=myContext.jmsGetConnectionFactory(JMSConnectionFactory);
+//	log.loggerDebug("JMSConnectionFactory : "+ JMSConnectionFactory);
+//	log.loggerDebug("myConnectionFactory : "+ myConnectionFactory);
+
+	var myQueueConnection=myConnectionFactory.jmsGetQueueConnection();
+//	log.loggerDebug("myQueueConnection : "+ myQueueConnection);
+		
+	var myQueueSession= myQueueConnection.jmsGetQueueSession();
+//	log.loggerDebug("myQueueSession : "+ myQueueSession);
+	
+	var myQueue=myQueueSession.jmsGetQueue(JMSQueue);
+//	log.loggerDebug("myQueue : "+ myQueue);
+
+	while ( bReceiveMessage == "true" ) 
+	{
+		var myJmsMessage = myQueueSession.jmsReceiveMsgFromQueue(myQueue,30);
+		log.loggerDebug("myJmsMessage : "+ myJmsMessage);
+		
+		if ( myJmsMessage != null ) 
+		{
+			iCpt++;		
+			var hmJMSProperties=myJmsMessage.jmsGetMessageProperties();
+			log.loggerDebug("hmJMSProperties : "+ hmJMSProperties);
+			
+//			if (hmJMSProperties["sMessageType"]=="ITEM_RESPONSE"){
+				processItemResponses(hmGlobals,myJmsMessage);
+//				log.loggerDebug("**************   MessageFromBroker"  +  myJmsMessage);
+//			}
+//			if (hmJMSProperties["sMessageType"]=="ITEM_INFO"){
+//				processBrokerInfo(hmGlobals,myJmsMessage);
+//			}
+		} 
+		else 
+		{
+			bReceiveMessage = "false";
+		}
+	}
+	myQueueSession.jmsDisconnect(myQueueConnection);
+	log.loggerDebug("Number of Messages processed: "+iCpt);
+	log.loggerDebug("END: getMessageFromBroker");
+	return iCpt;
+}
+

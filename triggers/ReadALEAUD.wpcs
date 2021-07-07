@@ -1,0 +1,629 @@
+//
+// InfoSphere MDM Collaboration Server Script
+// bemadvl
+
+function getEn(hmGlobals, item, sNodeName) {
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item, sNodeName);
+}
+
+function getItemType(item, hmGlobals) {
+	var itemPK = item.getPrimaryKey();
+	var itemType = "";
+	if (itemPK.contains("P")) {
+		itemType = "Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType = "Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK = getEn(hmGlobals, item, "99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId = checkInt(itemParentPK, 0);
+		var relatedItemArray = item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk = checkString(relatedItemArray[1], "");
+		if (relatedItemPk != null && relatedItemPk != "") {
+			if (relatedItemPk.contains("B")) {
+				itemType = "Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType = "Pitem2";
+			}
+		}
+	}
+	return (itemType);
+}
+
+function getValue(item, sNodeName) {
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item, sNodeName)[0].getEntryNodeValue();
+}
+
+function getStatus(item) {
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+function getProductItem(item, strItemType) {
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	if (strItemType == "Pitem2") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+	}
+	if (strItemType == "Pitem1") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+	}
+	if (strItemType == "Bunit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+	}
+	return itmProdItem;
+}
+
+function saveItem(itm) {
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+function setMaterial(hmGlobals, inERPCode, inMaterial, log) {
+	var moni = getLogger("Monitor");
+
+	var sCtgName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(inERPCode);
+	//log.loggerDebug("sCtgName : " + checkString(sCtgName, ""));
+
+	var ctgProcessingCatalog = getCtgByName(sCtgName);
+	//log.loggerDebug("ctgProcessingCatalog : " + checkString(ctgProcessingCatalog, ""));
+
+	var ctrcategoryTree = getCategoryTreeByName("H000-Typology");
+	//log.loggerDebug("ctrcategoryTree : " + checkString(ctrcategoryTree, ""));
+
+	log.loggerDebug("inERPCode : " + checkString(inERPCode, ""));
+	var itmProcessingItem = ctgProcessingCatalog.getEntryByPrimaryKey(inERPCode);
+	//log.loggerDebug("itmProcessingItem : " + checkString(itmProcessingItem, ""));
+
+	moni.loggerInfo("*************** Process: Update Material ****************");
+	// moni.loggerInfo("*************** itmProcessingItem " + itmProcessingItem);
+	if (itmProcessingItem != null) {
+
+		itmProcessingItem.setEntryAttrib("SC000-GlobPrim/AttTechSave", "techprocess");
+
+		//				var strItemType= getItemType(itmProcessingItem, hmGlobals);
+		//				log.loggerDebug("strItemType : " + checkString(strItemType, ""));
+		//				moni.loggerInfo("*************** strItemType " + strItemType);
+
+		//				log.loggerDebug("hmGlobals : " + checkString(hmGlobals, ""));
+		// Get the Product belonging to this item
+		//			    var itmProdItem = getProductItem(itmProcessingItem, strItemType);
+		//				log.loggerDebug("itmProdItem : " + checkString(itmProdItem, ""));
+
+		var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+		//				log.loggerDebug("catProcessingItem : " + checkString(catProcessingItem, ""));
+
+		var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+		//				log.loggerDebug("strSecSpecName : " + checkString(strSecSpecName, ""));
+
+		var specItemSpec = getSpecByName(strSecSpecName);
+		//				log.loggerDebug("specItemSpec : " + checkString(specItemSpec, ""));
+
+		//set all the attributes
+		//All types of products (item, bunit and prod)
+		if (specItemSpec.getNodeByPath(strSecSpecName + "/01AC0664-MaterialNumber") != null) {
+
+			log.loggerDebug("inMaterial : " + checkString(inMaterial, ""));
+			log.loggerDebug("specItemSpec 2: " + checkString(specItemSpec.getNodeByPath(strSecSpecName + "/01AC0664-MaterialNumber"), ""));
+			itmProcessingItem.setEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber", inMaterial);
+		}
+
+	}
+	saveItem(itmProcessingItem);
+}
+
+
+
+
+
+
+function getErrors(hmGlobals, oJMSMessage) {
+	var CRLF = hmGlobals["CRLF"];
+	var sXML = oJMSMessage.jmsGetTextFromMsg();
+	if (sXML == null || trim(sXML) == "") {
+		return "";
+	}
+
+	var xmlDoc = new XmlDocument(sXML);
+	var nNodes = xmlDoc.getXMLNodes("error");
+	var i = 0;
+	var sErr = "";
+	for (i = 0; i < nNodes.size(); i++) {
+		sErr = sErr + CRLF + " - ";
+		sErr = sErr + nNodes[i].getXMLNodeValue("sAttributeCode") + " [";
+		sErr = sErr + nNodes[i].getXMLNodeValue("sValue") + "] => ";
+		sErr = sErr + nNodes[i].getXMLNodeValue("sErrMsg");
+	}
+	return sErr;
+}
+
+function ProcessERPCode(valMaterialNumber, sErpCode, valmsgid, valTargetSystemId, valTechnicalStatus, valInformation, valStatus, strMailto) {
+
+	var moni = getLogger("Monitor");
+	var sCtgName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(sErpCode);
+
+	// catalog exist
+	if (sCtgName != null) {
+
+		var ctg = getCtgByName(sCtgName);
+		var item = ctg.getEntryByPrimaryKey(sErpCode);
+
+		moni.loggerInfo("********************* ProcessERPCode ****************");
+		moni.loggerInfo("** Process ErpCode            : " + checkString(sErpCode, ""));
+		moni.loggerInfo("** Process Material           : " + checkString(valMaterialNumber, ""));
+
+		// item exist
+		if (item != null) {
+
+			// the item is not check out in a collaboration area
+			if (!item.isEntryCheckedOut()) {
+
+				moni.loggerInfo("** isEntryCheckedOut          : " + checkString(item.isEntryCheckedOut(), ""));
+
+				item.setEntryAttrib("SC000-GlobPrim/AttTechSave", "techprocess");
+				var node;
+				var i;
+				var nodes = item.getRootEntryNode().getEntryNodes("SC000-GlobPrim/99CTL200-TargetSystemGroup");
+
+				bTargetSystem = "false";
+				forEachHmElement(nodes, i, node) {
+					var sTargetSystemId = node.getEntryNode("99CTL210-TargetSystemId").getEntryNodeValue();
+
+					moni.loggerInfo("** TargetSytemId         : " + sTargetSystemId + " = " + valTargetSystemId);
+
+					// TargetID && MessageID is egual, we modify the different field information about JMS				
+					if (sTargetSystemId == valTargetSystemId) {
+						var nowMethod = createJavaMethod("java.time.Instant", "now");
+						var TodayUTC = runJavaMethod(null, nowMethod);
+
+						var sLastMessageId = node.getEntryNode("99CTL240-LastMessageId").getEntryNodeValue() ;
+						var sTechnicalStatus = node.getEntryNode("99CTL230-TechnicalStatus").getEntryNodeValue() ;
+						var sMessageStatus = node.getEntryNode("99CTL220-MessageStatus").getEntryNodeValue();
+						var sInformation = node.getEntryNode("99CTL250-Information").getEntryNodeValue();
+
+						moni.loggerInfo("** sLastMessageId   : " + checkString(sLastMessageId, "") );
+						moni.loggerInfo("** sMessageStatus    : " + checkString(sMessageStatus, "") );
+						moni.loggerInfo("** sTechnicalStatus  : " + checkString(sTechnicalStatus, "") );
+						moni.loggerInfo("** sInformation      : " + checkString(sInformation, "") );
+						
+						sLastMessageId   = checkString(sLastMessageId,"") + checkString(valmsgid,"");
+						sTechnicalStatus = checkString(valTechnicalStatus,"");
+						sMessageStatus   = checkString(sMessageStatus,"")   + " / " + checkString(valStatus,"");
+						sInformation     = checkString(sInformation,"") + checkString(valInformation,"") + " / Update " + checkString(sErpCode, "") + " at " + TodayUTC;
+
+						moni.loggerInfo("** sLastMessageId   : " + checkString(sLastMessageId, "") );
+						moni.loggerInfo("** sMessageStatus    : " + checkString(sMessageStatus, "") );
+						moni.loggerInfo("** sTechnicalStatus  : " + checkString(sTechnicalStatus, "") );
+						moni.loggerInfo("** sInformation      : " + checkString(sInformation, "") );
+						moni.loggerInfo("***********************************************************" );
+
+						moni.loggerInfo("** Performance                : " + checkString(sInformation, ""));
+
+						bTargetSystem = "true";
+
+						nodes[i].getEntryNode("99CTL220-MessageStatus").setEntryNodeValue(sMessageStatus);
+						nodes[i].getEntryNode("99CTL230-TechnicalStatus").setEntryNodeValue(sTechnicalStatus);
+						nodes[i].getEntryNode("99CTL240-LastMessageId").setEntryNodeValue(sLastMessageId);
+						nodes[i].getEntryNode("99CTL250-Information").setEntryNodeValue(sInformation);
+
+						if (sTargetSystemId != "ETIQUETTES") {
+							if (sMessageStatus == valmsgid) {
+
+								moni.loggerInfo("** No change in status");
+
+
+							} else {
+								if (valStatus == "53" || valStatus == "68" || valStatus == "") {
+									moni.loggerInfo("** Change in status");
+									moni.loggerInfo("** To adress " + checkString(strMailto, "") + " STATUS: SAP Confirmation material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""));
+
+									sendEmail(strMailto, "STATUS: SAP Confirmation material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""), checkString(valTechnicalStatus, ""));
+								} else {
+									sendEmail(strMailto, "ERROR: Material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""), checkString(valTechnicalStatus, ""));
+								}
+							}
+						} else {
+
+							if (valTechnicalStatus.contains("NOT") == true) {
+								sendEmail(strMailto, "ERROR: Etiquette not defined " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, ""), checkString(valTechnicalStatus, ""));
+							} else {
+
+								sendEmail(strMailto, "STATUS: Etiquette " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, ""), checkString(valTechnicalStatus, ""));
+							}
+						}
+
+						// SAP Material Number
+
+						var res = item.saveCtgItem();
+						var aGlobalErrors = res.getGlobalErrors();
+						if (aGlobalErrors.size() > 0) {
+							// case we are not abble to modify the attribute of the item
+							// an error has been sent to jms.log
+							var j;
+							var sError = "Unable to modify this item.";
+
+							moni.loggerInfo("** Unable to modify           : " + checkString(valMaterialNumber, ""));
+
+							for (j = 0; j < aGlobalErrors.size(); j++) {
+								sError = sError + aGlobalErrors[j];
+							}
+							// an error message is sent to jms.log				
+							moni.loggerInfo("** Error                      : " + checkString(sError, ""));
+
+						} else {
+							// Info the item has been modified 
+							// an info message is sent to jms.log
+							log.loggerInfo("COMMIT");
+
+							moni.loggerInfo("** Item modified              : " + checkString(valMaterialNumber, ""));
+						}
+
+						if (valMaterialNumber != null) {
+
+							var strKheopsItemMaterialNumber = "";
+							var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item, "01AC0664-MaterialNumber");
+							if (oItemMaterialNumberEn != null) {
+								strKheopsItemMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(), "");
+							}
+
+							moni.loggerInfo("**   Old / New Material   :" + checkString(strKheopsItemMaterialNumber, "") + " => " + checkString(valMaterialNumber, ""));
+							if (strKheopsItemMaterialNumber == "" || strKheopsItemMaterialNumber == "New") {
+								setMaterial(hmGlobals, sErpCode, valMaterialNumber, log);
+								moni.loggerInfo("** Item linked : " + checkString(valMaterialNumber, ""));
+							}
+							else {
+								moni.loggerInfo("** Material already linked " + checkString(valMaterialNumber, ""));
+							}
+						}
+
+					}
+				}
+				// case the Target System didn't exist
+				// a fatal error is sent to jms.log
+				if (bTargetSystem == "false") {
+					moni.loggerInfo("**   Target system didn't exist " + valTargetSystemId);
+
+					var TargetSystemGroup = getEn(hmGlobals, item, "99CTL200-TargetSystemGroup");
+					var TargetSystemGroupLen = TargetSystemGroup.size();
+
+					var nowMethod = createJavaMethod("java.time.Instant", "now");
+					var TodayUTC = runJavaMethod(null, nowMethod);
+
+					valInformation = checkString(valInformation, "") + " / Update " + checkString(sErpCode, "") + " at " + TodayUTC;
+					moni.loggerInfo("** Performance                : " + checkString(valInformation, ""));
+
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#" + TargetSystemGroupLen + "/99CTL210-TargetSystemId", valTargetSystemId);
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#" + TargetSystemGroupLen + "/99CTL220-MessageStatus", valMessageStatus);
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#" + TargetSystemGroupLen + "/99CTL230-TechnicalStatus", valTechnicalStatus);
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#" + TargetSystemGroupLen + "/99CTL250-Information", valInformation);
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#" + TargetSystemGroupLen + "/99CTL240-LastMessageId", valLastMessageId);
+
+					moni.loggerInfo("**   TargetSystemGroup: Added");
+
+					if (sTargetSystemId != "ETIQUETTES") {
+
+						if (valStatus == "53" || valStatus == "68" || valStatus == "") {
+							moni.loggerInfo("** Change in status");
+							moni.loggerInfo("** To adress " + checkString(strMailto, "") + " STATUS: SAP Confirmation material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""));
+
+							sendEmail(strMailto, "STATUS: SAP Confirmation material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""), checkString(valTechnicalStatus, ""));
+						} else {
+							sendEmail(strMailto, "ERROR: Material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""), checkString(valTechnicalStatus, ""));
+						}
+					} else {
+
+						sendEmail(strMailto, "STATUS: Etiquette " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, ""), checkString(valTechnicalStatus, ""));
+					}
+
+					if (valMaterial != null) {
+
+						setMaterial(hmGlobals, sErpCode, valMaterial, log);
+						moni.loggerInfo("**   New Material Saved  :" + valMaterial);
+					}
+
+					var res = item.saveCtgItem();
+					var aGlobalErrors = res.getGlobalErrors();
+					if (aGlobalErrors.size() > 0) {
+						// case we are not abble to modify the attribute of the item
+						// an error has been sent to jms.log
+						var j;
+						var sError = "Unable to modify this item.";
+						for (j = 0; j < aGlobalErrors.size(); j++) {
+							sError = sError + aGlobalErrors[j];
+						}
+						// an error message is sent to jms.log				
+						log.loggerError(sError);
+					} else {
+						// Info the item has been modified 
+						// an info message is sent to jms.log
+						log.loggerInfo("COMMIT");
+					}
+
+				}
+			} else {
+				// Info the Item is checkout
+				// a Warning is sent to jms.log
+				moni.loggerInfo("**   " + sErpCode + " is checked out ");
+
+			}
+			moni.loggerInfo("********************* End ProcessERPCode ****************");
+		} else {
+			// The ERPCode provided doesn't exist in WPC
+			// a fatal error is sent to jms.log
+			moni.loggerInfo("**   " + sErpCode + " ERPCode doesn't exists");
+
+			sendEmail(strMailto, "ERROR: Material " + checkString(valMaterialNumber, "") + " , ERPCode " + checkString(sErpCode, "") + " Status " + checkString(valTechnicalStatus, ""), checkString(valTechnicalStatus, ""));
+		}
+	} else {
+		// The company provided in ERPCode doesn't exist 
+		// a fatal error is sent to jms.log
+		moni.loggerInfo("**   " + sErpCode + " Catalog doesn't exists");
+	}
+
+
+}
+
+function getMessageFromECC() {
+	var log = getLogger("JmsLog");
+	var moni = getLogger("Monitor");
+	var inout = getLogger("Inout");
+
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var Path_XI = lookupValues(lkpTableKheopsConstants, "Path_XI")[0];
+	moni.loggerInfo("Path_XI " + Path_XI);
+
+	var Path_Response = lookupValues(lkpTableKheopsConstants, "Path_Response")[0];
+	moni.loggerInfo("Path_Response " + Path_Response);
+
+	var strMailto = lookupValues(lkpTableKheopsConstants, "Email")[0];
+	moni.loggerInfo("eMail " + strMailto);
+
+	var strPath = "/SAPSYSTEMS/";
+	moni.loggerInfo("strPath " + strPath);
+
+	var hmPaths = getDocStoreFilesInDirectory(strPath);
+	moni.loggerInfo("hmPaths " + hmPaths);
+
+	forEachHmElement(hmPaths, intKey, strPathCSV)
+	{
+		moni.loggerInfo("                               ");
+		moni.loggerInfo("*******************************");
+		moni.loggerInfo("** strPathCSV " + strPathCSV);
+
+		strPathfile = replaceString(strPathCSV, "/SAPSYSTEMS/", Path_Response);
+		moni.loggerInfo("** File       " + strPathfile);
+		moni.loggerInfo("");
+
+		if (strPathfile.contains(".xml")) {
+			var doc = getDocByPath(strPathCSV);
+			var timeStamp = doc.getDocLastModifiedTimeStamp();
+
+			var xmlDoc = new XmlDocument(strPathfile);
+
+			// moni.loggerInfo("xmlDoc " + xmlDoc);
+			// sendEmail(strMailto,"MDM process started "+ checkString(strPathfile, "") ,checkString(xmlDoc, "") + checkString(hmPaths, ""));
+
+			forEachXMLNode(xmlDoc, "", xml_node)
+			{
+
+				//			moni.loggerInfo("xml_node " + xml_node);			
+				// *********************************************** IDOC ALEAUD	        
+				if (xml_node == "ALEAUD01") {
+					forEachXMLNode(xml_node, "IDOC/EDI_DC40", xml_item_node)
+					{
+						valTargetSystemId = xml_item_node.getXMLNodeValue("SNDPRN");
+						valiDocType = xml_item_node.getXMLNodeValue("IDOCTYP");
+						valStatus = xml_item_node.getXMLNodeValue("STATUS");
+						valCreDat = xml_item_node.getXMLNodeValue("CREDAT");
+						valCreTim = xml_item_node.getXMLNodeValue("CRETIM");
+
+						moni.loggerInfo("*************** ALEAUD01 ****************");
+						moni.loggerInfo("*** Incoming message for on " + today() + " : ==> " + checkString(valTargetSystemId, ""));
+						moni.loggerInfo("*** iDoctype                " + checkString(valiDocType, ""));
+						moni.loggerInfo("*** Status                  " + checkString(valStatus, ""));
+						moni.loggerInfo("*** CreDat                  " + checkString(valCreDat, ""));
+						moni.loggerInfo("*** CreTim                  " + checkString(valCreTim, ""));
+
+
+
+					}
+
+					I = 1;
+					forEachXMLNode(xml_node, "IDOC/E1ADHDR", xml_item_ADHDR)
+					{
+						valMsgType = xml_item_ADHDR.getXMLNodeValue("MESTYP");
+
+						//							    moni.loggerInfo("*** MsgType                :" 	+ valMsgType + " Counter : " + I);					    
+						//								I = I + 1;
+
+						//							    moni.loggerInfo("*** xml_item_ADHDR                :" 	+ xml_item_ADHDR);
+
+						forEachXMLNode(xml_node, "IDOC/E1ADHDR/E1STATE", xml_item_STATE)
+						{
+							//									    moni.loggerInfo("*** xml_item_STATE                :" 	+ xml_item_STATE);
+
+							if (valMsgType == "MATMAS") {
+
+								if (xml_item_STATE == "ALEAUD01/IDOC/E1ADHDR/E1STATE") {
+
+
+
+									valStaCod = xml_item_STATE.getXMLNodeValue("STACOD");
+
+									if (valStaCod == "MDM") {
+										// var valmsgid  			= xml_item_STATE.getXMLNodeValue("STAPA4_LNG");
+
+										var valTechnicalStatus = "iDoc Status Code: " + xml_item_STATE.getXMLNodeValue("STATUS") + " iDoc N°: " + xml_item_STATE.getXMLNodeValue("STAPA1");
+										var valmsgid = "Type ALEAUD In Date: " + valCreDat + " - " + valCreTim;
+										var valMaterialNumber = xml_item_STATE.getXMLNodeValue("STAPA3");
+										var sErpCode = xml_item_STATE.getXMLNodeValue("STAPA4");
+										var valStatus = xml_item_STATE.getXMLNodeValue("STATUS");
+
+										moni.loggerInfo("                               ");
+										moni.loggerInfo("*******************************");
+										moni.loggerInfo("*** Incoming message for on " + today() + " : ==> " + checkString(valMaterialNumber, "") + " / " + checkString(sErpCode, ""));
+										moni.loggerInfo("** MaterialNumber  " + checkString(valMaterialNumber, ""));
+										moni.loggerInfo("** ErpCode         " + checkString(sErpCode, ""));
+										moni.loggerInfo("** msgid           " + checkString(valmsgid,""));
+										moni.loggerInfo("** TargetSystemId  " + checkString(valTargetSystemId,""));
+										moni.loggerInfo("** TechnicalStatus " + checkString(valTechnicalStatus,""));
+										moni.loggerInfo("** Information     " + checkString(valInformation,""));
+										moni.loggerInfo("*******************************");
+
+										moni.loggerInfo("** xml_node  " + checkString(xml_node, ""));
+										moni.loggerInfo("** xml_item_STATE  " + checkString(xml_item_STATE, ""));
+
+										inout.loggerDebug("MDM" + ";" + "INBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(valTargetSystemId, "") + ";" + checkString(sErpCode, "") + ";" + checkString(valMaterialNumber, ""));
+
+										if (checkString(sErpCode, "") != "") {
+											ProcessERPCode(valMaterialNumber, sErpCode, valmsgid, valTargetSystemId, valTechnicalStatus, valInformation, valStatus, strMailto);
+										} else { moni.loggerInfo("** ErpCode is empty !!"); }
+									}
+								}
+
+							}
+						}
+					}
+
+
+				}
+
+				// *********************************************** IDOC MT_ResonseSAP_Output	          				
+				if (xml_node == "ns0:MT_ResonseSAP_Output") {
+
+					moni.loggerInfo("*************** MT_ResonseSAP_Output ****************");
+					moni.loggerInfo("*** Incoming message for on " + today());
+
+					forEachXMLNode(xml_node, "", xml_item_node) {
+						valmsgid = xml_item_node.getXMLNodeValue("msgid");
+						valTargetSystemId = xml_item_node.getXMLNodeValue("TargetSystemId");
+						valTechnicalStatus = xml_item_node.getXMLNodeValue("TechnicalStatus");
+						valInformation = " / Type RESPONSE In " + xml_item_node.getXMLNodeValue("Information");
+						valMaterialNumber = xml_item_node.getXMLNodeValue("MaterialNumber");
+						sErpCode = xml_item_node.getXMLNodeValue("ERPCode");
+
+						moni.loggerInfo("                               ");
+						moni.loggerInfo("*******************************");
+						moni.loggerInfo("*** Incoming message for on " + today() + " : ==> " + checkString(valMaterialNumber, "") + " / " + checkString(sErpCode, ""));
+						moni.loggerInfo("** MaterialNumber  " + checkString(valMaterialNumber, ""));
+						moni.loggerInfo("** ErpCode         " + sErpCode);
+						moni.loggerInfo("** msgid           " + valmsgid);
+						moni.loggerInfo("** TargetSystemId  " + valTargetSystemId);
+						moni.loggerInfo("** TechnicalStatus " + valTechnicalStatus);
+						moni.loggerInfo("** Information     " + valInformation);
+						moni.loggerInfo("*******************************");
+
+						inout.loggerDebug("MDM" + ";" + "INBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(valTargetSystemId, "") + ";" + checkString(sErpCode, "") + ";" + checkString(valMaterialNumber, ""));
+
+						//								sendEmail(strMailto,"STATUS: Material "+ checkString(valMaterialNumber, "") +" , ERPCode "+ checkString(sErpCode, "") + " Kheops SAP Info Updated ",checkString(valTechnicalStatus, ""));
+
+						ProcessERPCode(valMaterialNumber, sErpCode, valmsgid, valTargetSystemId, valTechnicalStatus, valInformation, "", strMailto);
+					}
+
+				}
+
+				// *********************************************** IDOC ZMATMAS5	          				
+				if (xml_node == "ZMATMAS5") {
+
+					moni.loggerInfo("*************** ZMATMAS5 ****************");
+
+					forEachXMLNode(xml_node, "IDOC/EDI_DC40", xml_item_node)
+					{
+
+						valTargetSystemId = xml_item_node.getXMLNodeValue("RCVPRN");
+						valiDocType = xml_item_node.getXMLNodeValue("IDOCTYP");
+						valStatus = xml_item_node.getXMLNodeValue("STATUS");
+						valCreDat = timeStamp;
+
+						moni.loggerInfo("*** Incoming message for on " + today() + " : ==> " + valTargetSystemId + "/" + valiDocType);
+						moni.loggerInfo("*** iDoctype                " + checkString(valiDocType, ""));
+						moni.loggerInfo("*** Status                  " + checkString(valStatus, ""));
+						moni.loggerInfo("*** CreDat                  " + checkString(valCreDat, ""));
+						moni.loggerInfo("*** CreTim                  " + checkString(valCreTim, ""));
+					}
+
+					forEachXMLNode(xml_node, "IDOC/E1MARAM/Z1MARA01", xml_item_node)
+					{
+
+						sErpCode = xml_item_node.getXMLNodeValue("ZZERPCODE");
+
+					}
+
+					forEachXMLNode(xml_node, "IDOC/E1MARAM", xml_item_node) {
+						valmsgid = xml_item_node.getXMLNodeValue("DOCNUM");
+						valTechnicalStatus = "Status Created and confirmed " + valStatus;
+						valInformation = " / Type MATMAS In Material created in SAP on " + checkString(valCreDat, "");
+						valMaterialNumber = xml_item_node.getXMLNodeValue("MATNR");
+
+						moni.loggerInfo("** MaterialNumber  " + checkString(valMaterialNumber, ""));
+						moni.loggerInfo("** ErpCode         " + checkString(sErpCode, ""));
+						moni.loggerInfo("** msgid           " + checkString(valmsgid, ""));
+						moni.loggerInfo("** TargetSystemId  " + checkString(valTargetSystemId, ""));
+						moni.loggerInfo("** TechnicalStatus " + checkString(valTechnicalStatus, ""));
+						moni.loggerInfo("** Information     " + checkString(valInformation, ""));
+						moni.loggerInfo("*******************************");
+
+						inout.loggerDebug("MDM" + ";" + "INBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(valTargetSystemId, "") + ";" + checkString(sErpCode, "") + ";" + checkString(valMaterialNumber, ""));
+
+						//								sendEmail(strMailto,"STATUS: Material Confirmation "+ checkString(valMaterialNumber, "") +" , ERPCode "+ checkString(sErpCode, "") + " " + checkString(valTechnicalStatus, ""),checkString(valTechnicalStatus, ""));
+
+						if (checkString(sErpCode, "") != "") {
+							ProcessERPCode(valMaterialNumber, sErpCode, valmsgid, valTargetSystemId, valTechnicalStatus, valInformation, "", strMailto);
+						} else { moni.loggerInfo("** ErpCode is empty !!"); }
+					}
+
+				}
+				// *********************************************** Etiquette	          				
+				if (xml_node == "etiqitem") {
+
+					moni.loggerInfo("*************** etiqitem ****************");
+					moni.loggerInfo("*** xml_node " + xml_node);
+					moni.loggerInfo("*** xmlDoc " + xmlDoc);
+
+					forEachXMLNode(xml_node, "", xml_item_node) {
+						valTechnicalStatus = "Saved on " + xml_item_node.getXMLNodeValue("Pad");
+						valMaterialNumber = xml_item_node.getXMLNodeValue("Material");
+						sErpCode = xml_item_node.getXMLNodeValue("ERPCode");
+						valTargetSystemId = "ETIQUETTES";
+
+						moni.loggerInfo("** MaterialNumber  " + checkString(valMaterialNumber, ""));
+						moni.loggerInfo("** ErpCode         " + checkString(sErpCode, ""));
+						moni.loggerInfo("** TargetSystemId  " + checkString(valTargetSystemId, ""));
+						moni.loggerInfo("** TechnicalStatus " + checkString(valTechnicalStatus, ""));
+						moni.loggerInfo("*******************************");
+
+						inout.loggerDebug("MDM" + ";" + "INBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(valTargetSystemId, "") + ";" + checkString(sErpCode, "") + ";" + checkString(valMaterialNumber, ""));
+
+						//								sendEmail(strMailto,"STATUS: Etiquette "+ checkString(valMaterialNumber, "") +" , ERPCode "+ checkString(sErpCode, ""),checkString(valTechnicalStatus, ""));
+
+						if (checkString(sErpCode, "") != "") {
+							ProcessERPCode(valMaterialNumber, sErpCode, "", valTargetSystemId, valTechnicalStatus, "", "", strMailto);
+						} else { moni.loggerInfo("** ErpCode is empty !!"); }
+					}
+
+				}
+			}
+
+			var logDoc = getDocByPath(strPathCSV);
+			//		moni.loggerInfo(" DocStore "+ logDoc);
+			if (logDoc != null) {
+				logDoc.deleteDoc();
+
+				moni.loggerInfo("**");
+				moni.loggerInfo("** " + strPathCSV + " removed from docstore");
+			} else { moni.loggerInfo(strPathCSV + " NOT removed from docstore"); }
+		}
+	}
+}
+

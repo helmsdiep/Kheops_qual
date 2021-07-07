@@ -1,0 +1,414 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Library.JSON
+// @description:
+//   JSON-related functions
+//   The main function-to-call is getItemJSON(hmGlobals,item)
+// @ownership:
+//   CGA
+/////////////////////////////////////////////////////////////////
+
+
+function debug(txt) {
+  //out.writeln(txt);
+}
+
+// getParentItem
+// @desc Returns the parent item of the item passed as parameter
+// @param hmGlobals global values
+// @param item base item
+// @return item parent item
+function getParentItem(hmGlobals, item) {
+  return item.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+}
+
+function JSONEscape(txt) {
+  var quote = "\"";
+  var sep1 = "{";
+  var sep2 = "}";
+  var result = replace(txt, quote, "\\" + quote);
+  result = replace(result, sep1, "\\" + sep1);
+  result = replace(result, sep2, "\\" + sep2);
+  result = replace(result, "\n", "");
+  result = replace(result, "\r", "");
+  return result;
+}
+
+//var v="\"toto\"";
+//out.writeln(JSONEscape(v));
+
+function quote(txt) {
+  var quote = "\"";
+  return quote + JSONEscape(checkString(txt, "")) + quote;
+}
+
+function jsonattr(txt) {
+  result = replace(txt, "/", "_");
+  return quote(result);
+}
+
+// fnGetJSONOneValue
+// @desc returns the <value> element of the JSON output, for 1 value.
+// @param sValue the "real" value of the attribute
+// @param sType value type (STRING, INTEGER etc...)
+// @param sColName column name in case the value is taken from a lookup table
+// @returns a string for a single <value> element.
+function fnGetJSONOneValue(oValue, sType, sColName) {
+  // out.writeln(sColName);
+  // out.writeln(sType);
+  // out.writeln(oValue);
+  var sJSON = "";
+  var sep = ",";
+  //  sJSON = sJSON + "{";
+  // if there is no value, then we close the "value" tag.
+  if (checkString(sColName, "") != "") {
+    sJSON = sJSON + jsonattr("c" + sColName) + ":";
+  }
+
+  if (checkString(oValue, "") == "") {
+    sJSON = sJSON + quote("");
+  }
+  // otherwise we output the data
+  else {
+    // put the value type
+    // "type" : "INTEGER",
+    //sJSON = sJSON + quote("type") + ": " + quote(sType) + sep;
+    // put the column name
+    // "col" :"color"
+
+    //  sJSON = sJSON + quote("data") + " : ";
+    if (sType == "STRING") {
+      sJSON = sJSON + quote(oValue);
+    } else {
+      if (sType == "NUMBER" || sType == "INTEGER") {
+        var LOCALE = new Locale("en", "US");
+        sJSON = sJSON + oValue.formatNumber("0.############", LOCALE);
+      } else {
+        if (sType == "DATE") {
+          sJSON = sJSON + quote(oValue.formatDate("yyyy'-'MM'-'dd'T'HH:mm:ss"));
+        } else {
+          if (sType == "FLAG") {
+            sJSON = sJSON + (oValue ? "true" : "false");
+          } else {
+            sJSON = sJSON + quote("UNKOWN TYPE");
+          }
+        }
+      }
+    }
+  }
+
+  // sJSON = sJSON + "}";
+  return sJSON;
+}
+
+function TESTfnGetJSONOneValue() {
+  out.writeln(fnGetJSONOneValue(12, "NUMBER", "color"));
+  out.writeln(fnGetJSONOneValue(today(), "DATE", "color"));
+  out.writeln(fnGetJSONOneValue("toto{ddd\"", "STRING", "color"));
+}
+
+//TESTfnGetJSONOneValue();
+
+
+// fnGetJSONOneValue
+// @desc returns the <value> element of the JSON output, treating multi-value attributes
+// and lookup values too.
+// @param sType value type (STRING, INTEGER etc...)
+// @param oNode node
+// @param oEntryNode entrynode.
+// @param hmGlobals script globals
+// @returns a string for the <value> element.
+function fnGetJSONValue(hmGlobals, sType, oNode, oEntryNode) {
+  var sJSON = "";
+  if (sType != "LOOKUP_TABLE") {
+    if (sType != "RELATIONSHIP") {
+      if (sType == "STRING" && oEntryNode.getNodeFromEntryNode().getNodeAttributeValue("NON_PERSISTED") != null && oEntryNode.getNodeFromEntryNode().getNodeAttributeValue("NON_PERSISTED") == "yes" && oEntryNode.getEntryNodeExactPath().contains("Associated")) {
+        var sExactPath = oEntryNode.getEntryNodeExactPath();
+        var sParentExactPath = getParentPath(sExactPath);
+        if (sParentExactPath != "") {
+          var oParentEntryNode = oEntryNode.getEntry().getRootEntryNode().getEntryNode(sParentExactPath);
+          if (oParentEntryNode != null && oParentEntryNode.getNodeFromEntryNode().getNodeAttributeValue("TYPE") == "GROUPING") {
+            var aEntryNodeChildren = oParentEntryNode.getEntryNodeChildren();
+            var iEntryNodeChildrenLen = aEntryNodeChildren.size();
+            for (var k = 0; k < iEntryNodeChildrenLen; k++) {
+              var oEntryNodeTemp = aEntryNodeChildren[k];
+              if (oEntryNodeTemp.getNodeFromEntryNode().getNodeAttributeValue("TYPE") == "RELATIONSHIP") {
+                var w = oEntryNodeTemp.getEntry().getEntryRelationshipAttrib(oEntryNodeTemp.getEntryNodeExactPath());
+                if (w != null) {
+                  var relatedCatalog = getCtgByName(w[0]);
+                  var relatedItemId = w[1];
+                  var relatedEntry = relatedCatalog.getEntryByPrimaryKey(relatedItemId);
+                  if (relatedEntry != null) {
+                    var relatedItemName = relatedEntry.getCtgItemAttrib("SC000-GlobPrim/01AC0012-LongName");
+                    sJSON = sJSON + (k == 0 ? "" : ",") + "{" + jsonattr("01AC0012-LongName") + " : " + quote(relatedItemName) + "}";
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        sJSON = sJSON + fnGetJSONOneValue(oEntryNode.getEntryNodeValue(), sType, "");
+      }
+    } else {
+      var v = oEntryNode.getEntry().getEntryRelationshipAttrib(oEntryNode.getEntryNodeExactPath());
+      if (v != null) {
+        sJSON = sJSON + quote(v[1]);
+      } else {
+        sJSON = sJSON + quote("");
+      }
+
+    }
+  } else {
+    var ctgname = oNode.getNodeLookupTableName();
+    var hmLkp = hmGlobals["__JSON_LKP_CACHE"][ctgname];
+    // Let's cache some lookup table informations to speed up JSON generation.
+    if (hmLkp == null) {
+      var lkp = getLkpByName(ctgname);
+      var ctg = getCtgByName(ctgname);
+      debug("Caching lkp " + ctgname);
+      var hmLkpTmp = [];
+      hmLkpTmp["LOOKUP_TABLE"] = lkp;
+
+      var spc = ctg.getCtgSpec(true);
+      var nodes = spc.getNodeByPath(spc.getSpecName()).getNodeChildren();
+      var i;
+      hmLkpTmp["LOOKUP_COLS"] = [];
+      for (i = 0; i < nodes.size(); i++) {
+        hmLkpTmp["LOOKUP_COLS"][i] = [];
+        hmLkpTmp["LOOKUP_COLS"][i]["TYPE"] = nodes[i].getNodeAttributeValue("TYPE");
+        hmLkpTmp["LOOKUP_COLS"][i]["COLNAME"] = substring(nodes[i].getNodeName(), 1, 3);
+      }
+      hmGlobals["__JSON_LKP_CACHE"][ctgname] = hmLkpTmp;
+      hmLkp = hmLkpTmp;
+    }
+    // End of the "cache" part.
+
+    // Now we generate the values in the JSON doc.
+    // one value par column.
+    sJSON = sJSON + " {";
+    var sKey = checkString(oEntryNode.getEntryNodeValue(), "");
+    var lkpValues = lookupValues(hmLkp["LOOKUP_TABLE"], sKey);
+    var i = 0;
+    for (i = 0; i < hmLkp["LOOKUP_COLS"].size(); i++) {
+      var sValue = (i == 0 ? sKey : checkString(lkpValues[i - 1], ""));
+      sJSON = sJSON + (i == 0 ? "" : ",") + fnGetJSONOneValue(sValue, hmLkp["LOOKUP_COLS"][i]["TYPE"], hmLkp["LOOKUP_COLS"][i]["COLNAME"]);
+    }
+    sJSON = sJSON + "}";
+  }
+
+  return sJSON;
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+
+// fnPrepareItemJSONRec
+// @desc Pour chaque EntryNode
+// 1. on calcul le sShortNodePath = NodePath sans la spec
+// @param hmGlobals script globals
+// @param oNodeEntry nodeentry
+function fnPrepareItemJSONRec(hmGlobals, oNodeEntry) {
+  var sJSON = "";
+  //  debug(oNodeEntry.getEntryNodeExactPath());
+  if (oNodeEntry != null) {
+    var tNodeEntryChildren = oNodeEntry.getEntryNodeChildren();
+    var iNodeEntryChildrenSize = tNodeEntryChildren.size();
+
+    // Ecriture des enfants du noeud
+    if (iNodeEntryChildrenSize > 0) {
+      var i = 0;
+      while (i < iNodeEntryChildrenSize) {
+        var oCurNode = tNodeEntryChildren[i].getNodeFromEntryNode();
+        var eJSON = "";
+        sJSON = sJSON + (i == 0 ? "" : ",");
+
+        if (oCurNode != null) {
+          //                  var iAttributeLevel=1;//recordNodeDepth(oCurNode,iLevel,hmLevels);
+          var sType = oCurNode.getNodeAttributeValue("TYPE");
+          var bMulti = (checkInt(oCurNode.getNodeAttributeValue("MAX_OCCURRENCE"), 0) > 1);
+          var iFirstEntryNode = i;
+          eJSON = "";
+          while (tNodeEntryChildren[i] != null && tNodeEntryChildren[i].getNodeFromEntryNode() == oCurNode) {
+            var j = i - iFirstEntryNode;
+            eJSON = eJSON + (j == 0 ? "" : ",");
+            if (sType == null) {
+              eJSON = eJSON + fnPrepareItemJSONRec(hmGlobals, tNodeEntryChildren[i]);
+            } else {
+              if (sType == "GROUPING") {
+                eJSON = eJSON + "{";
+                eJSON = eJSON + fnPrepareItemJSONRec(hmGlobals, tNodeEntryChildren[i]);
+                eJSON = eJSON + "}";
+              } else {
+                eJSON = eJSON + fnGetJSONValue(hmGlobals, sType, oCurNode, tNodeEntryChildren[i]);
+              }
+            }
+            i++;
+          }
+
+          if (sType != null) {
+            if (oCurNode != null && sType == "GROUPING") {
+              sJSON = sJSON + jsonattr(getRidOfRootName(oCurNode.getNodePath())) + " : [ ";
+              sJSON = sJSON + eJSON;
+              sJSON = sJSON + "]";
+            } else {
+              sJSON = sJSON + jsonattr(getRidOfRootName(oCurNode.getNodePath())) + " : ";
+              if (eJSON != "") {
+                //sJSON = sJSON + quote("type") + " : " + quote((bMulti ? "MULTI" : "SIMPLE")) + ",";
+                sJSON = sJSON + (bMulti ? "[" : "") + eJSON + (bMulti ? "]" : "");
+              }
+              sJSON = sJSON; //3 ici bug ?
+            }
+          } else {
+            sJSON = sJSON + eJSON;
+          }
+
+        }
+      }
+    }
+  }
+
+  return sJSON;
+}
+// ------------------------------------------------------------------------------------------------------------------
+
+// fnPrepareItemJSON
+// @desc Pour chaque EntryNode
+// 1. on calcul le sShortNodePath = NodePath sans la spec
+// @param hmGlobals script globals
+// @param item item
+function fnPrepareItemJSON(hmGlobals, item) {
+  var ctgName = item.getCatalog().getCtgName();
+  if (ctgName.startsWith("CA")) {
+    ctgName = "C" + substring(ctgName, 2);
+  }
+  var ctg = getCtgByName(ctgName);
+
+  var oRootEntryNode = item.getRootEntryNode();
+  var sJSON = fnPrepareItemJSONRec(hmGlobals, oRootEntryNode);
+
+  // We add an extra attribute to list child items
+  var itemFamily = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals, item);
+  var fnGetStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+  //sJSON = sJSON + "," + quote("group") + " : [{ ";
+  if (itemFamily.size() != 0) {
+    sJSON = sJSON + ",";
+    sJSON = sJSON + jsonattr("99CTL101-ChildrenGroup");
+    sJSON = sJSON + " : [";
+    var i;
+    for (i = 0; i < itemFamily.size(); i++) {
+      var childItem = ctg.getEntryByPrimaryKey(itemFamily[i]["itemPrimaryKey"]);
+      if (childItem != null) {
+        sJSON = sJSON + (i == 0 ? "" : ",");
+        sJSON = sJSON + "{";
+        //BEG ATTR1
+        sJSON = sJSON + jsonattr("99CTL101-ChildrenGroup/01AC0044-ChildERPCode") + ": ";
+        sJSON = sJSON + quote(itemFamily[i]["itemPrimaryKey"]);
+        sJSON = sJSON + ",";
+        // END ATTR1
+
+        // BEG ATTR2
+        sJSON = sJSON + jsonattr("99CTL101-ChildrenGroup/01AC0548-ChildStatus");
+        sJSON = sJSON + " : " + quote(fnGetStatus.invoke(childItem));
+        // END ATTR2
+        // END attributes
+
+        sJSON = sJSON + "}";
+        // END attrgroup
+      }
+    }
+    sJSON = sJSON + "]";
+  }
+
+  //sJSON = sJSON + "}]";
+  return sJSON;
+
+}
+// fnWriteItemAndParentsJSON
+// @desc returns an array containing JSON for each item including and above the item passed in parameter
+// @param hmGlobals script globals
+// @param item item
+// @param sJSON deeper JSON.
+function fnWriteItemAndParentsJSON(hmGlobals, item, sJSON) {
+  var pKey = item.getCtgItemPrimaryKey();
+  var sCachedJSON = hmGlobals["__JSON_ITEM_CACHE"][pKey];
+  var log = hmGlobals["LOGGER"];
+
+  if (sCachedJSON == null) {
+    debug("Caching " + pKey);
+    sCachedJSON = fnPrepareItemJSON(hmGlobals, item);
+
+    hmGlobals["__JSON_ITEM_CACHE"][pKey] = sCachedJSON;
+  } else {
+    debug("Cache hit for " + pKey);
+  }
+
+  sJSON = concat(
+    quote("item") + " : " + "{" + quote("id") + " : " + quote(item.getCtgItemPrimaryKey()) + ",",
+    sCachedJSON,
+    (sJSON == "" ? "" : "," + sJSON),
+    "}");
+
+  var parent = getParentItem(hmGlobals, item);
+  if (parent != null) {
+    sJSON = fnWriteItemAndParentsJSON(hmGlobals, parent, sJSON);
+  }
+  return sJSON;
+}
+
+
+// getKheopsItemJSON
+// returns JSON for a single item
+// WARNING: DO NOT REMOVE hmGlobals as it has to contain the JSON
+//          of the Item initially published in the same "publishing session". (ex: the Product item)
+// @param hmGlobals global constants
+// @param item item
+// @returns JSON for the item
+function getItemJSON(hmGlobals, item) {
+  if (hmGlobals["__JSON_LKP_CACHE"] == null) {
+    hmGlobals["__JSON_LKP_CACHE"] = [];
+    hmGlobals["__JSON_ITEM_CACHE"] = [];
+  }
+  var sJSON = fnWriteItemAndParentsJSON(hmGlobals, item, "");
+  return sJSON;
+}
+
+// fnWriteItemAndDescendantsJSON
+// @desc returns an array containing JSON for each item including and above the item passed in parameter
+// @param hmGlobals script globals
+// @param item item
+// @param sJSON deeper JSON.
+function fnWriteItemAndDescendantsJSON(hmGlobals, item) {
+
+  var sJSON = quote("item") + " : {" + quote("id") + " : " + quote(item.getCtgItemPrimaryKey()) + ",";
+
+  sJSON = sJSON + fnPrepareItemJSON(hmGlobals, item);
+
+  var itemFamily = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals, item);
+  if (itemFamily.size() != 0) {
+    var i;
+    for (i = 0; i < itemFamily.size(); i++) {
+      var itemChild = getCtgByName(itemFamily[i]["itemCatalog"]).getEntryByPrimaryKey(itemFamily[i]["itemPrimaryKey"]);
+      if (itemChild != null) {
+        sJSON = sJSON + (i == 0 ? "" : ",") + fnWriteItemAndDescendantsJSON(hmGlobals, itemChild);
+      }
+    }
+  }
+  sJSON = sJSON + "}";
+  return sJSON;
+}
+
+
+// getItemAndDescendantsJSON
+// returns JSON for an item and its descendants.
+// @param hmGlobals global constants
+// @param item item
+// @returns JSON for the item
+function getItemAndDescendantsJSON(hmGlobals, item) {
+  if (hmGlobals["__JSON_LKP_CACHE"] == null) {
+    hmGlobals["__JSON_LKP_CACHE"] = [];
+    hmGlobals["__JSON_ITEM_CACHE"] = [];
+  }
+  var sJSON = fnWriteItemAndDescendantsJSON(hmGlobals, item);
+  return sJSON;
+}
+

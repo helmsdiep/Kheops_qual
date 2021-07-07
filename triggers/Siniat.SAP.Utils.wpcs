@@ -1,0 +1,2776 @@
+//
+// Util functions for SAP interface
+//
+
+
+/// @param logContext - log context
+/// @param sInUnit - unit identifier for source value
+/// @param sOutUnit - unit identifier for target value
+/// @return double - conversion factor 
+//:PRFUNCTION double getConversionValue(String sInUnit , String sOutUnit)
+function getConversionValue(logContext, sInUnit , sOutUnit){
+
+	var sFctName = "Siniat.SAP.Utils.getConversionValue";
+
+	if (checkString(sInUnit, "") == checkString(sOutUnit, "")) { return 1.0; }
+	
+	if (logContext == null) { logContext = []; }
+	
+	// HashMap to store normalized codes for measurement units, e.g. 'MM' for millimeter
+	var hmUnitsNormalized = logContext[sFctName + ".hmUnitsNormalized"];
+	if (hmUnitsNormalized == null) {
+		hmUnitsNormalized = [];
+		logContext[sFctName + ".hmUnitsNormalized"] = hmUnitsNormalized;
+		hmUnitsNormalized["CM"]		= "CM";
+		hmUnitsNormalized["CMT"]	= "CM";
+		hmUnitsNormalized["DM"]		= "DM";
+		hmUnitsNormalized["DMT"]	= "DM";
+		hmUnitsNormalized["FT"]		= "FT";
+		hmUnitsNormalized["IN"]		= "IN";
+		hmUnitsNormalized["INH"]	= "IN";
+		hmUnitsNormalized["MM"]		= "MM";
+		hmUnitsNormalized["MMT"]	= "MM";
+		hmUnitsNormalized["M"]		= "MR";
+		hmUnitsNormalized["MR"]		= "MR";
+		hmUnitsNormalized["MTR"]	= "MR";
+		hmUnitsNormalized["YD"]		= "YD";
+		hmUnitsNormalized["YRD"]	= "YD";
+		hmUnitsNormalized["GR"]		= "GR";
+		
+		hmUnitsNormalized["GRM"]	= "GR";
+		hmUnitsNormalized["KG"]		= "KG";
+		hmUnitsNormalized["KGM"]	= "KG";
+		hmUnitsNormalized["LB"]		= "LB";
+		hmUnitsNormalized["LBR"]	= "LB";
+		hmUnitsNormalized["ONZ"]	= "OZ";
+		hmUnitsNormalized["OZ"]		= "OZ";
+		
+		hmUnitsNormalized["M3"]		= "M3";
+		hmUnitsNormalized["MR3"]	= "M3";
+		hmUnitsNormalized["MTR3"]	= "M3";
+		hmUnitsNormalized["C3"]		= "C3";
+		hmUnitsNormalized["CM3"]	= "C3";
+		hmUnitsNormalized["CMT3"]	= "C3";
+		hmUnitsNormalized["D3"]		= "D3";
+		hmUnitsNormalized["DM3"]	= "D3";
+		hmUnitsNormalized["DMT3"]	= "D3";
+	}
+	
+	// HashMap to store conversion factors for combinations of normalized codes for measurement units.
+	// The keys are the code combinations concatenated with '.', e.g. 'MR.MM' for converting meter to millimeter.
+	var hmUnitsConversion = logContext[sFctName + ".hmUnitsConversion"];
+	if (hmUnitsConversion == null) {
+		hmUnitsConversion = [];
+		logContext[sFctName + ".hmUnitsConversion"] = hmUnitsConversion;
+		hmUnitsConversion["CM.CM"] 	= 1.0;
+		hmUnitsConversion["CM.DM"] 	= 0.1;
+		hmUnitsConversion["CM.FT"] 	= 0.03280840;
+		hmUnitsConversion["CM.IN"]	= 0.39370079;
+		hmUnitsConversion["CM.MM"]	= 10.0;
+		hmUnitsConversion["CM.MR"]	= 0.01;
+		hmUnitsConversion["CM.YD"]	= 0.01093613;
+		
+		hmUnitsConversion["DM.DM"] 	= 1.0;
+		hmUnitsConversion["DM.CM"] 	= 10.0;
+		hmUnitsConversion["DM.FT"] 	= 0.328084;
+		hmUnitsConversion["DM.IN"] 	= 3.9370079;
+		hmUnitsConversion["DM.MM"] 	= 100.0;
+		hmUnitsConversion["DM.MR"] 	= 0.1;
+		hmUnitsConversion["DM.YD"] 	= 0.1093613;
+		
+		hmUnitsConversion["FT.CM"] 	= 30.48; 
+		hmUnitsConversion["FT.DM"] 	= 3.048; 
+		hmUnitsConversion["FT.IN"] 	= 12.0;
+		hmUnitsConversion["FT.MM"] 	= 304.8;
+		hmUnitsConversion["FT.MR"] 	= 0.3048;
+		hmUnitsConversion["FT.YD"] 	= 0.33333333;
+		
+		hmUnitsConversion["IN.CM"] 	= 2.54;
+		hmUnitsConversion["IN.DM"] 	= 0.254;
+		hmUnitsConversion["IN.FT"] 	= 0.08333333;
+		hmUnitsConversion["IN.MM"] 	= 25.4;
+		hmUnitsConversion["IN.MR"] 	= 0.0254;
+		hmUnitsConversion["IN.YD"] 	= 0.02777778;
+		
+		hmUnitsConversion["MM.MM"] 	= 1.0;
+		hmUnitsConversion["MM.CM"] 	= 0.1;
+		hmUnitsConversion["MM.DM"] 	= 0.01;
+		hmUnitsConversion["MM.FT"] 	= 0.00328084;
+		hmUnitsConversion["MM.IN"] 	= 0.03937008;
+		hmUnitsConversion["MM.MR"] 	= 0.001;
+		hmUnitsConversion["MM.YD"] 	= 0.001093613;
+		
+		hmUnitsConversion["MR.MR"] 	= 1.0;
+		hmUnitsConversion["MR.CM"] 	= 100.0;
+		hmUnitsConversion["MR.DM"] 	= 10.0;
+		hmUnitsConversion["MR.FT"] 	= 3.280839895;
+		hmUnitsConversion["MR.IN"] 	= 39.37007874;
+		hmUnitsConversion["MR.MM"] 	= 1000.0;
+		hmUnitsConversion["MR.YD"] 	= 1.093613298;
+		
+		hmUnitsConversion["YD.CM"] 	= 91.44;
+		hmUnitsConversion["YD.DM"] 	= 9.144;
+		hmUnitsConversion["YD.FT"] 	= 3.0;
+		hmUnitsConversion["YD.IN"] 	= 36.0;
+		hmUnitsConversion["YD.MM"] 	= 914.4;
+		hmUnitsConversion["YD.MR"] 	= 0.9144;
+		
+		hmUnitsConversion["GR.GRN"] = 15.43235835;
+		hmUnitsConversion["GR.KG"] 	= 0.001;
+		hmUnitsConversion["GR.LB"] 	= 0.002204623;
+		hmUnitsConversion["GR.OZ"]	= 0.035273966;
+		
+		hmUnitsConversion["GRN.GR"] = 0.06479891;
+		hmUnitsConversion["GRN.KG"] = 0.00006479891;
+		hmUnitsConversion["GRN.LB"] = 0.00014285714;
+		hmUnitsConversion["GRN.OZ"] = 0.00228571424;
+		
+		hmUnitsConversion["KG.KG"] 	= 1.0;
+		hmUnitsConversion["KG.GR"] 	= 1000.0;
+		hmUnitsConversion["KG.GRN"] = 15432.3583529;
+		hmUnitsConversion["KG.LB"] 	= 2.204622622;
+		hmUnitsConversion["KG.OZ"]	= 35.27396584;
+		
+		hmUnitsConversion["LB.GR"] 	= 453.59237;
+		hmUnitsConversion["LB.GRN"]	= 7000.0;
+		hmUnitsConversion["LB.KG"] 	= 0.45359237;
+		hmUnitsConversion["LB.OZ"]	= 16.0;
+		
+		hmUnitsConversion["OZ.GR"] 	= 28.349523125;
+		hmUnitsConversion["OZ.GRN"]	= 437.5;
+		hmUnitsConversion["OZ.KG"] 	= 0.028349523125;
+		hmUnitsConversion["OZ.LB"]	= 0.0625;
+		
+		hmUnitsConversion["M3.M3"]	= 1.0;
+		hmUnitsConversion["D3.D3"]	= 1.0;
+		hmUnitsConversion["C3.C3"]	= 1.0;
+		hmUnitsConversion["M3.D3"]	= 1000;
+		hmUnitsConversion["D3.M3"]	= 0.001;
+		hmUnitsConversion["M3.C3"]	= 1000000;
+		hmUnitsConversion["C3.M3"]	= 0.000001;
+		hmUnitsConversion["D3.C3"]	= 1000;
+		hmUnitsConversion["D3.C3"]	= 0.001;
+	}
+	
+	var sInUnitNormalized = hmUnitsNormalized[sInUnit];
+	if (sInUnitNormalized == null) { throwError("Measurement unit not supported [" + checkString(sInUnit, "") + "]"); }
+	var sOutUnitNormalized = hmUnitsNormalized[sOutUnit];
+	if (sOutUnitNormalized == null) { throwError("Measurement unit not supported [" + checkString(sOutUnit, "") + "]"); }
+	
+	var dFactor = hmUnitsConversion[sInUnitNormalized + "." + sOutUnitNormalized];
+	if (dFactor == null) { throwError("No conversion for given measurement units found!"); }	
+
+	return dFactor;
+}
+
+/// Returns a converted value according to the given value and the source and target measurement units.
+/// @param logContext - log context
+/// @param dInValue - given value to be converted
+/// @param sInUnit - unit identifier for source value
+/// @param sOutUnit - unit identifier for target value
+/// @return double - conversion factor 
+//:PRFUNCTION double convertMeasurementValue(String sInUnit , String sOutUnit)
+function convertMeasurementValue(logContext, dInValue, sInUnit , sOutUnit){
+	var sFctName = "Siniat.SAP.Utils.convertMeasurementValue";
+	var log = getLogger("JmsLog");
+
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		var dResult = 0.0;
+		var dFaktor = 0.0;
+		
+//		var logText  = "*** convertMeasurementValue dInValue ";
+//		var logValue = checkString(dInValue, "");
+//		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+//		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, "*** sInUnit   ", checkString(sInUnit, ""));
+//        getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, "*** sOutUnit   ", checkString(sOutUnit, ""));
+
+	    if(sInUnit!=null && sOutUnit!=null && sInUnit != "NULL" && sOutUnit != "NULL" && sInUnit != "" && sOutUnit != ""){
+//            logText  = "*** getConversionValue ";
+//			logValue  = checkString(getConversionValue(logContext, sInUnit, sOutUnit), "");
+//
+//			getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+//			log.loggerDebug("dInValue : "+ dInValue);		
+			dFaktor = getConversionValue(logContext, sInUnit, sOutUnit);//A double is returned here
+//			log.loggerDebug("dFaktor : "+ dFaktor);
+			
+//			if ( dFaktor > 1) {					
+//            	dResult = dInValue * getConversionValue(logContext, sInUnit, sOutUnit);
+            	dResult = dInValue * dFaktor;
+            			
+//				log.loggerDebug("dResult : "+ dResult);	
+//				log.loggerDebug("dFaktor : "+ dFaktor);
+//				log.loggerDebug("dInValue : "+ dInValue);
+//							}
+//			else {
+//				dResult = dInValue;
+//				log.loggerDebug("dResult : "+ dResult);	
+//				}					
+
+
+		}
+		else{
+			dResult = dInValue * 1.0;
+
+		}
+		log.loggerDebug("*************************  dFaktor : "+ dFaktor);
+		log.loggerDebug("*************************  dInValue : "+ dInValue);
+		return dResult;
+	}
+	if (sErrMsg != null) {
+		throwError(sFctName
+			+ ", dInValue: " + checkString(dInValue, "NULL")
+			+ ", sInUnit: " + checkString(sInUnit, "NULL")
+			+ ", sOutUnit: " + checkString(sOutUnit, "NULL")
+			+ ", sErrMsg: " + checkString(sErrMsg, "NULL"));
+	}
+
+	return null;
+} 
+
+// getLkpEntryAttribByPrimaryKey
+// @desc returns an attribute of a lkp table from its primary key 
+// @param lkpName the name of the lkp table
+// @param pKey a pkey used in the lkp table 
+// @param attSpec the spec name of the attribute to return
+// @return string
+function getLkpEntryAttribByPrimaryKey(lkpName, pKey, attSpec) {
+  var lookup = getCtgByName(lkpName);
+  var item = lookup.getEntryByPrimaryKey(pKey);
+  return checkString(item.getEntryAttrib(lookup.getCtgSpec().getSpecName()+"/"+attSpec),"",false);
+}
+
+function getProductItem(item, strItemType){
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    if (strItemType == "Pitem1") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    else if(strItemType == "Pitem2") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    else if (strItemType == "BUnit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    return itmProdItem;
+}
+
+// getLkpAttribFromNodes
+// @desc returns an attribute of a lkp table from its primary key 
+// @param entryNodes the entrynodes taken from a spec of an item  
+// @param lkpName the name of the lkp table
+// @param attSpec the spec name of the attribute to return
+// @return string
+function getLkpAttribFromNodes(entryNodes, lkpName, attSpec) {
+  var result = "";
+  var e;
+  catchError(e) {
+    if (entryNodes!=null && entryNodes.size()>0) {
+      var valEntryNode = entryNodes[0].getEntryNodeValue();
+      if (valEntryNode!=null && valEntryNode!="") {
+        // out.writeln(entryNode + " " + lkpName + " "+ attSpec);
+        result = getLkpEntryAttribByPrimaryKey(lkpName, valEntryNode, attSpec);
+      }
+    }
+  }
+  if (e!=null){
+    err.writeln(entryNodes[0] + " " + lkpName + " "+ attSpec);
+    err.writeln(e);
+  }
+  return result;
+}
+
+// getLkpValue
+// @desc returns the column value of a lkp table linked to an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param lkpColumn the spec name (column) of the attribute to return
+// @return string
+function getLkpValue(item,nodeName,lkpColumn) {
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem==null || enitem.size()<1) {
+      return "";
+    }
+    // get the lkp table linked to this node
+    var lkpName=enitem[0].getNodeFromEntryNode().getNodeLookupTableName();
+    	
+    var result = "";
+    var valEntryNode = enitem[0].getEntryNodeValue();
+    if (valEntryNode!=null && valEntryNode!="") {
+        var lookup = getCtgByName(lkpName);
+        var item = lookup.getEntryByPrimaryKey(valEntryNode);
+        result = checkString(item.getEntryAttrib(lookup.getCtgSpec().getSpecName()+"/"+lkpColumn),"",false);
+    }
+    return result;
+}
+
+
+function getSimpleVal(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+// filtre des décimaux finissant par '.0' demandé par mail Roland Dominici 14/01/2010 12:25
+function filterDecimalZero(str){
+     if(str.endsWith(".0")) {
+       return  replace(str, ".0","");
+     }
+    return str;
+}
+
+
+// getSimpleValue
+// @desc returns the column value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getSimpleValue(item, nodeName){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+        return checkString(enitem[0].getEntryNodeValue(),"",false);
+    }
+    return "";
+}
+
+// getNumber
+// @desc returns the column value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getNumber(item, nodeName){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+   
+   		 if (enitem[0].getEntryNodeValue()!=null) {
+    		var node = enitem[0].getNodeFromEntryNode();
+			var intPrecission = checkInt(node.getNodeAttributeValue("PRECISION"), 2);
+
+    		return toDouble(reformatDouble(toDouble(toString(enitem[0].getEntryNodeValue())),1,intPrecission));
+    	}
+    }
+    return 0.00;
+}
+
+// getNumber
+// @desc returns the column value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getNumberString(item, nodeName){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+   
+   		 if (enitem[0].getEntryNodeValue()!=null) {
+    		var node = enitem[0].getNodeFromEntryNode();
+			var intPrecission = checkInt(node.getNodeAttributeValue("PRECISION"), 2);
+
+    		return reformatDouble(toDouble(toString(enitem[0].getEntryNodeValue())),1,intPrecission);
+    	}
+    }
+    return "0.00";
+}
+
+// getNumberNoDec
+// @desc returns the column value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getNumberStringNoDec(item, nodeName, intPrecission){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+   
+   		 if (enitem[0].getEntryNodeValue()!=null) {
+//    		var node = enitem[0].getNodeFromEntryNode();
+//			var intPrecission = checkInt(node.getNodeAttributeValue("PRECISION"), 2);
+
+    		return reformatDouble(toDouble(toString(enitem[0].getEntryNodeValue())),1,intPrecission);
+    	}
+    }
+    return "0.00";
+}
+
+// getParsedDateValue
+// @desc returns the Date of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getParsedDateValue(item, nodeName, strFormat){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {										        
+        return checkString(enitem[0].getEntryNodeValue().formatDate(strFormat),"",false);
+    }
+    return "";
+}
+
+// getBooleanValue
+// @desc returns an string answer according to the boolean value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param ifTrue answer returned if the boolean value is true
+// @param ifFalse answer returned if the boolean value is false
+// @param ifDefault answer returned if the boolean expression cannot be evaluated
+// @return string
+function getBooleanValue(item, nodeName, ifTrue, ifFalse, ifDefault){
+
+	var log = getLogger("JmsLog");
+	log.loggerDebug("getBooleanValue nodeName - " + nodeName);
+	
+    var boolValue = getSimpleValue(item, nodeName);
+	log.loggerDebug("getBooleanValue boolValue - " + boolValue);
+	
+    if (boolValue=="true") {
+        return ifTrue;
+    }
+    if (boolValue=="false") {
+        return ifFalse;
+    }
+    return ifDefault;
+}
+
+
+// getEnByItemType
+// @desc returns an EntryNodes enumeration from an item using two path used wether the itemType is or not a 'Prod'
+// @param item the item where entry node is taken  
+// @param itemType the type of item : BUnit, PItem, Prod
+// @param buPiKey EntryNode path if BUnit, PItem
+// @param prodKey EntryNode path if Prod
+// @return string
+function getEnByItemType(item, itemType, buPiKey, prodKey){
+    var key = "";
+    if (itemType=="BUnit" || itemType=="PItem") {
+        key = buPiKey; 
+    } else if (itemType=="Prod") {
+        key = prodKey; 
+    }
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,key);
+}
+
+//EntryNode getEn(hmGlobals,item,String)
+//Return the entry node 
+//Parameters
+//-hmGlobals : global variable to call the function getEntryNodeForAttributePath
+//-item : item (generic)
+//-String : name of the attribute
+//Returns EntryNode
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="BUnit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+function getPublishingItemAtLevel(itmMDMItem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(itmMDMItem, sLevel);
+}
+
+///////////////////////////////////////////////////////////////////
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @param strItemType - Type of item (Prod, BUnit or PItem)
+/// @return hmSAP_ROOT["BEGRU"] - 01AC0667-AuthorisationGroup from prod level - String(4)
+//:PRFUNCTION void mapBEGRU(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBEGRU(hmSAP_ROOT, itmMDMItem){
+      hmSAP_ROOT["BEGRU"] = getSimpleValue(itmMDMItem, "01AC0667-AuthorisationGroup");
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BEGRU"] - 01AC0044-ERPCode - String(6)
+//:PRFUNCTION void AC0044ERPCode(HashMap hmSAP_ROOT, item iMDMItem)
+function mapERPCode(hmSAP_ROOT, itmMDMItem){
+	 hmSAP_ROOT["ERPCode"] = getSimpleValue(itmMDMItem, "01AC0044-ERPCode");     
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BEGRU"] - 01AC0044-ERPCode - String(6)
+//:PRFUNCTION void AC0044ERPCode(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMATNR(hmSAP_ROOT, itmMDMItem){
+	 hmSAP_ROOT["MATNR"] = getSimpleValue(itmMDMItem, "01AC0664-MaterialNumber");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BEGRU"] - 01AC0044-ERPCode - String(6)
+//:PRFUNCTION void AC0044ERPCode(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMATNR_PI(hmSAP_ROOT, itmMDMItem){
+	
+	hmSAP_ROOT["MATNR_PI"] = getSimpleValue(itmMDMItem, "01AC0664-MaterialNumber");
+	if(getSimpleValue(itmMDMItem, "01AC0664-MaterialNumber") == "") {
+		 hmSAP_ROOT["MATNR_PI"] = "New";
+		 										}
+		 										
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BISMT"] - 01AC0740-OldMaterialNumber - String(18)
+//:PRFUNCTION void mapBISMT(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBISMT(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["BISMT"] = getSimpleValue(itmMDMItem, "01AC0740-OldMaterialNumber");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MSTAE"] - 01AC0670-XPlantMatlStatus - LookupTable(2)
+//:PRFUNCTION void mapMSTAE(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMSTAE(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MSTAE"] = getSimpleValue(itmMDMItem, "01AC0670-XPlantMatlStatus");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MSTDE"] - 01AC0671-XPlantMatlStatusValidFrom - Date(8,yyyyMMdd)
+//:PRFUNCTION void mapMSTDE(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMSTDE(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MSTDE"] = getParsedDateValue(itmMDMItem, "01AC0671-XPlantMatlStatusValidFrom", "yyyyMMdd");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MTART"] - 01AC0659-MaterialType - LookupTableKey(T134T)
+//:PRFUNCTION void mapMTART(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMTART(hmGlobals, hmSAP_ROOT, itmMDMItem){
+	var strItemType = getItemType(itmMDMItem, hmGlobals);
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	var itmBUnit = null;
+	if(strItemType == "Pitem1"){//1x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);	
+		hmSAP_ROOT["MTART"] = getSimpleValue(itmBUnit, "01AC0659-MaterialType");
+	}
+	else if(strItemType == "Pitem2"){//2x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+		hmSAP_ROOT["MTART"] = getSimpleValue(itmBUnit, "01AC0659-MaterialType");
+	}
+	else{
+		hmSAP_ROOT["MTART"] = getSimpleValue(itmMDMItem, "01AC0659-MaterialType");
+	}
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MAKTX"] - 01AC0014-invoiceName - String(35)
+//:PRFUNCTION void mapMAKTX_FR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMAKTX_FR(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MAKTX_FR"] = getSimpleValue(itmMDMItem, "01AC0014-invoiceName");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MVGR1"] - 01AC0036-brandName - LookupValue("SAP Brand code")
+//:PRFUNCTION void mapMVGR1(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMVGR1(hmSAP_ROOT, itmMDMItem, log){
+	//TODO Is this this table or another new table?
+	hmSAP_ROOT["MVGR1"] = getLkpValue(itmMDMItem, "01AC0036-brandName", "C09-SAP brand code");
+//	hmSAP_ROOT["MVGR1"] = getSimpleValue(itmMDMItem, "01AC0036-brandName");
+
+    var logText  = "01AC0036-brandName ";
+   	var logValue = getLkpValue(itmMDMItem, "01AC0036-brandName", "C09-SAP brand code");
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MATKL"] - 02FR0660-MaterialGroup - LookupTableKey(T023T)
+//:PRFUNCTION void mapMATKL(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMATKL(hmSAP_ROOT, itmMDMItem, strItemType){
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	var itmBUnit = null;
+	if(strItemType == "Pitem1"){//1x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);	
+	hmSAP_ROOT["MATKL"] = getSimpleValue(itmBUnit, "02FR0660-MaterialGroup");
+	}
+	else if(strItemType == "Pitem2"){//2x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+		hmSAP_ROOT["MATKL"] = getSimpleValue(itmBUnit, "02FR0660-MaterialGroup");
+	}
+	else{
+		hmSAP_ROOT["MATKL"] = getSimpleValue(itmMDMItem, "02FR0660-MaterialGroup");
+	}
+	
+//	hmSAP_ROOT["MATKL"] = getSimpleValue(itmMDMItem, "02FR0660-MaterialGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["EKGRP"] - 02FR0703-PurchasingGroup - LookupTableKey(T024)
+//:PRFUNCTION void mapEKGRP(HashMap hmSAP_ROOT, item iMDMItem)
+function mapEKGRP(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["EKGRP"] = getSimpleValue(itmMDMItem, "02FR0703-PurchasingGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["EKWSL"] - 02FR0673-PurchasingValueKey - LookupTableKey(T405)
+//:PRFUNCTION void mapEKWSL(HashMap hmSAP_ROOT, item iMDMItem)
+function mapEKWSL(hmSAP_ROOT, itmMDMItem, log){
+	hmSAP_ROOT["EKWSL"] = getSimpleValue(itmMDMItem, "02FR0673-PurchasingValueKey");
+
+    var logText  = "02FR0673-PurchasingValueKey ";
+   	var logValue = getSimpleValue(itmMDMItem, "02FR0673-PurchasingValueKey");
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["KAUTB"] - 02FR0704-AutoPurchAllowed - Boolean
+//:PRFUNCTION void mapKAUTB(HashMap hmSAP_ROOT, item iMDMItem)
+function mapKAUTB(hmSAP_ROOT, itmMDMItem){
+	//Convert to SAP boolean, 'X' = true, ' ' = false
+	hmSAP_ROOT["KAUTB"] = getBooleanValue(itmMDMItem, "02FR0704-AutoPurchAllowed", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SF_THICKNESS"] - 04CP0080-CommercialThickness in mm from prod level, only for C010 - Number(7)
+//:PRFUNCTION void mapSF_THICKNESS(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_THICKNESS(hmSAP_ROOT, itmMDMItem){
+	var log = getLogger("JmsLog");
+
+ 	var strUnitOfMeasure = getLkpValue(itmMDMItem,"04CP0081-CommercialThicknessUnits","C01-Code");
+ 	var numCommercialThickness 	  = getNumber(itmMDMItem, "04CP0080-CommercialThickness");
+ 	var numCommercialThicknessDec = getNumberStringNoDec(itmMDMItem, "04CP0080-CommercialThickness",0);
+
+ 	var out = convertMeasurementValue([], numCommercialThickness, "CM", "MM");
+	var len = length(checkString(out,"") );
+ 		out = checkString(out,"");
+
+// RFD-INC00002371-01 begin 		
+//		out = substring(out, 0, len - 1) + "0"; RFD-INC00002371-01
+		out = substring(out, 0, len - 2);
+// RFD-INC00002371-01 end
+				
+
+// 	hmSAP_ROOT["SF_THICKNESS"] = convertMeasurementValue([], numCommercialThickness, strUnitOfMeasure, "MM");
+ 	hmSAP_ROOT["SF_THICKNESS"] = out;
+ 	
+ 	if (hmSAP_ROOT["SF_THICKNESS"] != 0) {
+	 	var len_ROOT = hmSAP_ROOT["SF_THICKNESS"].length();
+	
+		var char_out     = "000" + hmSAP_ROOT["SF_THICKNESS"];
+		var len_char_out = char_out.length();
+		
+		hmSAP_ROOT["SF_THICKNESS"] = substring(char_out, len_ROOT, len_char_out);
+	   	log.loggerDebug("04CP0080-CommercialThickness : "+ hmSAP_ROOT["SF_THICKNESS"]);
+   	}  else { hmSAP_ROOT["SF_THICKNESS"] = ""; }
+   	
+	return null;
+}
+
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SF_WIDTH"] - 04CP0095-Width
+//:PRFUNCTION void mapSF_WIDTH(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_WIDTH(hmSAP_ROOT, itmMDMItem){
+	var log = getLogger("JmsLog");
+	log.loggerDebug("*** Begin mapSF_WIDTH");
+
+	var strUnitOfMeasure = getLkpValue(itmMDMItem, "04CP0097-WidthUnit","C01-Code");
+ 	var numWidth = getNumber(itmMDMItem, "04CP0095-Width");
+ 	
+  	var out =  convertMeasurementValue([], numWidth, strUnitOfMeasure, "MM");
+	var len = length(checkString(out,"") );
+
+// RFD-INC00002371-01 begin 			
+	out = checkString(out,"");
+	out = substring(out, 0, len - 2);
+// RFD-INC00002371-01 end 		
+	
+	log.loggerDebug("*** mapSF_WIDTH out: " + out);	
+	log.loggerDebug("*** mapSF_WIDTH len: " + len);
+	log.loggerDebug("*** End mapSF_WIDTH");
+		
+// RFD-INC00002371-01 begin 		
+// 	hmSAP_ROOT["SF_WIDTH"] = convertMeasurementValue([], numWidth, strUnitOfMeasure, "MM");
+	hmSAP_ROOT["SF_WIDTH"] = out;
+// RFD-INC00002371-01 end
+	
+ 	if (hmSAP_ROOT["SF_WIDTH"] != 0) {
+	 	var len_ROOT = hmSAP_ROOT["SF_WIDTH"].length();
+	
+		var char_out     = "0000" + hmSAP_ROOT["SF_WIDTH"];
+		var len_char_out = char_out.length();
+		
+		hmSAP_ROOT["SF_WIDTH"] = substring(char_out, len_ROOT, len_char_out);
+	   	log.loggerDebug("04CP0095-Width : "+ hmSAP_ROOT["SF_WIDTH"]);	
+	} else { hmSAP_ROOT["SF_WIDTH"] = ""; }
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SF_LENGTH"] - 04CP0103-Length
+//:PRFUNCTION void mapSF_LENGTH(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_LENGTH(hmSAP_ROOT, itmMDMItem, strItemType){
+	var log = getLogger("JmsLog");
+
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	var itmBUnit = null;
+
+	itmBUnit = itmMDMItem;	
+	if(strItemType == "Pitem1"){//1x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);	
+	}
+	else if(strItemType == "Pitem2"){//2x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+	}
+
+	var strUnitOfMeasure = getLkpValue(itmBUnit, "04CP0104-LengthUnits","C01-Code");
+ 	var numLength = getNumber(itmBUnit, "04CP0103-Length");
+
+  	var out =  convertMeasurementValue([], numLength, strUnitOfMeasure, "MM");
+ 	var len = length(checkString(out,"") );
+	
+// RFD-INC00002371-01 begin 			
+	out = checkString(out,"");
+	out = substring(out, 0, len - 2);
+// RFD-INC00002371-01 end 	
+
+// RFD-INC00002371-01 begin 	
+// 	hmSAP_ROOT["SF_LENGTH"] = convertMeasurementValue([], numLength, strUnitOfMeasure, "MM");
+  	hmSAP_ROOT["SF_LENGTH"] = out;	
+ // RFD-INC00002371-01 end	
+ 
+  	if (hmSAP_ROOT["SF_LENGTH"] != 0) {
+	 	var len_ROOT = hmSAP_ROOT["SF_LENGTH"].length();
+	
+		var char_out     = "0000" + hmSAP_ROOT["SF_LENGTH"];
+		var len_char_out = char_out.length();
+		
+		hmSAP_ROOT["SF_LENGTH"] = substring(char_out, len_ROOT, len_char_out);
+	   	log.loggerDebug("04CP0103-Length : "+ hmSAP_ROOT["SF_LENGTH"]);
+   	} else { hmSAP_ROOT["SF_LENGTH"] = ""; }
+   	 
+	return null;
+}
+
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SF_TYPE"] - 04CP0158-TypeBoard
+//:PRFUNCTION void mapSF_TYPE(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_TYPE(hmSAP_ROOT, itmMDMItem){
+	var log = getLogger("JmsLog");
+		
+	hmSAP_ROOT["SF_TYPE"] = getLkpValue(itmMDMItem, "04CP0158-TypeBoard#0", "C04-SAP code");
+	
+  	if (hmSAP_ROOT["SF_TYPE"] != "") {
+		var char_out = hmSAP_ROOT["SF_TYPE"] + "*****";
+		hmSAP_ROOT["SF_TYPE"] = substring(char_out, 0, 5);
+		
+	   	log.loggerDebug("04CP0158-TypeBoard : "+ hmSAP_ROOT["SF_TYPE"]);
+   }		
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SF_EDGE"] - 04CP0160-LongitudinalEdgeType
+//:PRFUNCTION void mapSF_EDGE(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_EDGE(hmSAP_ROOT, itmMDMItem, strItemType){
+	var log = getLogger("JmsLog");
+			 
+	hmSAP_ROOT["SF_EDGE"] = getLkpValue(itmMDMItem, "04CP0160-LongitudinalEdgeType", "C05-SAP Code");
+
+  	if (hmSAP_ROOT["SF_EDGE"] != "") {
+		var char_out = hmSAP_ROOT["SF_EDGE"] + "****";
+		hmSAP_ROOT["SF_EDGE"] = substring(char_out, 0, 4);
+	
+	   	log.loggerDebug("04CP0160-LongitudinalEdgeType : "+ hmSAP_ROOT["SF_EDGE"]);
+   	}
+   	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["NTGEW"] - 04CP0213-netWeight
+//:PRFUNCTION void mapNTGEW(HashMap hmSAP_ROOT, item iMDMItem)
+function mapNTGEW(hmSAP_ROOT, itmMDMItem, strItemType, log){
+	var itmBUnit = null;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	
+	var logText  = "*** mapNTGEW ";
+	var logValue = "";
+	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+	var logText  = "strItemType ";
+	var logValue = strItemType;
+	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	if(strItemType == "Pitem1"){//1x
+
+		var logText  = "*** Pitem1 ";
+		var logValue = "";
+		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);	
+	 			
+		var strUnitOfMeasure = getLkpValue(itmBUnit, "04CP0214-netWeightUnit","C01-Code");		
+	    log.loggerDebug("strUnitOfMeasure : "+ strUnitOfMeasure);
+
+		var numNTGEW = getNumber(itmBUnit, "04CP0213-netWeight");
+ 		hmSAP_ROOT["NTGEW"] = convertMeasurementValue([], numNTGEW, strUnitOfMeasure, "KG");		
+		
+		log.loggerDebug("hmSAP_ROOT[NTGEW] : "+ checkString(hmSAP_ROOT["NTGEW"],""));	
+    }
+
+	else if(strItemType == "Pitem2"){//2x
+
+		var logText  = "*** Pitem2 ";
+		var logValue = "";
+		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+
+		var strUnitOfMeasure = getLkpValue(itmBUnit, "04CP0214-netWeightUnit","C01-Code");		
+	    log.loggerDebug("strUnitOfMeasure : "+ strUnitOfMeasure);
+		
+		var numNTGEW = getNumber(itmBUnit, "04CP0213-netWeight");
+ 		hmSAP_ROOT["NTGEW"] = convertMeasurementValue([], numNTGEW, strUnitOfMeasure, "KG");		
+
+		log.loggerDebug("hmSAP_ROOT[NTGEW] : "+ checkString(hmSAP_ROOT["NTGEW"],""));
+
+	}
+	else{
+
+		var logText  = "*** Punit Bunit  ";
+		var logValue = "";
+		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		
+
+		var strUnitOfMeasure = getLkpValue(itmMDMItem, "04CP0214-netWeightUnit","C01-Code");		
+ 		log.loggerDebug("strUnitOfMeasure : "+ strUnitOfMeasure);
+
+ 		var numNTGEW = getNumber(itmMDMItem, "04CP0213-netWeight");
+ 		hmSAP_ROOT["NTGEW"] = convertMeasurementValue([], numNTGEW, strUnitOfMeasure, "KG");				
+		
+		log.loggerDebug("hmSAP_ROOT[NTGEW] : "+ checkString(hmSAP_ROOT["NTGEW"],""));
+
+	}
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MTPOS_MARA"] - 06DN0669-GenItemCatGroup
+//:PRFUNCTION void mapMTPOS_MARA(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMTPOS_MARA(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MTPOS_MARA"] = getSimpleValue(itmMDMItem, "06DN0669-GenItemCatGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["LADGR"] - 06DN0706-LoadingGroup
+//:PRFUNCTION void mapLADGR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLADGR(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["LADGR"] = getSimpleValue(itmMDMItem, "06DN0706-LoadingGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MAGRV"] - 06DN0672-MaterialGroupPackaging
+//:PRFUNCTION void mapMAGRV(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMAGRV(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MAGRV"] = getSimpleValue(itmMDMItem, "06DN0672-MaterialGroupPackaging");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["VHART"] - 06DN0675-PackagingMaterialType
+//:PRFUNCTION void mapVHART(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVHART(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["VHART"] = getSimpleValue(itmMDMItem, "06DN0675-PackagingMaterialType");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["TRAGR"] - 06DN0676-TransportationGroup
+//:PRFUNCTION void mapTRAGR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapTRAGR(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["TRAGR"] = getSimpleValue(itmMDMItem, "06DN0676-TransportationGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["WERKS"] - 06DN0679-Plant
+//:PRFUNCTION void mapWERKS(HashMap hmSAP_MCU, item iMDMItem)
+function mapWERKS(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["WERKS"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0679-Plant");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @param strItemType - Type of the item, PItem, BUnit or Prod
+/// @return hmSAP_ROOT["STAWN"] - 06DN0774-IntrastatCode
+//:PRFUNCTION void mapSTAWN(HashMap hmSAP_ROOT, item iMDMItem, String strItemType)
+function mapSTAWN(hmSAP_ROOT, itmMDMItem, strItemType){
+	if(strItemType == "Pitem1"){
+		var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+		itmMDMItem = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);
+	}
+	
+	if(strItemType == "Pitem2") {
+		var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    	itmMDMItem = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    
+	hmSAP_ROOT["STAWN"] = getSimpleValue(itmMDMItem, "06DN0774-IntrastatCode");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @param strItemType - Type of the item, PItem, BUnit or Prod
+/// @return hmSAP_ROOT["SF_PACKAGING"] - 
+//:PRFUNCTION void mapSF_PACKAGING(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSF_PACKAGING(hmSAP_ROOT, itmMDMItem, strItemType){
+//Relevant only for C010 Plasterboard & Pitem level
+//Concatenate:
+//06DN0407-TotalQuantityOfNextLowerLevel **
+//& 06DN0411-Assembly > column "C03-SAP code" from lookup L015**
+//& 06DN0412-Stacking > column "C03-SAP code" from lookup L073**
+//& 06DN0413-Support > column "C03-SAP code" from lookup L172**
+//& 06DN0414-Covering > column "C03-SAP code" from lookup L093**
+//& 06DN0415-Hooping > column "C03-SAP code" from lookup L021**
+	var log = getLogger("JmsLog");
+	log.loggerDebug("SF_PACKAGING strItemType : " + strItemType);
+	
+	if(strItemType == "Pitem1" || strItemType == "Pitem2"){
+	
+		var str407 = getNumberStringNoDec(itmMDMItem, "06DN0407-TotalQuantityOfNextLowerLevel",0);
+		log.loggerDebug("SF_PACKAGING str407 : " + checkString(str407,""));
+		var str411 = getLkpValue(itmMDMItem, "06DN0411-Assembly","C03-SAP Code");
+		log.loggerDebug("SF_PACKAGING str411 : " + checkString(str411,""));
+		var str412 = getLkpValue(itmMDMItem, "06DN0412-Stacking","C03-SAP Code");
+		log.loggerDebug("SF_PACKAGING str412 : " + checkString(str412,""));
+		var str413 = getLkpValue(itmMDMItem, "06DN0413-Support","C03-SAP Code");
+		log.loggerDebug("SF_PACKAGING str413 : " + checkString(str413,""));		
+		var str414 = getLkpValue(itmMDMItem, "06DN0414-Covering","C03-SAP Code");
+		log.loggerDebug("SF_PACKAGING str414 : " + checkString(str414,""));
+		var str415 = getLkpValue(itmMDMItem, "06DN0415-Hooping","C03-SAP Code");
+		log.loggerDebug("SF_PACKAGING str415 : " + checkString(str415,""));
+		
+		hmSAP_ROOT["SF_PACKAGING"] = str407 + str411 + str412 + str413 + str414 + str415;
+		
+		var char_out = hmSAP_ROOT["SF_PACKAGING"] + "********";
+		hmSAP_ROOT["SF_PACKAGING"] = substring(char_out, 0, 8);
+		log.loggerDebug("SF_PACKAGING : " + hmSAP_ROOT["SF_PACKAGING"]);
+	}
+	else{
+		hmSAP_ROOT["SF_PACKAGING"] = "";
+		log.loggerDebug("SF_PACKAGING Leeg");
+	}
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SCMNG"] - 06DN0351-orderQuantityMultiple
+//:PRFUNCTION void mapSCMNG(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSCMNG(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["SCMNG"] = getSimpleValue(itmMDMItem, "06DN0351-orderQuantityMultiple");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["AUMNG"] - 06DN0352-orderQuantityMini
+//:PRFUNCTION void mapAUMNG(HashMap hmSAP_ROOT, item iMDMItem)
+function mapAUMNG(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["AUMNG"] = getSimpleValue(itmMDMItem, "06DN0352-orderQuantityMini");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BSTRF"] - 
+//:PRFUNCTION void mapBSTRF(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBSTRF(hmSAP_ROOT, itmMDMItem){
+	var strCatalogCode = substring(itmMDMItem.getPrimaryKey(),1,4);
+	if(strCatalogCode=="800") {
+		hmSAP_ROOT["BSTRF"] = getSimpleValue(itmMDMItem, "06DN0351-orderQuantityMultiple");
+	} else { 
+		hmSAP_ROOT["BSTRF"] = getSimpleValue(itmMDMItem, "06DN0407-TotalQuantityOfNextLowerLevel");
+	}
+	return null;
+}
+
+//TODO loop through countries.....
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MAKTX_GB"] - 06DN0420-TranslatedInvoiceName if 06DN0419-Country = 'GB'
+//:PRFUNCTION void mapMAKTX_GB(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMAKTX_GB(hmSAP_ROOT, k, itmMDMItem, log){
+
+	var strCountryCode = getSimpleValue(itmMDMItem, "CountryGroup#"+k+"/06DN0419-Country");
+//	var strCountryCode = getSimpleValue(itmMDMItem, "06DN0420-TranslatedInvoiceName");
+
+	var logText  = "strCountryCode: ";
+	var logValue = strCountryCode;
+	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+
+	if(strCountryCode == "[GB] - royaume uni"){
+		hmSAP_ROOT["MAKTX_GB"] = getSimpleValue(itmMDMItem, "CountryGroup#"+k+"/06DN0420-TranslatedInvoiceName");
+
+		var logText  = "CountryGroup/06DN0420-TranslatedInvoiceName: "; 
+		var logValue = getSimpleValue(itmMDMItem, "CountryGroup#"+k+"/06DN0420-TranslatedInvoiceName");
+		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+		}
+	else{
+//		hmSAP_ROOT["MAKTX_GB"] = "";
+	}
+	return null;
+}
+
+//TODO Deze functie is ook nieuw.
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_LANG - 
+//:PRFUNCTION void mapLANG(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLANG(hmSAP_LANG, k, itmMDMItem){
+
+	var strCountryCode = getSimpleValue(itmMDMItem, "CountryGroup#"+k+"/06DN0419-Country");
+	var strTranslatedInvoiceName = getSimpleValue(itmMDMItem, "CountryGroup#"+k+"/06DN0420-TranslatedInvoiceName");
+	if(strTranslatedInvoiceName != ""){
+		hmSAP_LANG[k]["LANGCC"] = strCountryCode;
+		hmSAP_LANG[k]["LANGTIN"] = strTranslatedInvoiceName;
+								}
+	
+	var log = getLogger("JmsLog");
+	log.loggerDebug("LANGTIN - " + hmSAP_LANG[k]["LANGTIN"]);
+	log.loggerDebug("LANGCC - " + hmSAP_LANG[k]["LANGCC"]);
+		
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["ZMIXABLE"] - 06DN0663-MixableRange
+//:PRFUNCTION void mapZMIXABLE(HashMap hmSAP_ROOT, item iMDMItem)
+function mapZMIXABLE(hmSAP_ROOT, itmMDMItem){
+//	hmSAP_ROOT["ZMIXABLE"] = getSimpleValue(itmMDMItem, "06DN0663-MixableRange");
+	
+	hmSAP_ROOT["ZMIXABLE"] = getLkpValue(itmMDMItem, "06DN0663-MixableRange", "C01-PrimaryCode");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["ZCLETAB"] - 06DN0662-RoutageKey
+//:PRFUNCTION void mapZCLETAB(HashMap hmSAP_ROOT, item iMDMItem)
+function mapZCLETAB(hmSAP_ROOT, itmMDMItem){
+//	hmSAP_ROOT["ZCLETAB"] = getSimpleValue(itmMDMItem, "06DN0662-RoutageKey");
+	
+	hmSAP_ROOT["ZCLETAB"] = getLkpValue(itmMDMItem, "06DN0662-RoutageKey", "C01-PrimaryCode");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BLOCK"] - 06DN0813-BulkStorage
+//:PRFUNCTION void mapBLOCK(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBLOCK(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["BLOCK"] = getSimpleValue(itmMDMItem, "06DN0813-BulkStorage");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["MTVFP"] - 06DN0694-AvailabilityCheck
+//:PRFUNCTION void mapMTVFP(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMTVFP(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["MTVFP"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0694-AvailabilityCheck");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["RGEKZ"] - 06DN0699-BackFlushIndicator
+//:PRFUNCTION void mapRGEKZ(HashMap hmSAP_ROOT, item iMDMItem)
+function mapRGEKZ(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["RGEKZ"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0699-BackFlushIndicator");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["XCHPF"] - 06DN0701-BatchManagementIndicator
+//:PRFUNCTION void mapXCHPF(HashMap hmSAP_ROOT, item iMDMItem)
+function mapXCHPF(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["XCHPF"] = getBooleanValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0701-BatchManagementIndicator", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["VRMOD"] - 06DN0691-ConsumptionMode
+//:PRFUNCTION void mapVRMOD(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVRMOD(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["VRMOD"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0691-ConsumptionMode");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["VINT1"] - 06DN0692-ConsumptionPeriodBackward
+//:PRFUNCTION void mapVINT1(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVINT1(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["VINT1"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0692-ConsumptionPeriodBackward");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["VINT2"] - 06DN0693-ConsumptionPeriodForward
+//:PRFUNCTION void mapVINT2(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVINT2(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["VINT2"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0693-ConsumptionPeriodForward");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["HERKL"] - 06DN0646-ManufacturerCountry
+//:PRFUNCTION void mapHERKL(HashMap hmSAP_ROOT, item iMDMItem)
+function mapHERKL(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["HERKL"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0646-ManufacturerCountry");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["SBDKZ"] - 06DN0697-IndividualOrCollectiveRequir
+//:PRFUNCTION void mapSBDKZ(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSBDKZ(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["SBDKZ"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0697-IndividualOrCollectiveRequir");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["EKALR"] - 06DN0724-MateriaIsCostedWithQuantity - Flag
+//:PRFUNCTION void mapEKALR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapEKALR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["EKALR"] = getBooleanValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0724-MateriaIsCostedWithQuantity", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["HKMAT"] - 06DN0722-MaterialRelatedOrigin
+//:PRFUNCTION void mapHKMAT(HashMap hmSAP_ROOT, item iMDMItem)
+function mapHKMAT(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["HKMAT"] = getBooleanValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0722-MaterialRelatedOrigin", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["DISPO"] - 06DN0686-MrpController
+//:PRFUNCTION void mapDISPO(HashMap hmSAP_ROOT, item iMDMItem)
+function mapDISPO(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["DISPO"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0686-MrpController");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["DISGR"] - 06DN0695-MRPGroup
+//:PRFUNCTION void mapDISGR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapDISGR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["DISGR"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0695-MRPGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["DISMM"] - 06DN0685-MrpType
+//:PRFUNCTION void mapDISMM(HashMap hmSAP_ROOT, item iMDMItem)
+function mapDISMM(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["DISMM"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0685-MrpType");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["NCOST"] - 06DN0682-NoCosting - Flag
+//:PRFUNCTION void mapNCOST(HashMap hmSAP_ROOT, item iMDMItem)
+function mapNCOST(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["NCOST"] = getBooleanValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0682-NoCosting", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["HRKFT"] - 06DN0723-OrigGroupAsSubdivCost
+//:PRFUNCTION void mapHRKFT(HashMap hmSAP_ROOT, item iMDMItem)
+function mapHRKFT(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["HRKFT"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0723-OrigGroupAsSubdivCost");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["PERKZ"] - 06DN0698-PeriodIndicator
+//:PRFUNCTION void mapPERKZ(HashMap hmSAP_ROOT, item iMDMItem)
+function mapPERKZ(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["PERKZ"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0698-PeriodIndicator");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["VPRSV"] - 06DN0720-PriceControl
+//:PRFUNCTION void mapVPRSV(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVPRSV(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["VPRSV"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0720-PriceControl");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["BESKZ"] - 06DN0684-ProcurementType
+//:PRFUNCTION void mapBESKZ(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBESKZ(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["BESKZ"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0684-ProcurementType");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["FEVOR"] - 06DN0709-ProductionSupervisor
+//:PRFUNCTION void mapFEVOR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapFEVOR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["FEVOR"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0709-ProductionSupervisor");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["PRCTR"] - 06DN0680-ProfitCentre
+//:PRFUNCTION void mapPRCTR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapPRCTR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["PRCTR"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0680-ProfitCentre");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["HERKR"] - 06DN0683-RegionOfOrigin
+//:PRFUNCTION void mapHERKR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapHERKR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["HERKR"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0683-RegionOfOrigin");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["FHORI"] - 06DN0689-SchedMarginKey
+//:PRFUNCTION void mapFHORI(HashMap hmSAP_ROOT, item iMDMItem)
+function mapFHORI(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["FHORI"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0689-SchedMarginKey");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["ALTSL"] - 06DN0700-SelectionMethod
+//:PRFUNCTION void mapALTSL(HashMap hmSAP_ROOT, item iMDMItem)
+function mapALTSL(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["ALTSL"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0700-SelectionMethod");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["SOBSL"] - 06DN0696-SpecProcurementKey
+//:PRFUNCTION void mapSOBSL(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSOBSL(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["SOBSL"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0696-SpecProcurementType");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["SOBSK"] - 06DN0681-SpecProcTypeCosting
+//:PRFUNCTION void mapSOBSK(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSOBSK(hmSAP_MCU, k, itmMDMItem,log){
+	hmSAP_MCU[k]["SOBSK"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0681-SpecProcTypeCosting");
+
+    var logText  = "SOBSK level k ";
+   	var logValue = k;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+    var logText  = "06DN0681-SpecProcTypeCosting ";
+   	var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0681-SpecProcTypeCosting");
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["STRGR"] - 06DN0690-StrategyGroup
+//:PRFUNCTION void mapSTRGR(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSTRGR(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["STRGR"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0690-StrategyGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["UEETK"] - 06DN0705-UnlimiedOverdelivery - Flag
+//:PRFUNCTION void mapUEETK(HashMap hmSAP_ROOT, item iMDMItem)
+function mapUEETK(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["UEETK"] = getBooleanValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0705-UnlimiedOverdelivery", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["BKLAS"] - 06DN0721-ValuationClass
+//:PRFUNCTION void mapUEETK(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBKLAS(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["BKLAS"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0721-ValuationClass");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["MMSTA"] - 06DN0707-PlantMaterialStatus
+//:PRFUNCTION void mapMMSTA(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMMSTA(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["MMSTA"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0707-PlantMaterialStatus");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["MMSTD"] - 06DN0708-PlantMaterialStatusValidFrom - Date
+//:PRFUNCTION void mapMMSTD(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMMSTD(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["MMSTD"] = getParsedDateValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0708-PlantMaterialStatusValidFrom", "yyyyMMdd");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LGORT"] - 06DN0711-StorageLocation
+//:PRFUNCTION void mapLGORT(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLGORT(hmSAP_LGORT, k, l, itmMDMItem, log){
+	hmSAP_LGORT.add(getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0711-StorageLocation#"+l));  
+	
+    var logText  = "06DN0711-StorageLocation ";
+   	var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0711-StorageLocation#"+l);
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LGPRO"] - 06DN0687-ProdStorageLocation
+//:PRFUNCTION void mapLGPRO(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLGPRO(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["LGPRO"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0687-ProdStorageLocation");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["LWMKB"] - 06DN0776-PickingArea
+//:PRFUNCTION void mapLWMKB(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLWMKB(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["LWMKB"] = getSimpleValue(itmMDMItem, "06DN0776-PickingArea");
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LGFSB"] - 06DN0688-ExtProcStorageLocation
+//:PRFUNCTION void mapLGFSB(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLGFSB(hmSAP_MCU, k, itmMDMItem){
+	hmSAP_MCU[k]["LGFSB"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/06DN0688-ExtProcStorageLocation");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k][l]["LGNUM"] - 06DN0811-StorageNum
+//:PRFUNCTION void mapLGNUM(HashMap hmSAP_MCU, item iMDMItem)
+function mapLGNUM(hmSAP_MCU, k, l, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["LGNUM"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0811-StorageNum");
+	
+    // var logText  = "06DN0811-StorageNum ";
+   	// var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0811-StorageNum");
+   	// getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LGTYP"] - 06DN0812-StorageType
+//:PRFUNCTION void mapLGTYP(HashMap hmSAP_MCU, item iMDMItem)
+function mapLGTYP(hmSAP_MCU, k, l, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["LGTYP"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0812-StorageType");
+	
+    // var logText  = "06DN0812-StorageType ";
+   	// var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0812-StorageType");
+   	// getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k][l]["MKAPV"] - 06DN0814-CapacityUsage
+//:PRFUNCTION void mapMKAPV(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMKAPV(hmSAP_MCU, k, l, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["MKAPV"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0814-CapacityUsage");
+
+    // var logText  = "06DN0814-CapacityUsage ";
+   	// var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0814-CapacityUsage");
+   	// getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k][l]["BEZME"] - 06DN0815-CapacityUsageUnit
+//:PRFUNCTION void mapBEZME(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBEZME(hmSAP_MCU, k, l, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["BEZME"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0815-CapacityUsageUnit");
+	
+    // var logText  = "06DN0815-CapacityUsageUnit ";
+   	// var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0815-CapacityUsageUnit");
+   	// getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LHMG1"] - 06DN0816-LoadingEquipmentQty
+//:PRFUNCTION void mapLHMG1(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLHMG1(hmSAP_MCU, k, l, m, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["PAL"][m]["LHMG1"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/Palettization#"+m+"/06DN0816-LoadingEquipmentQty");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LHME1"] - 06DN0817-LoadingEquipmentQtyUnit
+//:PRFUNCTION void mapLHME1(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLHME1(hmSAP_MCU, k, l, m, itmMDMItem, log){
+//	hmSAP_MCU[k]["WMS"][l]["PAL"][m]["LHME1"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/Palettization#"+m+"/06DN0817-LoadingEquipmentQtyUnit");
+	
+	var vAttrib = "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/Palettization#"+m+"/06DN0817-LoadingEquipmentQtyUnit";
+
+	hmSAP_MCU[k]["WMS"][l]["PAL"][m]["LHME1"] = getSimpleValue(itmMDMItem, vAttrib);
+	
+	log.loggerDebug("BEMADVL  mapLHME1       : "+ getSimpleValue(itmMDMItem, vAttrib));
+	log.loggerDebug("BEMADVL  Secondary Code : "+ getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode"));
+	log.loggerDebug("BEMADVL  Primary   Code : "+ getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode"));
+	
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_MCU[k]["WMS"][l]["PAL"][m]["LHME1"] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");}
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k]["LETY1"] - 06DN0818-StorageUnitType
+//:PRFUNCTION void mapLETY1(HashMap hmSAP_ROOT, item iMDMItem)
+function mapLETY1(hmSAP_MCU, k, l, m, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["PAL"][m]["LETY1"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/Palettization#"+m+"/06DN0818-StorageUnitType");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_MCU[k][l]["KOBER"] - 06DN0819-PickingArea
+//:PRFUNCTION void mapKOBER(HashMap hmSAP_ROOT, item iMDMItem)
+function mapKOBER(hmSAP_MCU, k, l, itmMDMItem, log){
+	hmSAP_MCU[k]["WMS"][l]["KOBER"] = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0819-PickingArea");
+	
+    // var logText  = "06DN0819-PickingArea ";
+   	// var logValue = getSimpleValue(itmMDMItem, "PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/06DN0819-PickingArea");
+   	// getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MEINS"] - 06DN0661-BaseUnitOfMeasure
+//:PRFUNCTION void mapMEINS(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMEINS(hmSAP_ROOT, itmMDMItem, log){
+//	hmSAP_ROOT["MEINS"] = getSimpleValue(itmMDMItem, "06DN0661-BaseUnitOfMeasure");
+
+	var vAttrib = "06DN0661-BaseUnitOfMeasure";
+	var vMapTo  = "MEINS";
+	
+	hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_ROOT[vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	log.loggerDebug("BEMADVL  mapMEINS       : "+ getSimpleValue(itmMDMItem, vAttrib));
+	log.loggerDebug("BEMADVL  Secondary Code : "+ getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode"));
+	log.loggerDebug("BEMADVL  Primary   Code : "+ getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode"));
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}
+	log.loggerDebug("T006A hmSAP_ROOT[mapTo]  : "+ hmSAP_ROOT[vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MSTDV"] - 10GC0678-XDistrChanStatusValidFrom - Date
+//:PRFUNCTION void mapMSTDV(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMSTDV(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MSTDV"] = getParsedDateValue(itmMDMItem, "10GC0678-XDistrChanStatusValidFrom", "yyyyMMdd");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MSTAV"] - 10GC0677-XDistrChanStatus
+//:PRFUNCTION void mapMSTAV(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMSTAV(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MSTAV"] = getSimpleValue(itmMDMItem, "10GC0677-XDistrChanStatus");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["WZEIT"] - 10GC0747-TotalReplenishmentLeadTime 
+//:PRFUNCTION void mapWZEIT(HashMap hmSAP_ROOT, item iMDMItem)
+function mapWZEIT(hmSAP_ROOT, itmMDMItem){
+//	hmSAP_ROOT["WZEIT"] = getSimpleValue(itmMDMItem, "10GC0747-TotalReplenishmentLeadTime");
+	hmSAP_ROOT["WZEIT"] = getLkpValue(itmMDMItem, "10GC0747-TotalReplenishmentLeadTime", "C05-DEL_NBJ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["VKORG"] - 10GC0725-SalesOrganisation
+//:PRFUNCTION void mapVKORG(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapVKORG(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["VKORG"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0725-SalesOrganisation");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["VTWEG"] - 10GC0726-DistributionChannel
+//:PRFUNCTION void mapVTWEG(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapVTWEG(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["VTWEG"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0726-DistributionChannel");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["VMSTA"] - 10GC0733-DistrChannelStatus
+//:PRFUNCTION void mapVMSTA(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapVMSTA(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["VMSTA"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0733-DistrChannelStatus");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["VMSTD"] - 10GC0734-DistrChannelStatusValidFrom
+//:PRFUNCTION void mapVMSTD(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapVMSTD(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["VMSTD"] = getParsedDateValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0734-DistrChannelStatusValidFrom", "yyyyMMdd");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["DWERK"] - 10GC0727-DeliveryPlant
+//:PRFUNCTION void mapDWERK(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapDWERK(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["DWERK"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0727-DeliveryPlant");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["MTPOS"] - 10GC0728-ItemCategoryGroup
+//:PRFUNCTION void mapMTPOS(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapMTPOS(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["MTPOS"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0728-ItemCategoryGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["VERSG"] - 10GC0729-MaterialStatGroup
+//:PRFUNCTION void mapVERSG(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapVERSG(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["VERSG"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0729-MaterialStatGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["KTGRM"] - 10GC0731-AccountAssignmentGroup
+//:PRFUNCTION void mapKTGRM(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapKTGRM(hmSAP_SOG, k, itmMDMItem){
+	hmSAP_SOG[k]["KTGRM"] = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#" + k + "/10GC0731-AccountAssignmentGroup");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_TOG[k]["SKTOF"] - 10GC0730-CashDiscount - Flag
+//:PRFUNCTION void mapSKTOF(HashMap hmSAP_TOG, Integer k, item iMDMItem)
+function mapSKTOF(hmSAP_SOG, k, itmMDMItem){
+	var log = getLogger("JmsLog");
+	
+	var varSKTOF = getSimpleValue(itmMDMItem, "SalesOrganisationGroup#"+k+"/10GC0730-CashDiscount");
+	log.loggerDebug("varSKTOF - " + varSKTOF);
+	
+	hmSAP_SOG[k]["SKTOF"] = getBooleanValue(itmMDMItem, "SalesOrganisationGroup#"+k+"/10GC0730-CashDiscount", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["PRAT10"] - 10GC0735-ProductAttribute10 - Flag
+//:PRFUNCTION void mapPRAT10(HashMap hmSAP_ROOT, item iMDMItem)
+function mapPRAT10(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["PRAT10"] = getBooleanValue(itmMDMItem, "10GC0735-ProductAttribute10", "X", " ", " ");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["PRDHA"] - 12BI0666-ProductHierarchy
+//:PRFUNCTION void mapPRDHA(HashMap hmSAP_ROOT, item iMDMItem)
+function mapPRDHA(hmSAP_ROOT, itmMDMItem, strItemType){
+
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+	var itmBUnit = null;
+	if(strItemType == "Pitem1"){//1x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath);	
+		hmSAP_ROOT["PRDHA"] = getSimpleValue(itmBUnit, "12BI0666-ProductHierarchy");
+	}
+	else if(strItemType == "Pitem2"){//2x
+		itmBUnit = itmMDMItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+		hmSAP_ROOT["PRDHA"] = getSimpleValue(itmBUnit, "12BI0666-ProductHierarchy");
+	}
+	else{
+		hmSAP_ROOT["PRDHA"] = getSimpleValue(itmMDMItem, "12BI0666-ProductHierarchy");
+	}
+	
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MVGR2"] - 12BI0736-Profile
+//:PRFUNCTION void mapMVGR2(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMVGR2(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MVGR2"] = getSimpleValue(itmMDMItem, "12BI0736-Profile");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MVGR5"] - 12BI0738-MaterialGroup5
+//:PRFUNCTION void mapMVGR5(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMVGR5(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MVGR5"] = getSimpleValue(itmMDMItem, "12BI0738-MaterialGroup5");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["MVGR4"] - 12BI0737-BusinessUnit
+//:PRFUNCTION void mapMVGR4(HashMap hmSAP_ROOT, item iMDMItem)
+function mapMVGR4(hmSAP_ROOT, itmMDMItem){
+	hmSAP_ROOT["MVGR4"] = getSimpleValue(itmMDMItem, "12BI0737-BusinessUnit");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["SCHME"] - 12BI0737-BusinessUnit
+//:PRFUNCTION void mapSCHME(HashMap hmSAP_ROOT, item iMDMItem)
+function mapSCHME(hmSAP_ROOT, itmMDMItem, log){
+//	hmSAP_ROOT["SCHME"] = getSimpleValue(itmMDMItem, "06DN0661-BaseUnitOfMeasure");
+//	hmSAP_ROOT["SCHME"] = getLkpValue(itmMDMItem, "06DN0661-BaseUnitOfMeasure","C01-PrimaryCode");
+
+	var vAttrib = "06DN0661-BaseUnitOfMeasure";
+	var vMapTo  = "SCHME";
+	
+	hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_ROOT[vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}
+	log.loggerDebug("T006A hmSAP_ROOT[mapTo]  : "+ hmSAP_ROOT[vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BSTME"] - BSTME, 06DN0674-PurchasingUnit
+//:PRFUNCTION void mapBSTME(HashMap hmSAP_ROOT, item iMDMItem)
+function mapBSTME(hmSAP_ROOT, itmMDMItem, log){
+//	hmSAP_ROOT["BSTME"] = getSimpleValue(itmMDMItem, "06DN0674-PurchasingUnit");
+//	hmSAP_ROOT["BSTME"] = getLkpValue(itmMDMItem, "06DN0674-PurchasingUnit","C01-PrimaryCode");
+	
+	var vAttrib = "06DN0674-PurchasingUnit";
+	var vMapTo  = "BSTME";
+	
+	hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_ROOT[vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}
+	log.loggerDebug("T006A hmSAP_ROOT[mapTo]  : "+ hmSAP_ROOT[vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["VRKME"] - VRKME, 06DN0732-SalesUnit
+//:PRFUNCTION void mapVRKME(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVRKME(hmSAP_ROOT, itmMDMItem, log){
+//	hmSAP_ROOT["VRKME"] = getSimpleValue(itmMDMItem, "06DN0732-SalesUnit");
+//	hmSAP_ROOT["VRKME"] = getLkpValue(itmMDMItem, "06DN0732-SalesUnit","C01-PrimaryCode");			
+
+	var vAttrib = "06DN0732-SalesUnit";
+	var vMapTo  = "VRKME";
+	
+	hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_ROOT[vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}
+	log.loggerDebug("T006A hmSAP_ROOT[mapTo]  : "+ hmSAP_ROOT[vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["AUSME"] - AUSME, 06DN0702-UnitOfIssue
+//:PRFUNCTION void mapAUSME(HashMap hmSAP_ROOT, item iMDMItem)
+function mapAUSME(hmSAP_ROOT, itmMDMItem, log){
+//	hmSAP_ROOT["AUSME"] = getSimpleValue(itmMDMItem, "06DN0702-UnitOfIssue");
+//	hmSAP_ROOT["AUSME"] = getLkpValue(itmMDMItem, "06DN0702-UnitOfIssue","C01-PrimaryCode");	
+   
+
+	var vAttrib = "06DN0702-UnitOfIssue";
+	var vMapTo  = "AUSME";
+	
+	hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_ROOT[vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_ROOT[vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}							
+	log.loggerDebug("T006A hmSAP_ROOT[mapTo]  : "+ hmSAP_ROOT[vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ROOT["BEGRU"] - 01AC0044-ERPCode - String(6)
+//:PRFUNCTION void AC0044ERPCode(HashMap hmSAP_ROOT, item iMDMItem)
+function mapVABME(hmSAP_ROOT, itmMDMItem){
+	 hmSAP_ROOT["VABME"] = getSimpleValue(itmMDMItem, "06DN0777-VariablePurchaseOrderUnitValue");
+//	 hmSAP_ROOT["VABME"] = getLkpValue(itmMDMItem, "06DN0777-VariablePurchaseOrderUnitValue","C01-PrimaryCode");	 
+
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["MEINH"] - 06DN0804-GTIN - String(13)
+//:PRFUNCTION void mapMEINH(HashMap hmSAP_UOM, item iMDMItem)
+function mapMEINH(hmSAP_UOM, k, itmMDMItem, log){
+	
+//	hmSAP_UOM[k]["MEINH"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit");
+
+		hmSAP_UOM[k]["MEINH"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit");
+//		log.loggerDebug("MEINH : "+ getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit"));
+		
+		if(getLkpValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit","C02-SecondaryCode") == "X" && 
+			getLkpValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit","C01-PrimaryCode") != "" ) { 
+			
+			hmSAP_UOM[k]["MEINH"] = getLkpValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0771-AlternativeUnit","C01-PrimaryCode");
+									}
+//		log.loggerDebug("T006A hmSAP_UOM[k][mapTo]  : "+ hmSAP_UOM[k]["MEINH"]);
+
+	return null;
+}
+
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["UMREZ"] - 06DN0759-Counter - String(13)
+//:PRFUNCTION void mapUMREZ(HashMap hmSAP_UOM, item iMDMItem)
+function mapUMREZ(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["UMREZ"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0760-Denominator");
+
+	var log = getLogger("JmsLog");
+	var hmGlobals=[];
+	hmGlobals["LOGGER"]=log;
+
+//	log.loggerDebug("06DN0760-Denominator : "+ checkString(getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0760-Denominator"),""));
+
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["UMREN"] - 06DN0760-Denominator - String(13)
+//:PRFUNCTION void mapUMREN(HashMap hmSAP_UOM, item iMDMItem)
+function mapUMREN(hmSAP_UOM, k, itmMDMItem, hmCatalog){
+
+	var log = getLogger("JmsLog");
+	var hmGlobals=[];
+	hmGlobals["LOGGER"]=log;
+
+//	log.loggerDebug("06DN0759-Counter : "+ checkString(getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0759-Counter"),""));
+	hmSAP_UOM[k]["UMREN"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0759-Counter");
+	
+//	var strCatalogCode = substring(itmMDMItem.getCtgItemPrimaryKey(), 1, 4);
+	
+//	var logText  = "strSecSpecName ";
+// 	var logValue = strSecSpecName;
+// 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+ 		
+//	var itmZZERPCode = itmMDMItem.getCtgItemPrimaryKey();
+//	var logText  = "itmZZERPCode ";
+// 	var logValue = itmZZERPCode;
+// 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+ 		
+//	var ctgProcessingCatalog = getCtgByName(hmCatalog[strCatalogCode]);	
+//	var itmProcessingItem = ctgProcessingCatalog.getEntryByPrimaryKey(itmZZERPCode);
+	
+//	if(itmProcessingItem!=null) {	
+//		var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+//		var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+//		var specItemSpec = getSpecByName(strSecSpecName);
+//		
+//	    var logText  = "strCatalogCode ";
+//	  	var logValue = strCatalogCode;
+//	 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+//	
+//		var logText  = "strSecSpecName ";
+//	 	var logValue = strSecSpecName;
+//	 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+//	   	
+//		log.loggerDebug("06DN0759-Counter : "+ checkString(itmProcessingItem.getEntryAttrib(strSecSpecName +"/AlternativeUnitGroup#"+k+"/06DN0759-Counter"),""));  		
+//		hmSAP_UOM[k]["UMREN"] = itmProcessingItem.getEntryAttrib(strSecSpecName +"/AlternativeUnitGroup#"+k+"/06DN0759-Counter");
+//			 							}  	   	   	   			
+	return null;
+}	
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["EAN11"] - 06DN0804-GTIN - String(13)
+//:PRFUNCTION void mapEAN11(HashMap hmSAP_UOM, item iMDMItem)
+function mapEAN11(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["EAN11"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0804-GTIN");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["NUMTP"] - 06DN0805-EANCategory - String(13)
+//:PRFUNCTION void mapNUMTP(HashMap hmSAP_UOM, item iMDMItem)
+function mapNUMTP(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["NUMTP"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0805-EANCategory");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["LAENG"] - 06DN0798-LengthOrDepth - String(13)
+//:PRFUNCTION void mapLAENG(HashMap hmSAP_UOM, item iMDMItem)
+function mapLAENG(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["LAENG"] = getNumberString(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0798-LengthOrDepth");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["BREIT"] - 06DN0797-Width - String(13)
+//:PRFUNCTION void mapBREIT(HashMap hmSAP_UOM, item iMDMItem)
+function mapBREIT(hmSAP_UOM, k, itmMDMItem){
+//	hmSAP_UOM[k]["BREIT"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0797-Width");
+	hmSAP_UOM[k]["BREIT"] = getNumberString(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0797-Width");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["HOEHE"] - 06DN0796-ThicknessOrHeight - String(13)
+//:PRFUNCTION void mapHOEHE(HashMap hmSAP_UOM, item iMDMItem)
+function mapHOEHE(hmSAP_UOM, k, itmMDMItem){
+//	hmSAP_UOM[k]["HOEHE"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0796-ThicknessOrHeight");
+	hmSAP_UOM[k]["HOEHE"] = getNumberString(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0796-ThicknessOrHeight");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["MEABM"] - 06DN0806-DimensionsUnit - String(13)
+//:PRFUNCTION void mapMEABM(HashMap hmSAP_UOM, item iMDMItem
+function mapMEABM(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["MEABM"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0806-DimensionsUnit");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["VOLUM"] - 04CP0217-RoughVolume - String(13)
+//:PRFUNCTION void mapVOLUM(HashMap hmSAP_UOM, item iMDMItem
+function mapVOLUM(hmSAP_UOM, k, itmMDMItem){
+//	hmSAP_UOM[k]["VOLUM"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0802-GrossVolume");
+	hmSAP_UOM[k]["VOLUM"] = getNumberString(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0802-GrossVolume");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["VOLEH"] - 04CP0218-RoughVolumeUnit - String(13)
+//:PRFUNCTION void mapVOLEH(HashMap hmSAP_UOM, item iMDMItem
+function mapVOLEH(hmSAP_UOM, k, itmMDMItem, log){
+ 
+//	hmSAP_UOM[k]["VOLEH"] = getLkpValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0803-GrossVolumeUnit","C01-PrimaryCode");
+	var vAttrib = "AlternativeUnitGroup#"+k+"/06DN0803-GrossVolumeUnit";
+	var vMapTo  = "VOLEH";
+	
+	hmSAP_UOM[k][vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+
+	hmSAP_UOM[k][vMapTo] = getSimpleValue(itmMDMItem, vAttrib);
+
+	if(getLkpValue(itmMDMItem, vAttrib,"C02-SecondaryCode") == "X" && 
+	   getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode") != "" ) { 
+		
+		hmSAP_UOM[k][vMapTo] = getLkpValue(itmMDMItem, vAttrib,"C01-PrimaryCode");
+								}
+	log.loggerDebug("T006A hmSAP_UOM[k][mapTo]  : "+ hmSAP_UOM[k][vMapTo]);
+
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["BRGEW"] - 04CP0215-grossWeight - String(13)
+//:PRFUNCTION void mapBRGEW(HashMap hmSAP_UOM, item iMDMItem
+function mapBRGEW(hmSAP_UOM, k, itmMDMItem){
+//	hmSAP_UOM[k]["BRGEW"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0800-grossWeight");
+	hmSAP_UOM[k]["BRGEW"] = getNumberString(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0800-grossWeight");
+	return null;
+}
+
+/// @param hmSAP_UOM - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_UOM["GEWEI"] - 06DN0800-grossWeight - String(13)
+//:PRFUNCTION void mapGEWEI(HashMap hmSAP_UOM, item iMDMItem
+function mapGEWEI(hmSAP_UOM, k, itmMDMItem){
+	hmSAP_UOM[k]["GEWEI"] = getSimpleValue(itmMDMItem, "AlternativeUnitGroup#"+k+"/06DN0801-GrossNetWeightUnit");
+	return null;
+}
+
+/// @param hmSAP_ROOT - Hasmap with all the SAP Export fields
+/// @param hmSAP_ADD - Hasmap with all the SAP Export fields
+/// @param itmMDMItem - Current Item to export
+/// @return hmSAP_ADD - 
+//:PRFUNCTION void mapAdditionalData(HashMap hmSAP_ROOT, HashMap hmSAP_ADD, item iMDMItem)
+function mapAdditionalData(hmSAP_ROOT, hmSAP_ADD, itmMDMItem, log){
+	var intADDCount = 0;
+	if(getSimpleValue(itmMDMItem, "06DN0758-AdditionalUnit1") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0758-AdditionalUnit1");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0759-AdditionalUnit1Counter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0760-AdditionalUnit1Denominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0761-AdditionalUnit2") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0761-AdditionalUnit2");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0762-AdditionalUnit2Counter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0763-AdditionalUnit2Denominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0764-AdditionalUnit3") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0764-AdditionalUnit3");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0765-AdditionalUnit3Counter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0766-AdditionalUnit3Denominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0755-ManagementUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0755-ManagementUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0756-ManagementUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0757-ManagementUnitDenominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0752-PricingUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0752-PricingUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0753-PricingUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0754-PricingUnitDenominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0674-PurchasingUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0674-PurchasingUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0713-PurchasingUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0712-PurchasingUnitDenominator");
+		intADDCount = intADDCount + 1;
+		
+		//BSTME, 06DN0674-PurchasingUnit
+		mapBSTME(hmSAP_ROOT, itmMDMItem, log);
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0732-SalesUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0732-SalesUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0719-SalesUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0718-SalesUnitDenominator");
+		intADDCount = intADDCount + 1;
+		
+		//VRKME, 06DN0732-SalesUnit
+		mapVRKME(hmSAP_ROOT, itmMDMItem, log);
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0744-ShippingUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0744-ShippingUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0745-ShippingUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0746-ShippingUnitDenominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0749-StorageUnit") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0749-StorageUnit");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0750-StorageUnitCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0751-StorageUnitDenominator");
+		intADDCount = intADDCount + 1;
+	}
+	if(getSimpleValue(itmMDMItem, "06DN0702-UnitOfIssue") != ""){
+		hmSAP_ADD[intADDCount]=[];
+		hmSAP_ADD[intADDCount]["MEINH"] = getSimpleValue(itmMDMItem,"06DN0702-UnitOfIssue");
+		hmSAP_ADD[intADDCount]["UMREZ"] = getSimpleValue(itmMDMItem,"06DN0715-UnitOfIssueCounter");
+		hmSAP_ADD[intADDCount]["UMREN"] = getSimpleValue(itmMDMItem,"06DN0714-UnitOfIssueDenominator");
+		
+		//AUSME, 06DN0702-UnitOfIssue
+		mapAUSME(hmSAP_ROOT, itmMDMItem, log);
+	}
+	
+	return null;
+}
+// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+function mapTYPE(hmSAP_CLS_TPE, k, itmMDMItem){
+		var lkpTableClass = getLkpByName("M_CLASA-Classification");
+		
+		var varClass = getSimpleValue(itmMDMItem, "12BI0665-Classification#"+k);
+		var varType  = lookupValues(lkpTableClass,varClass)[1];
+			if (hmSAP_CLS_TPE.containsValue(varType) == "false" ) {	
+				hmSAP_CLS_TPE.add(varType);
+			}				
+return null;
+}
+
+function mapCLASS(hmSAP_CLS, k, itmMDMItem, log){
+		var lkpTableClass = getLkpByName("M_CLASA-Classification");
+
+		var varClass = getSimpleValue(itmMDMItem, "12BI0665-Classification#"+k);
+		var varType  = lookupValues(lkpTableClass,varClass)[1];		
+					
+		hmSAP_CLS[k]["CLASS"] = varClass;
+		hmSAP_CLS[k]["TYPE"]  = varType;
+			
+	return null;
+}
+// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+
+// getSAPItem
+// @desc Huge function to retrieve in a array all the data needed for SAP
+// @param item the item to export
+// @return an array with 3 main entries : SAP["ROOT"], SAP["MCU"], SAP["UOM"]
+function getSAPItem(hmGlobals, item, log) {
+	hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+	var log = hmGlobals["LOGGER"];
+	var moni = getLogger("Monitor");
+	
+	var hmCatalog = [];
+	hmCatalog["010"] = "C010-Plaques de plâtre - Gypsum plasterBoards";
+	hmCatalog["015"] = "C015-Cloisons - Honeycomb Partitions";
+	hmCatalog["020"] = "C020-Doublages - Composite panels";
+	hmCatalog["025"] = "C025-Profilés - Metal profiles";
+	hmCatalog["030"] = "C030-Acc plafonds - Ceiling accessories";
+	hmCatalog["035"] = "C035-Acc ouvrages verticaux - Partition accessories";
+	hmCatalog["040"] = "C040-Acc finition - Finishing accessories";
+	hmCatalog["045"] = "C045-Vis - Fasteners";
+	hmCatalog["050"] = "C050-Salsi acc cloisons - Honeycomb partitions accessories";
+	hmCatalog["055"] = "C055-Salsi acc finition - Finishing accessories";
+	hmCatalog["060"] = "C060-Salsi vis - Fasteners";
+	hmCatalog["065"] = "C065-Enduits - Jointing compounds";
+	hmCatalog["070"] = "C070-Liants - Adhesives";
+	hmCatalog["075"] = "C075-Colles - Adhesives";
+	hmCatalog["080"] = "C080-Salsi enduits poudres - Powder compounds";
+	hmCatalog["085"] = "C085-Salsi enduits pâtes - Ready-mix compounds";
+	hmCatalog["090"] = "C090-Salsi liants - Adhesives";
+	hmCatalog["095"] = "C095-Salsi colles - Adhesives";
+	hmCatalog["100"] = "C100-Salsi enduits préparation support - Pre-painting compounds";
+	hmCatalog["105"] = "C105-Salsi enduits techniques - Technical compounds";
+	hmCatalog["110"] = "C110-Panneaux isolant - Insulating panels";
+	hmCatalog["115"] = "C115-Styrodur";
+	hmCatalog["120"] = "C120-Entrevous -";
+	hmCatalog["130"] = "C130-Rehausses -";
+	hmCatalog["135"] = "C135-Plâtres - Gypsum plasters";
+	hmCatalog["140"] = "C140-Salsi plâtres - Gypsum plasters";
+	hmCatalog["145"] = "C145-Carreaux de plâtre - Gypsum blocks";
+	hmCatalog["150"] = "C150-Gypse - Gypsum rock";
+	hmCatalog["155"] = "C155-Outils mesure&traçage - Measurement tools";
+	hmCatalog["160"] = "C160-Outils manutention - Handling Tools";
+	hmCatalog["165"] = "C165-Outils façonnage - Shaping tools";
+	hmCatalog["170"] = "C170-Outils travail du métal - Tools for metal";
+	hmCatalog["175"] = "C175-Outillage électroportatif - Electrical tools";
+	hmCatalog["180"] = "C180-Outils finition - Finishing tools";
+	hmCatalog["185"] = "C185-Outillage général - Other Tools";
+	hmCatalog["190"] = "C190-Pièces détachées machines à projeter - Spare parts for spraying machines";
+	hmCatalog["195"] = "C195-Services";
+	hmCatalog["200"] = "C200-Produits financiers - Financial products";
+	hmCatalog["205"] = "C205-Services industriels - Industrial services";
+	hmCatalog["210"] = "C210-Produits&consommables industriels - Industrial products";
+	hmCatalog["215"] = "C215-Services&produits généraux - Other services&products";
+	hmCatalog["300"] = "C300-Primitifs doublages - Insulating panels for Composite panels";
+	hmCatalog["305"] = "C305-Panneaux isolants - Insulating panels";
+	hmCatalog["310"] = "C310-Blocs - Polystyrene blocks";
+	hmCatalog["315"] = "C315-Colles&Enduits internes - Internal adhesives&compounds";
+	hmCatalog["320"] = "C320-Plâtres internes - Internal Gypsum plasters";
+	hmCatalog["400"] = "C400-Artifices&Explosifs - Explosives";
+	hmCatalog["405"] = "C405-Energies";
+	hmCatalog["410"] = "C410-Polyethylene";
+	hmCatalog["415"] = "C415-Fournitures pour fabrication -";
+	hmCatalog["420"] = "C420-Marquage - Ink and solvents";
+	hmCatalog["425"] = "C425-Ajouts - Additives";
+	hmCatalog["430"] = "C430-Billes - Polystyrene beads";
+	hmCatalog["435"] = "C435-Parements plaques de plâtre -";
+	hmCatalog["440"] = "C440-Papiers - Paper";
+	hmCatalog["441"] = "C441-Papiers Essais - Paper test";
+	hmCatalog["442"] = "C442-Papiers Réseaux - Honeycomb Paper";
+	hmCatalog["445"] = "C445-Acc papiers - Paper accessories";
+	hmCatalog["450"] = "C450-Papiers recyclés - Recycled paper";
+	hmCatalog["455"] = "C455-Produits nettoyant&chaufferie - Cleaning products";
+	hmCatalog["460"] = "C460-Solutions mères&premix - Premixes";
+	hmCatalog["465"] = "C465-Carreaux internes - Internal gypsum blocks";
+	hmCatalog["470"] = "C470-Gypse mat 1ère - Gypsum rock raw material";
+	hmCatalog["475"] = "C475-Papiers internes - Internal paper";
+	hmCatalog["480"] = "C480-Colles mat 1ère - Glues";
+	hmCatalog["485"] = "C485-Acier - Steel";
+	hmCatalog["500"] = "C500-Etiquettes - Labels";
+	hmCatalog["505"] = "C505-Bandes gommées - End tapes";
+	hmCatalog["510"] = "C510-Cartons d emballage - Packaging cardboard";
+	hmCatalog["515"] = "C515-Cales - Bearers";
+	hmCatalog["520"] = "C520-Cerclage -";
+	hmCatalog["525"] = "C525-Sacherie - Bags";
+	hmCatalog["530"] = "C530-Big bags";
+	hmCatalog["535"] = "C535-Palets";
+	hmCatalog["540"] = "C540-Récipients - Small containers";
+	hmCatalog["600"] = "C600-Prestia Plâtre formulé automatique - Auto formulated gypsum";
+	hmCatalog["605"] = "C605-Prestia Plâtre formulé manuel - Manual formulated gypsum";
+	hmCatalog["610"] = "C610-Prestia Plâtre non formulé - Non formulated gypsum";
+	hmCatalog["650"] = "C650-LCL Liants - Adhesives";
+	hmCatalog["655"] = "C655-LCL Adjuvants - Additives";
+	hmCatalog["660"] = "C660-LCL Billes PSE - Polystyrene beads";
+	hmCatalog["665"] = "C665-LCL Outillage - Tools";
+	hmCatalog["670"] = "C670-LCL Accessoires marketing - Marketing accessories";
+	hmCatalog["690"] = "C690-Noble Perlite";
+	hmCatalog["700"] = "C700-Platec Acc finition - Finishing accessories";
+	hmCatalog["705"] = "C705-Platec Acc ouvr verticaux - Partition accessories";
+	hmCatalog["710"] = "C710-Platec Enduits - Jointing compounds";
+	hmCatalog["715"] = "C715-Platec Outillage - Tools";
+	hmCatalog["730"] = "C730-Platec Prestations - Services";
+	hmCatalog["999"] = "C999-Produits génériques - Generic products";
+		
+	moni.loggerInfo("*** Start procdessing " + name);
+	
+    log.loggerDebug("Processing ROOT ---------------------------------");
+    var SAP_ROOT = []; //root information about the item
+    
+    log.loggerDebug("Processing Place Of Storage ---------------------");
+    var SAP_MCU = [];  //Place Of Storage Group information matrix
+    
+    log.loggerDebug("Processing Storage Location ---------------------");
+    var SAP_LGORT = [];  //Storage Location information matrix
+    
+    log.loggerDebug("Processing Warehouse Management -----------------");
+	var SAP_WMS = []; // Warehouse Management
+    
+    log.loggerDebug("Processing Unit of Measure ----------------------");
+    var SAP_UOM = [];
+
+    log.loggerDebug("Processing Additional data ----------------------");    
+    var SAP_ADD = [];  //Additional data information matrix
+
+    log.loggerDebug("Processing Sales Organization Group -------------");     
+    var SAP_SOG = []; //Sales Organization Group information matrix
+
+    log.loggerDebug("Processing Classifications ----------------------");     
+    var SAP_CLS = []; // Classifications
+
+    // ItemType
+    var strItemType = getItemType(item, hmGlobals);
+
+    var logText  = "strItemType ";
+   	var logValue = strItemType;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+    var itmProdItem = getProductItem(item, strItemType);
+    var ctgCatalog = item.getCatalog();
+    var strCatalogName = ctgCatalog.getCtgName();
+    var strCatalogCode = substring(strCatalogName,0,4);
+    log.loggerDebug("CA - " + substring(strCatalogName,1,2));
+   	if(substring(strCatalogName,1,2) == "A") {    							
+    	var strCatalogCode = substring(strCatalogName,0,5);
+    										}
+    							
+    var logText  = "ctgCatalog ";
+   	var logValue = ctgCatalog;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+    var logText  = "strCatalogName ";
+   	var logValue = strCatalogName;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	    
+    var logText  = "strCatalogCode ";
+   	var logValue = strCatalogCode;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+    var logText  = "ROOT ";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+	mapBEGRU(SAP_ROOT, itmProdItem);
+	mapERPCode(SAP_ROOT, item);
+	moni.loggerInfo("*** Start procdessing " + SAP_ROOT["ERPCode"]);
+	
+	mapMATNR(SAP_ROOT, item);
+	mapMATNR_PI(SAP_ROOT, item);	
+//	mapEAN11(SAP_ROOT, item);
+//	mapNUMTP(SAP_ROOT, item);
+	mapBISMT(SAP_ROOT, item);
+	mapMSTAE(SAP_ROOT, item);
+	mapMSTDE(SAP_ROOT, item);
+	mapMTART(hmGlobals, SAP_ROOT, item);
+	mapMAKTX_FR(SAP_ROOT, item);
+	mapMVGR1(SAP_ROOT, itmProdItem, log);
+	mapMATKL(SAP_ROOT, item, strItemType);
+	mapEKGRP(SAP_ROOT, item);
+	mapEKWSL(SAP_ROOT, item, log);
+	mapKAUTB(SAP_ROOT, item);
+	if(strCatalogCode == "C010" || strCatalogCode == "CA010"){
+		mapSF_THICKNESS(SAP_ROOT, itmProdItem);
+		mapSF_WIDTH(SAP_ROOT, itmProdItem);
+		mapSF_LENGTH(SAP_ROOT, item, strItemType);
+		mapSF_TYPE(SAP_ROOT, itmProdItem);
+		mapSF_EDGE(SAP_ROOT, itmProdItem, strItemType);
+		mapSF_PACKAGING(SAP_ROOT, item, strItemType);
+	}
+	else{
+		SAP_ROOT["SF_THICKNESS"] = "";
+		SAP_ROOT["SF_WIDTH"] = "";
+		SAP_ROOT["SF_LENGTH"] = "";
+		SAP_ROOT["SF_TYPE"] = "";
+		SAP_ROOT["SF_EDGE"] = "";
+		SAP_ROOT["SF_PACKAGIN"] = "";
+	} 
+//    mapHOEHE(SAP_ROOT, itmProdItem);//TODO two times in the mapping sheet...
+//    mapLAENG(SAP_ROOT, item);
+//    mapBREIT(SAP_ROOT, item);
+    mapNTGEW(SAP_ROOT, item, strItemType, log);
+//    mapBRGEW(SAP_ROOT, item);
+//    mapVOLUM(SAP_ROOT, item);
+    mapMTPOS_MARA(SAP_ROOT, item);
+    mapLADGR(SAP_ROOT, item);
+    mapMAGRV(SAP_ROOT, item);
+    mapVHART(SAP_ROOT, item);
+    mapTRAGR(SAP_ROOT, item);
+    mapSTAWN(SAP_ROOT, item, strItemType);
+    mapSCMNG(SAP_ROOT, item);
+    mapAUMNG(SAP_ROOT, item);
+    mapBSTRF(SAP_ROOT, item);
+//    mapMAKTX_GB(SAP_ROOT, item, log);
+    mapZMIXABLE(SAP_ROOT, itmProdItem);
+    mapZCLETAB(SAP_ROOT, itmProdItem);
+   	mapMEINS(SAP_ROOT, item, log);
+    mapMSTDV(SAP_ROOT, item);
+    mapMSTAV(SAP_ROOT, item);
+	mapWZEIT(SAP_ROOT, item);
+	mapPRAT10(SAP_ROOT, item);
+	mapPRDHA(SAP_ROOT, item, strItemType);
+	mapMVGR2(SAP_ROOT, item);
+	mapMVGR5(SAP_ROOT, item);
+	mapMVGR4(SAP_ROOT, item);
+	mapSCHME(SAP_ROOT, item);
+	mapVABME(SAP_ROOT, item);//, 06DN0661-BaseUnitOfMeasure
+	mapLWMKB(SAP_ROOT, item);
+	// WMS attribute
+	mapBLOCK(SAP_ROOT, item);
+    var logText  = "Places of Storage group iteration";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+	//Places of Storage group iteration
+	var PlaceOfStorageGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"PlaceOfStorageGroup");
+	
+    if (PlaceOfStorageGroup!=null) {
+        var PlaceOfStorageGroupLen=PlaceOfStorageGroup.size();
+        for (var k=0;k<PlaceOfStorageGroupLen;k++) {
+            SAP_MCU[k]=[];
+            mapWERKS(SAP_MCU, k, item);
+            
+			var logText  = "Places of Storage group WERKS = ";
+   			var logValue = SAP_MCU[k]["WERKS"];
+   			getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+            
+        	mapMTVFP(SAP_MCU, k, item);
+			mapRGEKZ(SAP_MCU, k, item);
+			mapXCHPF(SAP_MCU, k, item);
+		    mapVRMOD(SAP_MCU, k, item);
+		    mapVINT1(SAP_MCU, k, item);
+			mapVINT2(SAP_MCU, k, item);
+			mapHERKL(SAP_MCU, k, item);
+			mapSBDKZ(SAP_MCU, k, item);
+			mapEKALR(SAP_MCU, k, item);
+			mapHKMAT(SAP_MCU, k, item);
+			mapDISPO(SAP_MCU, k, item);
+			mapDISGR(SAP_MCU, k, item);
+			mapDISMM(SAP_MCU, k, item);
+			mapNCOST(SAP_MCU, k, item);
+			mapHRKFT(SAP_MCU, k, item);
+			mapPERKZ(SAP_MCU, k, item);
+			mapVPRSV(SAP_MCU, k, item);
+			mapBESKZ(SAP_MCU, k, item);
+			mapFEVOR(SAP_MCU, k, item);
+			mapPRCTR(SAP_MCU, k, item);
+			mapHERKR(SAP_MCU, k, item);
+			mapFHORI(SAP_MCU, k, item);
+			mapALTSL(SAP_MCU, k, item);
+			mapSOBSL(SAP_MCU, k, item);
+			mapSOBSK(SAP_MCU, k, item, log);
+			
+			var logText  = "Places of Storage group SOBSK = ";
+   			var logValue = SAP_MCU[k]["SOBSK"];
+   			getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   						
+			mapSTRGR(SAP_MCU, k, item);
+			mapUEETK(SAP_MCU, k, item);
+			mapBKLAS(SAP_MCU, k, item);
+			mapMMSTA(SAP_MCU, k, item);
+			mapMMSTD(SAP_MCU, k, item);
+//			mapLGORT(SAP_LGORT, k, item);
+			mapLGPRO(SAP_MCU, k, item);
+			mapLGFSB(SAP_MCU, k, item);
+
+			// mapLWMKB(SAP_MCU, k, item);
+
+			//Storage Location group iteration
+
+			SAP_MCU[k]["LGORT"] = [];
+			
+
+			var StorageLocationGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"PlaceOfStorageGroup#"+k+"/06DN0711-StorageLocation");
+			if (StorageLocationGroup!=null) {
+				var StorageLocationGroupLen=StorageLocationGroup.size();
+				
+
+				SAP_LGORT = [];  //Storage Location information matrix
+				for (var l=0;l<StorageLocationGroupLen;l++) {
+					mapLGORT(SAP_LGORT, k, l, item, log);
+				}
+							
+				SAP_MCU[k]["LGORT"] = SAP_LGORT;
+			}
+
+		SAP_MCU[k]["WMS"] = [];
+		var WarehouseManagementGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"PlaceOfStorageGroup#"+k+"/WarehouseManagement");
+	    if (WarehouseManagementGroup!=null) {
+	        var WarehouseManagementLen=WarehouseManagementGroup.size();
+	        for (var l=0;l<WarehouseManagementLen;l++) {
+				SAP_MCU[k]["WMS"][l] = [];
+
+				mapLGNUM(SAP_MCU, k, l, item, log);
+				mapLGTYP(SAP_MCU, k, l, item, log);
+
+				mapMKAPV(SAP_MCU, k, l, item, log);
+				mapBEZME(SAP_MCU, k, l, item, log);
+				mapKOBER(SAP_MCU, k, l, item, log);
+				
+				SAP_MCU[k]["WMS"][l]["PAL"] = [];
+				
+				var PalettizationGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"PlaceOfStorageGroup#"+k+"/WarehouseManagement#"+l+"/Palettization");
+				if (PalettizationGroup!=null) {
+					var PalettizationLen=PalettizationGroup.size();
+					for (var m=0;m<PalettizationLen;m++) {
+						SAP_MCU[k]["WMS"][l]["PAL"][m] = [];
+				
+						// Palettization attributes
+						mapLHMG1(SAP_MCU, k, l, m, item, log);
+						mapLHME1(SAP_MCU, k, l, m, item, log);
+						mapLETY1(SAP_MCU, k, l, m, item, log);
+					}
+				}
+
+
+	        }
+
+
+		}
+	}
+ }
+ 
+	// Additional data mapping
+	// MEINH, UMREZ, UMREN
+	mapAdditionalData(SAP_ROOT, SAP_ADD, item, log); 
+    //Sales Organisation Group Iteration
+    //Places of Storage group iteration
+	var SalesOrganizationGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"SalesOrganisationGroup");
+	log.loggerDebug("SalesOrganizationGroup - " + SalesOrganizationGroup);
+
+    if (SalesOrganizationGroup != null) {
+        var SalesOrganizationGroupLen = SalesOrganizationGroup.size();
+        for (var k=0;k<SalesOrganizationGroupLen;k++) {
+            SAP_SOG[k]=[];
+            mapVKORG(SAP_SOG, k, item);
+			mapVTWEG(SAP_SOG, k, item);
+			mapVMSTA(SAP_SOG, k, item);
+			mapVMSTD(SAP_SOG, k, item);
+			mapDWERK(SAP_SOG, k, item);
+			mapMTPOS(SAP_SOG, k, item);
+			mapVERSG(SAP_SOG, k, item);
+			mapKTGRM(SAP_SOG, k, item);
+			mapSKTOF(SAP_SOG, k, item);
+			log.loggerDebug("SalesOrganization - " + SAP_SOG[k]);
+        }
+    }
+    
+
+    var logText  = "Alternative Unit Group";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+   //Alternative Unit Group
+	var AlternativeUnitGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"AlternativeUnitGroup");
+    if (AlternativeUnitGroup != null) {
+        var AlternativeUnitGroupLen = AlternativeUnitGroup.size();
+        for (var k=0;k<AlternativeUnitGroupLen;k++) {
+            SAP_UOM[k]=[];
+            
+            mapMEINH(SAP_UOM, k, item, log);
+			mapUMREZ(SAP_UOM, k, item);
+			mapUMREN(SAP_UOM, k, item, hmCatalog);
+			mapEAN11(SAP_UOM, k, item);
+			mapNUMTP(SAP_UOM, k, item);
+			mapLAENG(SAP_UOM, k, item);
+			mapBREIT(SAP_UOM, k, item);
+			mapHOEHE(SAP_UOM, k, item);
+			mapMEABM(SAP_UOM, k, item);
+			mapVOLUM(SAP_UOM, k, item);
+			mapVOLEH(SAP_UOM, k, item, log);
+			mapBRGEW(SAP_UOM, k, item);
+			mapGEWEI(SAP_UOM, k, item);
+			
+			if (SAP_UOM[k]["MEINH"] == SAP_ROOT["MEINS"]) {
+			    var logText  = "Checkpoint: Net Weight Base Unit";
+			   	var logValue = "";
+			   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+			    var logText  = "Base Unit : ";
+			   	var logValue = SAP_ROOT["MEINS"];
+			   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+			   				   				
+				SAP_ROOT["NTGEW"] = getSimpleValue(item, "AlternativeUnitGroup#"+k+"/06DN0799-netWeight");
+
+			    var logText  = "Net Weight : ";
+			   	var logValue = SAP_ROOT["NTGEW"];
+			   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+			   					
+			  			}     
+        }
+    }
+      
+    var logText  = "Material Text .... ";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+                
+   	//Material Text //TODO hier zitten de wijzigingen in
+   	var SAP_LANG = [];
+
+	var boolOccurenceIsEN = false;
+	var boolOccurenceIsFR = false;
+	var intCGCount = 0;
+
+	var CountryGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"CountryGroup");
+    if (CountryGroup != null) {
+        var CountryGroup = CountryGroup.size();
+    	for (var k=0;k<CountryGroup;k++) {
+	        SAP_LANG[k]=[];
+			
+			var strCountryCode = getSimpleValue(item, "CountryGroup#"+k+"/06DN0419-Country");
+			log.loggerDebug("Material Text .... strCountryCode       - " + strCountryCode);
+			
+			if(strCountryCode == "EN"){
+				boolOccurenceIsEN = true;
+									}
+		    if(strCountryCode == "FR"){
+				boolOccurenceIsFR = true;
+									}
+									                                 
+			mapLANG(SAP_LANG, k, item);
+			
+			intCGCount = k + 1;
+		}
+    }
+    
+    //Check if the EN language is in the list
+    if(!boolOccurenceIsEN){
+		SAP_LANG[intCGCount]=[];
+		SAP_LANG[intCGCount]["LANGCC"] = "EN";
+		SAP_LANG[intCGCount]["LANGTIN"] = getSimpleValue(item, "01AC0014-invoiceName");
+		
+		log.loggerDebug("Material Text .... SAP_LANG             - EN");
+		log.loggerDebug("Material Text .... 01AC0014-invoiceName - " + getSimpleValue(item, "01AC0014-invoiceName"));
+		
+		intCGCount = intCGCount + 1;
+	}
+	
+	//Check if the FR language is in the list
+    if(!boolOccurenceIsFR){					
+		SAP_LANG[intCGCount]=[];
+		SAP_LANG[intCGCount]["LANGCC"] = "FR";
+		SAP_LANG[intCGCount]["LANGTIN"] = getSimpleValue(item, "01AC0014-invoiceName");
+		
+		log.loggerDebug("Material Text .... SAP_LANG             - FR");
+		log.loggerDebug("Material Text .... 01AC0014-invoiceName - " + getSimpleValue(item, "01AC0014-invoiceName"));
+					}
+// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+
+ // Tree Type & Classifictation
+ 
+ 	log.loggerDebug("****** Build Tree Classification ******");
+ 
+ 	var SAP_CLS_TPE = [];
+ 	var SAP_CLASS   = [];
+ 	
+	var ClassGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(itmProdItem,"12BI0665-Classification");
+
+ 	log.loggerDebug("****** Build Type and Class table ");
+ 	
+	if (ClassGroup != null) {
+	    var ClassGroupLen = ClassGroup.size();
+	    for (var k=0;k<ClassGroupLen;k++) {
+	    	SAP_CLASS[k]= [];
+	    	
+	        mapTYPE(SAP_CLS_TPE, k, itmProdItem);
+	        mapCLASS(SAP_CLASS, k, itmProdItem);
+	    }
+	}
+	log.loggerDebug("++++++ Table Type   " + SAP_CLS_TPE);  
+	log.loggerDebug("++++++ Table Class  " + SAP_CLASS);  
+	
+	log.loggerDebug("****** Merge Type and Class table ");
+	
+	var SAP_CLS_GRP = [];
+	    
+	for(var i=0;i<SAP_CLS_TPE.size();i++) {
+	
+	    log.loggerDebug("****** Process Type " + SAP_CLS_TPE[i]);    
+		
+	    var n = 0; 
+	    SAP_CLS_GRP[i] = [];        
+	    SAP_CLS_GRP[i]["CLASS"] = [];
+	    SAP_CLS_GRP[i]["CLASS"][n] = [];     
+		
+		SAP_CLS_GRP[i].add(SAP_CLS_TPE[i]);
+		    
+		for(var t=0;t<SAP_CLASS.size();t++) {
+			
+			if ( SAP_CLASS[t]["TYPE"] == SAP_CLS_TPE[i] ) {
+				SAP_CLS_GRP[i]["CLASS"][n] = SAP_CLASS[t]["CLASS"];
+		    	log.loggerDebug("****** Assign Class   " + SAP_CLASS[t]["CLASS"] + " to " + SAP_CLS_TPE[i]);
+		    	
+				n = n + 1;
+			}
+			
+		}
+	}   
+	log.loggerDebug("****** Table " +  SAP_CLS_GRP);
+// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+
+// Begin: Basic Text: 9500 Siniat 
+
+   	var SAP_BASICTEXT = [];
+   	
+	var PEFCCertificate = "";
+	var RefLogo = "";
+	var bPEFC = false;
+
+	var ProductionSiteGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(itmProdItem,"ProductionSiteGroup");
+    if (ProductionSiteGroup != null) {
+        var ProductionSiteGroupLen = ProductionSiteGroup.size();
+    	for (var kk=0;kk<ProductionSiteGroupLen;kk++) {
+			if (bPEFC==false) {
+				PEFCCertificate = checkString(getSimpleValue(itmProdItem, "ProductionSiteGroup#"+kk+"/02FR0840-PEFCInvoiceAdditionalText"),"");
+				log.loggerDebug("BASIC Text .... Prod Item             - " + getSimpleValue(itmProdItem, "01AC0044-ERPCode"));
+				log.loggerDebug("BASIC Text .... PEFCCertificate       - " + PEFCCertificate);
+				RefLogo = getLkpValue(itmProdItem, "ProductionSiteGroup#"+kk+"/02FR0835-PEFCLogoLicenceReference", "C08-N° de référence Logo");
+
+				log.loggerDebug("BASIC Text .... RefLogo       	   - " + RefLogo);
+				if(PEFCCertificate!="") {
+					bPEFC = true;
+				}
+			}
+		}
+	}
+
+	var CountryGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"CountryGroup");
+    if (CountryGroup != null) {
+        var CountryGroupLen = CountryGroup.size();
+    	for (var k=0;k<CountryGroupLen;k++) {
+    	
+			var TranslatedInvoiceName = getSimpleValue(item, "CountryGroup#"+k+"/06DN0420-TranslatedInvoiceName");
+			log.loggerDebug("BASIC Text .... TranslatedInvoiceName - " + TranslatedInvoiceName);
+			
+			var PEFCCertificateLen = length(PEFCCertificate);
+			log.loggerDebug("BASIC Text .... PEFCCertificateLen    - " + PEFCCertificateLen);		   
+	        
+	        if (PEFCCertificateLen != 0) {
+		        var StrLine = concat(substring(PEFCCertificate,6)," - ",RefLogo);
+		        
+		        SAP_BASICTEXT[k]=[];
+				
+				SAP_BASICTEXT[k]["LANGU"] = getSimpleValue(item, "CountryGroup#"+k+"/06DN0419-Country");
+				log.loggerDebug("BASIC Text .... strCountryCode       - " + SAP_BASICTEXT[k]["LANGU"]);
+				
+				SAP_BASICTEXT[k]["LINE01"] = TranslatedInvoiceName;
+				log.loggerDebug("BASIC Text .... Line 01              - " + SAP_BASICTEXT[k]["LINE01"]);
+				SAP_BASICTEXT[k]["LINE02"] = StrLine;
+				log.loggerDebug("BASIC Text .... Line 02              - " + SAP_BASICTEXT[k]["LINE02"]);														                                
+			}
+		}
+    }
+	
+// End: Basic Text: 9500 Siniat 
+		    
+   	var SAP = [];
+	SAP["ROOT"] 		= SAP_ROOT;
+	SAP["MCU"] 			= SAP_MCU;
+	log.loggerDebug("TAB Place of Storage = " + SAP["MCU"]);
+	
+	SAP["UOM"] 			= SAP_UOM;
+	SAP["ADD"] 			= SAP_ADD;
+	SAP["SOG"] 			= SAP_SOG;
+	SAP["LANG"] 		= SAP_LANG;
+	SAP["BASICTEXT"]    = SAP_BASICTEXT;
+
+// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      	
+	SAP["CLASSGROUP"] 	= SAP_CLS_GRP;
+// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+
+  	return SAP;
+  	}

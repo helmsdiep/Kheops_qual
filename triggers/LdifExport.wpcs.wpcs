@@ -1,0 +1,298 @@
+// ---------------------------------------------------------------------------
+// Title: LdifExport.wpcs - Ldif Export Script
+// Date: Jan 13 2006
+// Description: The Ldif Export Script provides sample scenario of how to export
+//              an existing WPC user set into ldif format capable of being read
+//              a directory server
+
+// Usage: Use this sample script to export the WPC users and groups
+//        Remember to update globals["output_file"] with your export file
+// Author: Colin Stone
+
+// Audit: Jan 31 2006 Colin.
+//                Modified to use LDAP Lookup tables
+// ---------------------------------------------------------------------------
+
+// ------------------------------------------------------------
+// Name : init()
+// Description : Initialize all the variables and return a hashmap, to be passed
+// on to all the functions
+// @return Hashmap of the global variables
+//-------------------------------------------------------------
+function init()
+{
+    var globals                        = [];
+    // initialize the trigger script functions
+    var ldapUtil                       = getScriptByPath("scripts/triggers/LDAPLibrary.wpcs");
+    var libraryLogger                  = getScriptByPath("scripts/triggers/LdapLibraryLogger.wpcs");
+
+    // file represents the file in docstore
+    globals["output_file"] 			   = "export/myExport.ldif";
+	
+    // Logger functions
+    globals["log"]                     = libraryLogger.getFunctionByName("log");
+    globals["logger_name"]             = "ldap";  // Log file will be created
+                                                  // under logs folder
+                                                  // (ldap.log). Needs
+                                                  // configuration in
+                                                  // etc/default/log.xml
+    
+    // LDAP Library functions
+    globals["saslBind"]                = ldapUtil.getFunctionByName("saslBind");
+    globals["simpleBind"]              = ldapUtil.getFunctionByName("simpleBind");
+    globals["sslBind"]                 = ldapUtil.getFunctionByName("sslBind");
+
+    globals["getEntryDn"]              = ldapUtil.getFunctionByName("getEntryDn");
+    globals["getSearchControlObject"]  = ldapUtil.getFunctionByName("getSearchControlObject");
+    globals["searchRoles"]             = ldapUtil.getFunctionByName("searchRoles");
+    globals["getRootLDAPContext"]      = ldapUtil.getFunctionByName("getRootLDAPContext");
+    globals["getSearchControlObject"]  = ldapUtil.getFunctionByName("getSearchControlObject");
+    globals["search"]                  = ldapUtil.getFunctionByName("search");
+    globals["closeLdapContext"]        = ldapUtil.getFunctionByName("closeLdapContext");
+    
+    var log       					   = globals["log"];
+	
+	// Initialize the constants specific to each LDAP Url
+    var lookupTableName =  getSystemMessageByName(getStringValueForClassMember("com.ibm.ccd.common.util.Const", "LDAP_PROPERTIES_LOOKUP_TABLE_NAME_INDEX"),getDefaultLocale());
+    
+    var lookupTable = getLkpByName(lookupTableName);
+    var keys = lookupTable.getLkpKeys();
+    if(keys != null)
+    {
+        for( var i = 0;i<keys.size();i++)
+        {
+            var ldapConstants					 = [];
+            var sLookupValues       			 = lookupValues(lookupTable,keys[i]);
+
+            var ldapUrl             			 = keys[i];
+
+            ldapConstants["ldap_name_attribute"] = sLookupValues[0]; 
+            ldapConstants["ldap_grp_attribute"]  = sLookupValues[1]; 
+            var pipedUserParentDNs  			 = sLookupValues[2];  
+            var pipedGrpParentDns   			 = sLookupValues[3];  
+            ldapConstants["rootUser"]            = sLookupValues[4];  
+            ldapConstants["rootPassword"]        = sLookupValues[5];  
+        
+            ldapConstants["bindType"]            = sLookupValues[6];           
+            ldapConstants["sslBindType"]         = sLookupValues[7];  
+            ldapConstants["personClassName"]     = sLookupValues[8]; 
+            ldapConstants["groupClassName"]  	 = sLookupValues[9]; 
+            ldapConstants["keystore"]            = sLookupValues[10];
+            ldapConstants["supportedSASLMechs"]  = sLookupValues[11];
+       
+            ldapConstants["firstNameAttribute"]  = sLookupValues[12];  
+            ldapConstants["lastNameAttribute"]   = sLookupValues[13];           
+            ldapConstants["fullNameAttribute"]   = sLookupValues[14];      
+            ldapConstants["mailIdAttribute"] 	 = sLookupValues[15];              
+            ldapConstants["telephoneNrAttribute"] 	 = sLookupValues[16];  
+            ldapConstants["faxNrAttribute"]      = sLookupValues[17]; 
+            ldapConstants["postalAddrAttribute"] = sLookupValues[18]; 
+            ldapConstants["titleAttribute"]      = sLookupValues[19];
+
+            log.invoke ("INFO" , " ldapUrl = " + ldapUrl + " ldap_name_attribute = "+ ldapConstants["ldap_name_attribute"] + " ldap_grp_attribute = "+ ldapConstants["ldap_grp_attribute"], globals["logger_name"]);
+            log.invoke ("INFO" , " rootPassword = " + ldapConstants["rootPassword"] + " bindType = " + ldapConstants["bindType"] + "sslBindType = " +  ldapConstants["sslBindType"] + " keystore = " + ldapConstants["keystore"], globals["logger_name"] );
+
+            // Pipe delimited attributes
+            ldapConstants["userParentDNs"]       = pipedUserParentDNs.parseDelim("|");
+            ldapConstants["groupParentDNs"]      = pipedGrpParentDns.parseDelim("|");
+
+            log.invoke ("INFO" , " userParentDNs = " + ldapConstants["userParentDNs"] + " groupParentDNs = " + ldapConstants["groupParentDNs"] + " personClassName = " + ldapConstants["personClassName"] + " groupClassName = " + ldapConstants["groupClassName"], globals["logger_name"]);
+            globals[ldapUrl]					 = ldapConstants;
+        }	
+    }
+    return globals;
+}
+
+// ------------------------------------------------------------
+// Name : formatWPCRoles(LdapEntrySet entry_set)
+// Description : Format the existing WPC roles into groupOfNames Ldif entries
+//                   also includes details of members
+// @param entry_set The entry set collection to which to append the entry
+// @param ldap_properties The target ldap server properties
+// @param realm The parent distinguisehd name of the group
+// @param userrealm The parent distinguisehd name of the user
+// @return none. updates the passed entry set as appropriate
+//-------------------------------------------------------------
+function formatWPCRoles(entry_set, ldap_properties, realm, userrealm) {
+	var roles = getRoles();
+	var role;
+	var entry;
+	var attr;
+	var i;
+	var j;
+	for (i=0; i<roles.size(); i++) 
+	{
+		role = roles[i];
+		entry = new LdapEntry();
+        if (null==realm || realm.length()==0) 
+        {
+            attr = new LdapAttribute("dn", ldap_properties["ldap_grp_attribute"]+"="+role.getRoleName()); 
+        }
+        else
+        {
+            attr = new LdapAttribute("dn", ldap_properties["ldap_grp_attribute"]+"="+role.getRoleName()+","+realm); 
+        }        
+	
+		entry.setLdapDistinguishedName(attr);	
+		attr = new LdapAttribute(ldap_properties["ldap_grp_attribute"], role.getRoleName());		
+		entry.addLdapAttribute(attr);
+		entry.addLdapObjectclass(new LdapObjectclass(ldap_properties["groupClassName"]));		
+		var users = role.getUsersFromRole();
+		for (j=0; j<users.size(); j++) 
+		{
+			var user = users[j];
+			if (user.getLdapEntryDn() !="") 
+			{ 
+			    attr = new LdapAttribute("member", user.getLdapEntryDn());
+			}
+			else 
+			{
+                if (null==userrealm || userrealm.length()==0) 
+                {
+                    attr = new LdapAttribute("member", ldap_properties["ldap_name_attribute"]+"="+user.getUserName());
+                }
+                else
+                {
+                    attr = new LdapAttribute("member", ldap_properties["ldap_name_attribute"]+"="+user.getUserName()+","+userrealm);
+                }
+			}
+			entry.addLdapAttribute(attr);		
+		}
+		entry_set.addLdapEntry(entry);
+	}
+}
+// ------------------------------------------------------------
+// Name : formatWPCUsers(LdapEntrySet entry_set)
+// Description : format the existing WPC users into top, inetOrgPerson,
+// organizationalPerson, person Ldif entries
+// @param entry_set The entry set collection to which to append the entry
+// @param ldap_properties The target ldap server properties
+// @param realm The parent distinguisehd name
+// @return none. updates the passed entry set as appropriate
+//-------------------------------------------------------------
+function formatWPCUsers(entry_set, ldap_properties, realm) {
+	var users = getUsers();
+	for (var i=0; i<users.size(); i++) 
+	{
+		var user = users[i];
+		var entry = new LdapEntry();
+		var attr = null;
+		if (user.getLdapEntryDn() !="") 
+		{ 
+		    attr = new LdapAttribute("dn", user.getLdapEntryDn());
+		}
+		else if (null!=ldap_properties["ldap_name_attribute"])
+		{
+            if (null==realm || realm.length()==0) 
+            {
+                attr = new LdapAttribute("dn", ldap_properties["ldap_name_attribute"]+"="+user.getUserName());
+            }
+            else
+            {
+                attr = new LdapAttribute("dn", ldap_properties["ldap_name_attribute"]+"="+user.getUserName()+","+realm);
+            }
+		}
+
+        if (null!=attr)
+        {
+			entry.setLdapDistinguishedName(attr);
+			attr = new LdapAttribute(ldap_properties["ldap_name_attribute"], user.getUserName());
+			entry.addLdapAttribute(attr);
+			if (user.getUserFirstName() != "") {
+				attr = new LdapAttribute(ldap_properties["firstNameAttribute"], user.getUserFirstName());
+				entry.addLdapAttribute(attr);
+				attr = new LdapAttribute(ldap_properties["fullNameAttribute"], user.getUserFirstName()+ " "+user.getUserLastName());
+				entry.addLdapAttribute(attr);
+			}
+			// Note if the user lacks an sn and cn they may be rejected from
+            // imports
+			if (user.getUserLastName() != "" && null!=ldap_properties["lastNameAttribute"]) {
+				attr = new LdapAttribute(ldap_properties["lastNameAttribute"], user.getUserLastName());
+				entry.addLdapAttribute(attr);		
+			}
+			if (user.getUserPhone() != "" && null!=ldap_properties["telephoneNrAttribute"]) {		
+				attr = new LdapAttribute(ldap_properties["telephoneNrAttribute"], user.getUserPhone());
+				entry.addLdapAttribute(attr);	
+			}
+			if (user.getUserFax() != "" && null!=ldap_properties["faxNrAttribute"]) {
+				attr = new LdapAttribute(ldap_properties["faxNrAttribute"], user.getUserFax());
+				entry.addLdapAttribute(attr);	
+			}
+			if (user.getUserEmail() != "" && null!=ldap_properties["mailIdAttribute"]) {		
+				attr = new LdapAttribute(ldap_properties["mailIdAttribute"], user.getUserEmail());
+				entry.addLdapAttribute(attr);		
+			}
+			if (user.getUserTitle() != "" && null!=ldap_properties["titleAttribute"]) {
+				attr = new LdapAttribute(ldap_properties["titleAttribute"], user.getUserTitle());
+				entry.addLdapAttribute(attr);		
+			}
+			if (user.getUserAddress() != ""&& null!=ldap_properties["postalAddrAttribute"]) {		
+				attr = new LdapAttribute(ldap_properties["postalAddrAttribute"], user.getUserAddress());
+				entry.addLdapAttribute(attr);	
+			}
+			entry.addLdapObjectclass(new LdapObjectclass(ldap_properties["personClassName"]));
+			entry_set.addLdapEntry(entry);
+        }
+        else
+        {
+            out.writeln("Unable to create and entry for "+user.getUserName()+" as no default ldap name attribute specified");
+        }
+	}
+}
+
+
+// -----------------------------------------------------------------------------------------------------------------
+//    Main Function
+// -----------------------------------------------------------------------------------------------------------------
+
+
+var ee;
+var globals = init();
+var log = globals["log"];
+catchError(ee) 
+{
+	var i;
+	var set = new LdapEntrySet();
+    
+    // Initialize the constants specific to each LDAP Url
+    var lookupTableName =  getSystemMessageByName(getStringValueForClassMember("com.ibm.ccd.common.util.Const", "LDAP_PROPERTIES_LOOKUP_TABLE_NAME_INDEX"),getDefaultLocale());
+    var lookupTable = getLkpByName(lookupTableName);
+    var keys = lookupTable.getLkpKeys();
+    if (null==keys || keys.size() == 0)
+    {
+    	out.writeln("Export Failed because no Ldap lookup table information available");
+    }
+    else
+    {
+	    // This assumes we are outputting to what is defined as Ldap server 0
+	    // However you may wish to output these users to all servers
+	    var ldap_url = keys[0];
+        var parent_DN = null;
+	    // manage the users
+	    var parent_DNs = globals[ldap_url]["userParentDNs"];
+	    if (null!=parent_DNs && parent_DNs.size()>0) 
+	    {
+        	var parent_DN    = parent_DNs[0];
+        }
+		formatWPCUsers(set, globals[ldap_url], parent_DN);
+
+		// Now manage the roles
+        var group_parent_DN = null;
+		var group_parent_DNs = globals[ldap_url]["groupParentDNs"];
+	    if (null!=group_parent_DNs && group_parent_DNs.size()>0) 
+	    {		
+	        group_parent_DN = group_parent_DNs[0];
+        }
+        formatWPCRoles(set, globals[ldap_url], group_parent_DN, parent_DN);
+        
+		createLDIFFile(globals["output_file"], set);
+		out.writeln("Exported Completed Successfully in file "+globals["output_file"]);
+    }
+}
+if ( ee != null )
+{
+    // log error
+    log.invoke("ERROR","[LdifExport.wpcs]ERROR!! " + ee, globals["logger_name"]); 
+   	out.writeln("Export failed");
+}
+	

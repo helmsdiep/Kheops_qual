@@ -1,0 +1,36 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Library.Const
+// @description: 
+//   Put all constant used in the scripting here
+//
+/////////////////////////////////////////////////////////////////
+
+
+// getConst
+// @desc  returns a hashmap containing all the constant -
+// this hashmap needs to be declared as a global variable in the
+// calling script
+// @return hashmap
+function getConst() {
+	var hmConst = [];
+
+	hmConst["PRIMARY_SPEC"] = "SC000-GlobPrim";
+	hmConst["HIERARCHY_TREE"]="H000-Typology";
+	
+	// field containing the error messages
+	hmConst["ERROR_FIELD"] = "SC000-GlobPrim/99CTL300-Erreur";
+	hmConst["PARENT_RELATIONSHIP_FIELD"] = "SC000-GlobPrim/99CTL100-ParentItem";
+	
+	// Custom Tools DataEntry.ProductHierarchy;
+	// variable begin with DE_
+	hmConst["DE_RELATIONSHIP_FIELD"] = "99CTL100-ParentItem";
+	hmConst["DE_DISPLAY_FIELD"] = "01AC0012-LongName";
+	// maximum level for UOM left part display (4= Prod / BUnit / PItem1 / PItem2 )
+	hmConst["DE_UOM_LEFT_PART_MAX_LEVELS"] = 4;
+	
+	
+	hmConst["CRLF"] = lookupValues(getLkpByName("L902-KheopsConstants"),"CRLF")[0];
+	
+	return hmConst;
+}

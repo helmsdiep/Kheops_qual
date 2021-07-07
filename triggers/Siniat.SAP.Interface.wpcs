@@ -1,0 +1,1089 @@
+// 
+// Export item for SAP
+// Data are extracted using "Siniat.SAP.Utils" script and put in a XML format
+//
+function FileExist(sERPCode){
+
+var strPath = "/TO_SAP/"; 
+
+var tDocsPath = getDocStoreFilesInDirectory(strPath);
+var doc;
+var sName;
+var i;
+var v;
+var sFileExist = "False";
+
+if (tDocsPath != null) {
+	forEachHmElement(tDocsPath, i, v) {
+	  doc = getDocByPath(v);
+	  sName = getNameFromPath(v);
+	
+	  if (sName.contains(sERPCode) == true) {
+	      sFileExist = "True";
+	      break;
+	  }
+	}  
+}	
+	return(sFileExist) ;
+}
+
+function getEn(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName);
+}
+
+function getValue(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getPublishedIntoSAP(item, log){
+
+	var inout = getLogger("Inout");	
+	
+	var hmCatalog = [];
+	hmCatalog["010"] = "C010-Plaques de plâtre - Gypsum plasterBoards";
+	hmCatalog["015"] = "C015-Cloisons - Honeycomb Partitions";
+	hmCatalog["020"] = "C020-Doublages - Composite panels";
+	hmCatalog["025"] = "C025-Profilés - Metal profiles";
+	hmCatalog["030"] = "C030-Acc plafonds - Ceiling accessories";
+	hmCatalog["035"] = "C035-Acc ouvrages verticaux - Partition accessories";
+	hmCatalog["040"] = "C040-Acc finition - Finishing accessories";
+	hmCatalog["045"] = "C045-Vis - Fasteners";
+	hmCatalog["050"] = "C050-Salsi acc cloisons - Honeycomb partitions accessories";
+	hmCatalog["055"] = "C055-Salsi acc finition - Finishing accessories";
+	hmCatalog["060"] = "C060-Salsi vis - Fasteners";
+	hmCatalog["065"] = "C065-Enduits - Jointing compounds";
+	hmCatalog["070"] = "C070-Liants - Adhesives";
+	hmCatalog["075"] = "C075-Colles - Adhesives";
+	hmCatalog["080"] = "C080-Salsi enduits poudres - Powder compounds";
+	hmCatalog["085"] = "C085-Salsi enduits pâtes - Ready-mix compounds";
+	hmCatalog["090"] = "C090-Salsi liants - Adhesives";
+	hmCatalog["095"] = "C095-Salsi colles - Adhesives";
+	hmCatalog["100"] = "C100-Salsi enduits préparation support - Pre-painting compounds";
+	hmCatalog["105"] = "C105-Salsi enduits techniques - Technical compounds";
+	hmCatalog["110"] = "C110-Panneaux isolant - Insulating panels";
+	hmCatalog["115"] = "C115-Styrodur";
+	hmCatalog["120"] = "C120-Entrevous -";
+	hmCatalog["130"] = "C130-Rehausses -";
+	hmCatalog["135"] = "C135-Plâtres - Gypsum plasters";
+	hmCatalog["140"] = "C140-Salsi plâtres - Gypsum plasters";
+	hmCatalog["145"] = "C145-Carreaux de plâtre - Gypsum blocks";
+	hmCatalog["150"] = "C150-Gypse - Gypsum rock";
+	hmCatalog["155"] = "C155-Outils mesure et traçage - Measurement tools";
+	hmCatalog["160"] = "C160-Outils manutention - Handling Tools";
+	hmCatalog["165"] = "C165-Outils façonnage - Shaping tools";
+	hmCatalog["170"] = "C170-Outils travail du métal - Tools for metal";
+	hmCatalog["175"] = "C175-Outillage électroportatif - Electrical tools";
+	hmCatalog["180"] = "C180-Outils finition - Finishing tools";
+	hmCatalog["185"] = "C185-Outillage général - Other Tools";
+	hmCatalog["190"] = "C190-Pièces détachées machines à projeter - Spare parts for spraying machines";
+	hmCatalog["195"] = "C195-Services";
+	hmCatalog["200"] = "C200-Produits financiers - Financial products";
+	hmCatalog["205"] = "C205-Services industriels - Industrial services";
+	hmCatalog["210"] = "C210-Produits et consommables industriels - Industrial products";
+	hmCatalog["215"] = "C215-Services et produits généraux - Other services and products";
+	hmCatalog["300"] = "C300-Primitifs doublages - Insulating panels for Composite panels";
+	hmCatalog["305"] = "C305-Panneaux isolants - Insulating panels";
+	hmCatalog["310"] = "C310-Blocs - Polystyrene blocks";
+	hmCatalog["315"] = "C315-Colles et Enduits internes - Internal adhesives and compounds";
+	hmCatalog["320"] = "C320-Plâtres internes - Internal Gypsum plasters";
+	hmCatalog["400"] = "C400-Artifices et Explosifs - Explosives";
+	hmCatalog["405"] = "C405-Energies";
+	hmCatalog["410"] = "C410-Polyethylene";
+	hmCatalog["415"] = "C415-Fournitures pour fabrication -";
+	hmCatalog["420"] = "C420-Marquage - Ink and solvents";
+	hmCatalog["425"] = "C425-Ajouts - Additives";
+	hmCatalog["430"] = "C430-Billes - Polystyrene beads";
+	hmCatalog["435"] = "C435-Parements plaques de plâtre -";
+	hmCatalog["440"] = "C440-Papiers - Paper";
+	hmCatalog["441"] = "C441-Papiers Essais - Paper test";
+	hmCatalog["442"] = "C442-Papiers Réseaux - Honeycomb Paper";
+	hmCatalog["445"] = "C445-Acc papiers - Paper accessories";
+	hmCatalog["450"] = "C450-Papiers recyclés - Recycled paper";
+	hmCatalog["455"] = "C455-Produits nettoyant et chaufferie - Cleaning products";
+	hmCatalog["460"] = "C460-Solutions mères et premix - Premixes";
+	hmCatalog["465"] = "C465-Carreaux internes - Internal gypsum blocks";
+	hmCatalog["470"] = "C470-Gypse mat 1ère - Gypsum rock raw material";
+	hmCatalog["475"] = "C475-Papiers internes - Internal paper";
+	hmCatalog["480"] = "C480-Colles mat 1ère - Glues";
+	hmCatalog["485"] = "C485-Acier - Steel";
+	hmCatalog["500"] = "C500-Etiquettes - Labels";
+	hmCatalog["505"] = "C505-Bandes gommées - End tapes";
+	hmCatalog["510"] = "C510-Cartons d emballage - Packaging cardboard";
+	hmCatalog["515"] = "C515-Cales - Bearers";
+	hmCatalog["520"] = "C520-Cerclage -";
+	hmCatalog["525"] = "C525-Sacherie - Bags";
+	hmCatalog["530"] = "C530-Big bags";
+	hmCatalog["535"] = "C535-Palets";
+	hmCatalog["540"] = "C540-Récipients - Small containers";
+	hmCatalog["600"] = "C600-Prestia Plâtre formulé automatique - Auto formulated gypsum";
+	hmCatalog["605"] = "C605-Prestia Plâtre formulé manuel - Manual formulated gypsum";
+	hmCatalog["610"] = "C610-Prestia Plâtre non formulé - Non formulated gypsum";
+	hmCatalog["650"] = "C650-LCL Liants - Adhesives";
+	hmCatalog["655"] = "C655-LCL Adjuvants - Additives";
+	hmCatalog["660"] = "C660-LCL Billes PSE - Polystyrene beads";
+	hmCatalog["665"] = "C665-LCL Outillage - Tools";
+	hmCatalog["670"] = "C670-LCL Accessoires marketing - Marketing accessories";
+	hmCatalog["690"] = "C690-Noble Perlite";
+	hmCatalog["700"] = "C700-Platec Acc finition - Finishing accessories";
+	hmCatalog["705"] = "C705-Platec Acc ouvr verticaux - Partition accessories";
+	hmCatalog["710"] = "C710-Platec Enduits - Jointing compounds";
+	hmCatalog["715"] = "C715-Platec Outillage - Tools";
+	hmCatalog["730"] = "C730-Platec Prestations - Services";
+	hmCatalog["800"] = "C800-Dalles plafond - Ceiling tiles";
+	hmCatalog["805"] = "C805-Produits hors Siniat - External Siniat products";
+	hmCatalog["999"] = "C999-Produits génériques - Generic products";
+
+	var attrsToDisplay;
+	var j=0;
+		
+	var lkpInterfaces = getLkpByName("L900-Interfaces - Interfaces");
+	var enTargetSystemGroup = getEn(item,"99CTL200-TargetSystemGroup");
+	
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+	   	
+    var logText  = "myTargetSystemId : ";
+   	var logValue = myTargetSystemId;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	   			
+	var strCatalogCode = substring(item.getCtgItemPrimaryKey(), 1, 4);
+//	var ctgProcessingCatalog = getCtgByName(hmCatalog[strCatalogCode]);
+    
+    var ctgName = item.getCatalog().getCtgName();
+    log.loggerDebug("ctgName: " + ctgName) ;
+    var ctgProcessingCatalog=getCtgByName(ctgName);
+    	
+	var catProcessingItem = item.getCtgItemCategories("H000-Typology")[0];
+	var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+	var specItemSpec = getSpecByName(strSecSpecName);
+	   	
+	log.loggerDebug("01AC0775-PublishedIntoSAP: " + checkString(item.getEntryAttrib(strSecSpecName + "/01AC0775-PublishedIntoSAP"), "")) ;
+	var PublishedIntoSAP = checkString(item.getEntryAttrib(strSecSpecName + "/01AC0775-PublishedIntoSAP"), "");
+	log.loggerDebug("01AC0664-MaterialNumber: " + checkString(item.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "")) ;
+	var MaterialInSAP = checkString(item.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "");
+	
+// Item is not published to SAP then Return	
+	if(PublishedIntoSAP!=true) {
+		return(PublishedIntoSAP);
+				}
+				
+// Item is already Created then Return	
+	if(MaterialInSAP!="") {
+		return(PublishedIntoSAP);
+				}
+
+	if(enTargetSystemGroup.size()!=null) {
+		
+		for(j=0;j<enTargetSystemGroup.size();j++) {
+			var TargetSystemId = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL210-TargetSystemId");
+			var MessageStatus = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL220-MessageStatus");
+			var TechnicalStatus = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL230-TechnicalStatus");
+			var Information = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL250-Information");
+		    
+		    var logText  = "TargetSystemId : ";
+		   	var logValue = TargetSystemId;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "MessageStatus : ";
+		   	logValue = MessageStatus;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "TechnicalStatus : ";
+		   	logValue = TechnicalStatus;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "Information : ";
+		   	logValue = Information;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		   			   			   			   						
+			if(TargetSystemId==myTargetSystemId) {
+				if(TechnicalStatus=="NA" || TechnicalStatus=="") {
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL230-TechnicalStatus","1-Creation");
+					log.loggerDebug("!!! Material is Published !!!") ;
+								}
+				else if(TechnicalStatus=="1-Creation") {
+//					log.loggerDebug("!!! Material is NOT Published !!!") ;	
+//					PublishedIntoSAP="False";
+					}
+			}	
+		}
+}
+											
+	return(PublishedIntoSAP);
+}
+
+function createXmlTag(attrName, attrValue, log){
+
+	var xml="";
+	
+    if (attrValue!=null) {
+	    if (attrValue=="") {
+	        xml=concat("<",attrName,">",attrValue,"</",attrName,">");
+	    } else {
+	        xml=concat("<",attrName,"><![CDATA[",attrValue,"]]></",attrName,">");     
+	    }
+
+	   	var logText  = "createXmlTag : " + attrName + " / " + attrValue + " / ";
+	   	var logValue = xml;
+	   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	}
+			    
+    return xml;
+}
+
+function buildXmlTag(attrName, attrValue, log){
+	var xml="";
+	
+	if (attrValue!=null) {
+	    if (attrValue=="") {
+	        xml=concat("<",attrName,">",attrValue,"</",attrName,">");
+	    } else {
+	        xml=concat("<",attrName,"><![CDATA[",attrValue,"]]></",attrName,">");
+	    }
+	
+	   	var logText  = "buildXmlTag : " + attrName + " / " + attrValue + " / ";
+	   	var logValue = xml;
+	   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	}	
+		    
+    return xml;
+}
+
+function getSAPItemEXP(hmGlobals, item, log){
+    return getScriptByPath("/scripts/triggers/Siniat.SAP.Utils").getFunctionByName("getSAPItem").invoke(hmGlobals, item, log);
+}
+
+function getSAPItemXML(hmGlobals, item) {
+    var log = hmGlobals["LOGGER"];
+    var moni = getLogger("Monitor");
+	var inout = getLogger("Inout");	
+	
+// Changes made for the Alternative Unit ... is not been DEPLOYED !!    
+//    var SAPDel = hmGlobals["SAPDel"];
+//
+//    log.loggerDebug("Deleted MEINS : " + SAPDel);
+// end
+
+    var ctgName = item.getPrimaryKey().substring(1,4); // K440B27495 => 440
+    //TODO is this still correct?
+//    if (ctgName!="440" && ctgName!="441" && ctgName!="475"){
+//      // non-SAP item
+//      return "";
+//    }
+    // item SAP (3ctg Begles)
+    var categoryArrayTemp=item.getCtgItemCategories();
+    var itemType = "";
+    if (categoryArrayTemp.size()>0) {
+        var categoryTemp=categoryArrayTemp[0];
+        itemType=categoryTemp.getDisplayValue();
+    }
+    if (itemType=="Prod" && ctgName!="010") {
+    	log.loggerDebug("itemType: " + itemType + " / " + ctgName + " Not Exported to SAP");
+
+      // do not export Prod-typed items
+      return ""; 
+    }
+    
+    var PublishedIntoSAP = getPublishedIntoSAP(item, log);
+	if (PublishedIntoSAP!=true) {
+    	log.loggerDebug("itemType: " + itemType + " / " + ctgName + " Not Published In to SAP");
+    		
+	      // do not export PublishedIntoSAP = 'No' items
+      return ""; 
+    }
+    log.loggerDebug("PublishedIntoSAP: " + PublishedIntoSAP);
+    var sap = getSAPItemEXP(hmGlobals, item, log);
+
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var Path_XI	  = lookupValues(lkpTableKheopsConstants,"Path_XI")[0];
+	var SystemID  = lookupValues(lkpTableKheopsConstants,"SYSTEMID")[0];
+    var XI_Active = lookupValues(lkpTableKheopsConstants,"XI_Active")[0];
+    	
+    //*************************
+    // ROOT
+    //*************************
+    var logText  = "XML ROOT";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+    var SAP_ROOT = sap["ROOT"];
+    var SYSID = createXmlTag("SYSID", SystemID, log);
+    var BEGRU = createXmlTag("BEGRU", SAP_ROOT["BEGRU"], log);
+	var ERPCODE = createXmlTag("ERPCODE", SAP_ROOT["ERPCode"], log);
+	var MATNR = createXmlTag("MATNR", SAP_ROOT["MATNR"], log);
+	var MATNR_PI = createXmlTag("MATNR", SAP_ROOT["MATNR_PI"], log);
+    
+    var logText  = "Material Number";
+   	var logValue = MATNR;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+    var logText  = "Material Number PI";
+   	var logValue = MATNR_PI;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);	  
+   	  									
+//	var EAN11 = createXmlTag("EAN11", SAP_ROOT["EAN11"], log);
+//	var NUMTP = createXmlTag("NUMTP", SAP_ROOT["NUMTP"], log);
+	var BISMT = createXmlTag("BISMT", SAP_ROOT["BISMT"], log);
+	var MSTAE = createXmlTag("MSTAE", SAP_ROOT["MSTAE"], log);
+	var MSTDE = createXmlTag("MSTDE", SAP_ROOT["MSTDE"], log);
+	var MTART = createXmlTag("MTART", SAP_ROOT["MTART"], log);
+	
+	if (SAP_ROOT["MAKTX_FR"] !="" && SAP_ROOT["MAKTX_FR"] !=null) {
+		var MAKTX_FR = createXmlTag("MAKTX_FR", SAP_ROOT["MAKTX_FR"], log);
+									}
+	
+	var MVGR1 = createXmlTag("MVGR1", SAP_ROOT["MVGR1"], log);
+	var MATKL = createXmlTag("MATKL", SAP_ROOT["MATKL"], log);
+	var EKGRP = createXmlTag("EKGRP", SAP_ROOT["EKGRP"], log);
+	var EKWSL = createXmlTag("EKWSL", SAP_ROOT["EKWSL"], log);
+	var KAUTB = createXmlTag("KAUTB", SAP_ROOT["KAUTB"], log);
+	var SF_THICKNESS = createXmlTag("SF_THICKNESS", SAP_ROOT["SF_THICKNESS"], log);
+//	var HOEHE = createXmlTag("HOEHE", SAP_ROOT["HOEHE"], log);
+	var SF_WIDTH = createXmlTag("SF_WIDTH", SAP_ROOT["SF_WIDTH"], log);
+	var SF_LENGTH = createXmlTag("SF_LENGTH", SAP_ROOT["SF_LENGTH"], log);
+//	var LAENG = createXmlTag("LAENG", SAP_ROOT["LAENG"], log);
+//	var BREIT = createXmlTag("BREIT", SAP_ROOT["BREIT"], log);
+	var SF_TYPE = createXmlTag("SF_TYPE", SAP_ROOT["SF_TYPE"], log);
+	var SF_EDGE = createXmlTag("SF_EDGE", SAP_ROOT["SF_EDGE"], log);
+	var NTGEW = createXmlTag("NTGEW", SAP_ROOT["NTGEW"], log);
+	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, "*********************  NTGEW", SAP_ROOT["NTGEW"]);
+//	var BRGEW = createXmlTag("BRGEW", SAP_ROOT["BRGEW"], log);
+//	var VOLUM = createXmlTag("VOLUM", SAP_ROOT["VOLUM"], log);
+	var MTPOS_MARA = createXmlTag("MTPOS_MARA", SAP_ROOT["MTPOS_MARA"], log);
+	var LADGR = createXmlTag("LADGR", SAP_ROOT["LADGR"], log);
+	var MAGRV = createXmlTag("MAGRV", SAP_ROOT["MAGRV"], log);
+	var VHART = createXmlTag("VHART", SAP_ROOT["VHART"], log);
+	var TRAGR = createXmlTag("TRAGR", SAP_ROOT["TRAGR"], log);
+	var STAWN = createXmlTag("STAWN", SAP_ROOT["STAWN"], log);
+	var SF_PACKAGING = createXmlTag("SF_PACKAGING", SAP_ROOT["SF_PACKAGING"], log);
+	var SCMNG = createXmlTag("SCMNG", SAP_ROOT["SCMNG"], log);
+	var AUMNG = createXmlTag("AUMNG", SAP_ROOT["AUMNG"], log);
+	var BSTRF = createXmlTag("BSTRF", SAP_ROOT["BSTRF"], log);
+
+	if (SAP_ROOT["MAKTX_GB"] !="" && SAP_ROOT["MAKTX_GB"] !=null) {
+		var MAKTX_GB = createXmlTag("MAKTX_EN", SAP_ROOT["MAKTX_GB"], log);
+									}
+
+	var ZMIXABLE = createXmlTag("ZMIXABLE", SAP_ROOT["ZMIXABLE"], log);
+	var ZCLETAB = createXmlTag("ZCLETAB", SAP_ROOT["ZCLETAB"], log);
+	var MEINS = createXmlTag("MEINS", SAP_ROOT["MEINS"], log);
+	var MSTDV = createXmlTag("MSTDV", SAP_ROOT["MSTDV"], log);
+	var MSTAV = createXmlTag("MSTAV", SAP_ROOT["MSTAV"], log);
+	var WZEIT = createXmlTag("WZEIT", SAP_ROOT["WZEIT"], log);
+	var PRAT10 = createXmlTag("PRAT10", SAP_ROOT["PRAT10"], log);
+	var PRDHA = createXmlTag("PRDHA", SAP_ROOT["PRDHA"], log);
+	var MVGR2 = createXmlTag("MVGR2", SAP_ROOT["MVGR2"], log);
+	var MVGR5 = createXmlTag("MVGR5", SAP_ROOT["MVGR5"], log);
+	var MVGR4 = createXmlTag("MVGR4", SAP_ROOT["MVGR4"], log);
+	var SCHME = createXmlTag("SCHME", SAP_ROOT["SCHME"], log);
+	var BSTME = createXmlTag("BSTME", SAP_ROOT["BSTME"], log);
+	var VRKME = createXmlTag("VRKME", SAP_ROOT["VRKME"], log);
+	var AUSME = createXmlTag("AUSME", SAP_ROOT["AUSME"], log);
+	var VABME = createXmlTag("VABME", SAP_ROOT["VABME"], log);
+	var LWMKB = createXmlTag("LWMKB", SAP_ROOT["LWMKB"], log);
+	var BLOCK = createXmlTag("BLOCK", SAP_ROOT["BLOCK"], log);
+	
+	var xmlROOT = concat(SYSID,BEGRU,ERPCODE,MATNR,BISMT,MSTAE,MSTDE,MTART,MAKTX_FR,MVGR1,MATKL,
+						 EKGRP,EKWSL,KAUTB,SF_THICKNESS,SF_WIDTH,SF_LENGTH,
+						 SF_TYPE,SF_EDGE,NTGEW,MTPOS_MARA,LADGR,MAGRV,VHART,TRAGR,
+						 STAWN,SF_PACKAGING,SCMNG,AUMNG,BSTRF,MAKTX_GB,ZMIXABLE,ZCLETAB,MEINS,
+						 MSTDV,MSTAV,WZEIT,PRAT10,PRDHA,MVGR2,MVGR5,MVGR4,SCHME,BSTME,VRKME,AUSME, 
+						 VABME,LWMKB,BLOCK );
+
+	var xmlROOT_PI = concat(SYSID,BEGRU,ERPCODE,MATNR_PI,BISMT,MSTAE,MSTDE,MTART,MAKTX_FR,MVGR1,MATKL,
+						 EKGRP,EKWSL,KAUTB,SF_THICKNESS,SF_WIDTH,SF_LENGTH,
+						 SF_TYPE,SF_EDGE,NTGEW,MTPOS_MARA,LADGR,MAGRV,VHART,TRAGR,
+						 STAWN,SF_PACKAGING,SCMNG,AUMNG,BSTRF,MAKTX_GB,ZMIXABLE,ZCLETAB,MEINS,
+						 MSTDV,MSTAV,WZEIT,PRAT10,PRDHA,MVGR2,MVGR5,MVGR4,SCHME,BSTME,VRKME,AUSME, 
+						 VABME,LWMKB,BLOCK );
+						 
+    //*************************
+    // PLACE OF STORAGE
+    //*************************
+
+    var logText  = "xmlMCU";
+   	var logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	
+    var xmlMCU = "";
+    var SAP_MCU = sap["MCU"]; // place of storage
+    for(var i=0;i<SAP_MCU.size();i++) {
+    	var WERKS = createXmlTag("WERKS", SAP_MCU[i]["WERKS"], log);
+		var MTVFP = createXmlTag("MTVFP", SAP_MCU[i]["MTVFP"], log);
+		var RGEKZ = createXmlTag("RGEKZ", SAP_MCU[i]["RGEKZ"], log);
+	    var XCHPF = createXmlTag("XCHPF", SAP_MCU[i]["XCHPF"], log);
+		var VRMOD = createXmlTag("VRMOD", SAP_MCU[i]["VRMOD"], log);
+
+		var string = SAP_MCU[i]["VINT1"].parseDelim(".");
+		var VINT1 = createXmlTag("VINT1", string[0], log);
+		
+		var string = SAP_MCU[i]["VINT2"].parseDelim(".");		
+		var VINT2  = createXmlTag("VINT2 ", string[0], log);
+
+		var HERKL  = createXmlTag("HERKL ", SAP_MCU[i]["HERKL"], log);
+		var SBDKZ = createXmlTag("SBDKZ", SAP_MCU[i]["SBDKZ"], log);
+		var EKALR = createXmlTag("EKALR", SAP_MCU[i]["EKALR"], log);
+		var HKMAT = createXmlTag("HKMAT", SAP_MCU[i]["HKMAT"], log);
+
+	    var string = SAP_MCU[i]["DISPO"].parseDelim("-");
+		var DISPO = createXmlTag("DISPO", string[1], log);
+
+	    var string = SAP_MCU[i]["DISGR"].parseDelim("-");
+		var DISGR  = createXmlTag("DISGR ", string[1], log);
+
+        var DISMM = createXmlTag("DISMM", SAP_MCU[i]["DISMM"], log);
+		var NCOST = createXmlTag("NCOST", SAP_MCU[i]["NCOST"], log);
+		var HRKFT = createXmlTag("HRKFT", SAP_MCU[i]["HRKFT"], log);
+		var PERKZ = createXmlTag("PERKZ", SAP_MCU[i]["PERKZ"], log);
+		var VPRSV = createXmlTag("VPRSV", SAP_MCU[i]["VPRSV"], log);
+		var BESKZ = createXmlTag("BESKZ", SAP_MCU[i]["BESKZ"], log);
+
+	    var string = SAP_MCU[i]["FEVOR"].parseDelim("-");
+		var FEVOR = createXmlTag("FEVOR", string[1], log);
+
+		var PRCTR = createXmlTag("PRCTR", SAP_MCU[i]["PRCTR"], log);
+
+		var string = SAP_MCU[i]["HERKR"].parseDelim("-");
+		var HERKR = createXmlTag("HERKR", string[1], log);
+
+	    var string = SAP_MCU[i]["FHORI"].parseDelim("-");
+		var FHORI = createXmlTag("FHORI ", string[1], log);
+
+		var ALTSL = createXmlTag("ALTSL", SAP_MCU[i]["ALTSL"], log);
+		
+	    var string = SAP_MCU[i]["SOBSL"].parseDelim("-");
+		var SOBSL = createXmlTag("SOBSL", string[1], log);
+        
+        var SOBSK = "";
+		log.loggerDebug("06DN0681-SpecProcTypeCosting : " + " Level : " + i + SAP_MCU[i]["SOBSK"]);
+        if (SAP_MCU[i]["SOBSK"] !="" && SAP_MCU[i]["SOBSK"] !=null) {
+        var string = SAP_MCU[i]["SOBSK"].parseDelim("-");
+		var SOBSK = createXmlTag("SOBSK", string[1], log);
+																	}
+																	
+		var STRGR = createXmlTag("STRGR", SAP_MCU[i]["STRGR"], log);
+		var UEETK = createXmlTag("UEETK", SAP_MCU[i]["UEETK"], log);
+
+	    var string = SAP_MCU[i]["BKLAS"].parseDelim("-");
+		var BKLAS = createXmlTag("BKLAS", string[1], log);
+
+		var MMSTA = createXmlTag("MMSTA", SAP_MCU[i]["MMSTA"], log);
+		var MMSTD = createXmlTag("MMSTD", SAP_MCU[i]["MMSTD"], log);
+		
+	    var string = SAP_MCU[i]["LGPRO"].parseDelim("-");
+		var LGPRO = createXmlTag("LGPRO", string[1], log);
+		
+		var string = SAP_MCU[i]["LGFSB"].parseDelim("-");
+		var LGFSB = createXmlTag("LGFSB", string[1], log);
+   		   		
+   		var xmlLGORT = "";
+	    var SAP_LGORT = SAP_MCU[i]["LGORT"]; // storage location
+	    
+	    for(var j=0;j<SAP_LGORT.size();j++) {
+	       	var string = SAP_LGORT[j].parseDelim("-");
+	    	var LGORT = createXmlTag("LGORT", string[1], log);
+	   		
+	   		xmlLGORT = concat(xmlLGORT, "<attrgroup occ=\"",j,"\">", 
+                      LGORT,
+                      "</attrgroup>" );
+	   		}
+   		xmlLGORT = concat("<storagelocation>",xmlLGORT,"</storagelocation>");
+   		
+ 		
+		var xmlWMS = "";
+		for(var j=0;j<SAP_MCU[i]["WMS"].size();j++) {
+			// WMS
+			var LGNUM = createXmlTag("LGNUM", SAP_MCU[i]["WMS"][j]["LGNUM"], log);
+			var LGTYP = createXmlTag("LGTYP", SAP_MCU[i]["WMS"][j]["LGTYP"], log);
+			var MKAPV = createXmlTag("MKAPV", SAP_MCU[i]["WMS"][j]["MKAPV"], log);
+			var BEZME = createXmlTag("BEZME", SAP_MCU[i]["WMS"][j]["BEZME"], log);
+			var KOBER = createXmlTag("KOBER", SAP_MCU[i]["WMS"][j]["KOBER"], log);
+			
+			var xmlPAL = "";
+			for(var k=0;k<SAP_MCU[i]["WMS"][j]["PAL"].size();k++) {
+				// PAL
+				var LHMG1 = createXmlTag("LHMG1", SAP_MCU[i]["WMS"][j]["PAL"][k]["LHMG1"], log);
+				var LHME1 = createXmlTag("LHME1", SAP_MCU[i]["WMS"][j]["PAL"][k]["LHME1"], log);
+				var LETY1 = createXmlTag("LETY1", SAP_MCU[i]["WMS"][j]["PAL"][k]["LETY1"], log);
+				
+				xmlPAL = concat(xmlPAL, "<attrgroup occ=\"",k,"\">", 
+						LHMG1,LHME1,LETY1,
+						"</attrgroup>" );
+			}	
+			xmlPAL = concat("<palettization>",xmlPAL,"</palettization>");
+			
+			xmlWMS = concat(xmlWMS, "<wmsgroup occ=\"",j,"\">", 
+					LGNUM,LGTYP,MKAPV,BEZME,KOBER,xmlPAL,
+					"</wmsgroup>" );
+		}
+		// xmlWMS = concat("<warehousemanagement>",xmlWMS,"</warehousemanagement>");
+
+   		// xmlMCU = concat(xmlMCU, "<attrgroup occ=\"",i,"\">", 
+        //          WERKS,MTVFP,RGEKZ,XCHPF,VRMOD,VINT1,VINT2 ,HERKL ,SBDKZ,EKALR,HKMAT,
+        //          DISPO,DISGR ,DISMM,NCOST,HRKFT,PERKZ,VPRSV,BESKZ,FEVOR,PRCTR,HERKR,FHORI,
+        //          ALTSL,SOBSL,SOBSK,STRGR,UEETK,BKLAS,MMSTA,MMSTD,LGPRO,LGFSB,LGNUM,LGTYP,
+		// 			MKAPV,BEZME,LHMG1,LHME1,LETY1,KOBER,xmlLGORT,xmlWMS,
+        //          "</attrgroup>" ); 
+
+   		xmlMCU = concat(xmlMCU, "<attrgroup occ=\"",i,"\">", 
+                      WERKS,MTVFP,RGEKZ,XCHPF,VRMOD,VINT1,VINT2 ,HERKL ,SBDKZ,EKALR,HKMAT,
+                      DISPO,DISGR ,DISMM,NCOST,HRKFT,PERKZ,VPRSV,BESKZ,FEVOR,PRCTR,HERKR,FHORI,
+                      ALTSL,SOBSL,SOBSK,STRGR,UEETK,BKLAS,MMSTA,MMSTD,LGPRO,LGFSB,xmlLGORT,xmlWMS,
+                      "</attrgroup>" );  
+    }
+
+    //*************************
+    // UNITES DE CONVERSION
+    //*************************
+    var logText  = "xmlUOM";
+   	var logValue = "";
+
+// Changes made for the Alternative Unit ... is not been DEPLOYED !!    	
+//   	var indexUOM = 0;
+// End
+
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+// Changes made for the Alternative Unit ... is not been DEPLOYED !! 
+//    log.loggerDebug("SAPDel: " + SAPDel);
+// End
+
+	  log.loggerDebug("sap[UOM]: " + sap["UOM"]);
+
+    var xmlUOM = "";
+    
+// Changes made for the Alternative Unit ... is not been DEPLOYED !! 
+//    for(var k=0;k<SAPDel.size();k++) {
+//
+//   		if (SAPDel[k]!="") {
+//   			log.loggerDebug("k : " + k);
+//    		
+//
+//    		var MSGFN = createXmlTag("MSGFN", "003", log );
+//    		var MEINH = createXmlTag("MEINH", SAPDel[k], log );
+//    	
+//        log.loggerDebug("MSGFN: " + checkString(MSGFN, ""));              
+//        log.loggerDebug("MEINH: " + checkString(MEINH, ""));
+// 
+//   	indexUOM = k;
+//       	xmlUOM = concat(xmlUOM, "<attrgroup occ=\"",k,"\">", 
+//                     MSGFN, MEINH,                      
+//                      "</attrgroup>" );
+// }	
+//}
+//	
+//log.loggerDebug("xmlUOM Del: " + xmlUOM );
+//	hmGlobals["SAPDel"] = [];
+//	
+//	indexUOM = indexUOM + 1;
+//	log.loggerDebug("sap[UOM]: " + sap["UOM"]);
+// End
+
+    var SAP_UOM = sap["UOM"]; // units of mesure et conversion
+    for(var i=0;i<SAP_UOM.size();i++) {
+
+// Changes made for the Alternative Unit ... is not been DEPLOYED !!    
+//   		log.loggerDebug("indexUOM : " + indexUOM);
+// End
+
+      	log.loggerDebug("i : " + i);
+   		log.loggerDebug("MEINH: " + SAP_UOM[i]);
+   		
+// Changes made for the Alternative Unit ... is not been DEPLOYED !! 
+//    	var MSGFN = createXmlTag("MSGFN", "004", log );
+// End
+
+    	var MEINH = createXmlTag("MEINH", SAP_UOM[i]["MEINH"], log );
+    	var UMREZ = createXmlTag("UMREZ", SAP_UOM[i]["UMREZ"], log );
+		var UMREN = createXmlTag("UMREN", SAP_UOM[i]["UMREN"], log );
+		var EAN11 = createXmlTag("EAN11", SAP_UOM[i]["EAN11"], log );
+		var NUMTP = createXmlTag("NUMTP", SAP_UOM[i]["NUMTP"], log );
+		var LAENG = createXmlTag("LAENG", SAP_UOM[i]["LAENG"], log );
+		var BREIT = createXmlTag("BREIT", SAP_UOM[i]["BREIT"], log );
+		var HOEHE = createXmlTag("HOEHE", SAP_UOM[i]["HOEHE"], log );
+		var MEABM = createXmlTag("MEABM", SAP_UOM[i]["MEABM"], log );
+		var VOLUM = createXmlTag("VOLUM", SAP_UOM[i]["VOLUM"], log );
+		var VOLEH = createXmlTag("VOLEH", SAP_UOM[i]["VOLEH"], log );
+		var BRGEW = createXmlTag("BRGEW", SAP_UOM[i]["BRGEW"], log );
+		var GEWEI = createXmlTag("GEWEI", SAP_UOM[i]["GEWEI"], log );
+
+// Changes made for the Alternative Unit ... is not been DEPLOYED !! 		
+//       xmlUOM = concat(xmlUOM, "<attrgroup occ=\"",indexUOM,"\">", 
+//                      MSGFN,MEINH, UMREZ, UMREN, EAN11, NUMTP, LAENG, BREIT, HOEHE, MEABM, VOLUM, VOLEH, BRGEW, GEWEI,                      
+//                      "</attrgroup>" ); 
+// End
+
+		if (SAP_UOM[i]["MEINH"] !="") {
+ 			xmlUOM = concat(xmlUOM, "<attrgroup occ=\"",i,"\">", 
+          	            MEINH, UMREZ, UMREN, EAN11, NUMTP, LAENG, BREIT, HOEHE, MEABM, VOLUM, VOLEH, BRGEW, GEWEI,                      
+          	            "</attrgroup>" ); 
+										}
+										
+// Changes made for the Alternative Unit ... is not been DEPLOYED !!                                             
+//       indexUOM = indexUOM + 1;
+// End
+
+	}
+	
+// Changes made for the Alternative Unit ... is not been DEPLOYED !! 	
+//	log.loggerDebug("xmlUOM Add: " + xmlUOM );    
+// End
+
+    //*************************
+    // SalesOrganisationGroup
+    //*************************
+    logText  = "xmlSOG";
+   	logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+    var xmlSOG = "";
+    var SAP_SOG = sap["SOG"];
+    for(var i=0;i<SAP_SOG.size();i++) {
+	    var VKORG = createXmlTag("VKORG", SAP_SOG[i]["VKORG"], log);
+	    
+	        var string = SAP_SOG[i]["VTWEG"].parseDelim("-");			    
+		var VTWEG = createXmlTag("VTWEG", string[1], log);
+	
+		var VMSTA = createXmlTag("VMSTA", SAP_SOG[i]["VMSTA"], log);
+		var VMSTD = createXmlTag("VMSTD", SAP_SOG[i]["VMSTD"], log);
+		var DWERK = createXmlTag("DWERK", SAP_SOG[i]["DWERK"], log);
+		var MTPOS = createXmlTag("MTPOS", SAP_SOG[i]["MTPOS"], log);
+		var VERSG = createXmlTag("VERSG", SAP_SOG[i]["VERSG"], log);
+		var KTGRM = createXmlTag("KTGRM", SAP_SOG[i]["KTGRM"], log);
+		var SKTOF = createXmlTag("SKTOF", SAP_SOG[i]["SKTOF"], log);
+	    
+	    xmlSOG = concat(xmlSOG, "<attrgroup occ=\"",1,"\">", 
+	                      VKORG, VTWEG, VMSTA, VMSTD, DWERK, MTPOS, VERSG, KTGRM, SKTOF,
+	                      "</attrgroup>" ); 
+	}
+
+    //*************************
+    // TranslatedInvoiceName
+    //*************************
+    logText  = "xmlTXT";
+   	logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+    var xmlTXT = "";
+    var SAP_TXT = sap["LANG"];
+	log.loggerDebug("SAP_TXT: " + SAP_TXT);
+	    
+    for(var i=0;i<SAP_TXT.size();i++) {
+
+		log.loggerDebug("SAP_TXT I : " + i);
+	
+	    var LANGCC  = createXmlTag("LANGCC", SAP_TXT[i]["LANGCC"], log);
+	    var LANGTIN = createXmlTag("LANGTIN", SAP_TXT[i]["LANGTIN"], log);  
+
+		if (SAP_TXT[i]["LANGCC"] !="" && SAP_TXT[i]["LANGCC"] !=null) {
+		    xmlTXT = concat(xmlTXT, "<attrgroup occ=\"",i,"\">", 
+		                      LANGCC, LANGTIN,
+		                      "</attrgroup>" );
+	        			              } 
+	}
+
+// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over  
+
+    //**********************
+    // Classifications Group
+    //**********************
+
+    logText  = "xmlCLASSTYPE";
+   	logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+	var xmlCLASSTYPE = "";
+    var SAP_CLS_GRP = sap["CLASSGROUP"];
+    
+	for(var i=0;i<SAP_CLS_GRP.size();i++) {
+		var ClassType = createXmlTag("CLASSTYPE", SAP_CLS_GRP[i][1]);
+		
+		var xmlCLASS = "";
+			for(var n=0;n<SAP_CLS_GRP[i]["CLASS"].size();n++) {
+				var Class = createXmlTag("CLASS", SAP_CLS_GRP[i]["CLASS"][n]);
+				
+			   	xmlCLASS = concat(xmlCLASS, "<attrgroup occ=\"",n,"\">", 
+	                      Class,
+	                      "</attrgroup>" );  
+			}
+		xmlCLASS = concat("<CLASSGROUP>",xmlCLASS,"</CLASSGROUP>");
+					
+	   	xmlCLASSTYPE = concat(xmlCLASSTYPE, "<attrgroup occ=\"",i,"\">", 
+	                      ClassType, xmlCLASS, 
+	                      "</attrgroup>" );  
+	}
+// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over  
+	
+   //**********************
+    // Classifications Group
+    //**********************
+ 
+ 	if (XI_Active == "Y") {
+		// Per ClassType an XML is created ... 
+		var xmlVer = "1.0";
+		var xmlEncoding = "UTF-8";	 
+		var xmlNameSpace = "http://etexgroup.com/xi/ibm_mdm";	 
+	    
+	    logText  = "xmlCLFMAS";
+	   	logValue = "";
+	   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	    
+		var xmlCLFMAS = "";
+	    var SAP_CLS_GRP = sap["CLASSGROUP"];
+	    
+		for(var i=0;i<SAP_CLS_GRP.size();i++) {
+			var ClassType = buildXmlTag("classtype", SAP_CLS_GRP[i][1]);
+			var	MATNR = buildXmlTag("matnr", SAP_ROOT["MATNR"], log);
+			if (MATNR == "<matnr></matnr>") {MATNR = concat("<matnr>","NEW",SAP_ROOT["ERPCode"],"</matnr>"); }
+			 
+			if (SAP_CLS_GRP[i][1] == "001") {
+				var xmlCLASS = "";
+					for(var n=0;n<SAP_CLS_GRP[i]["CLASS"].size();n++) {
+						var Class = buildXmlTag("class", SAP_CLS_GRP[i]["CLASS"][n]);
+						
+					   	xmlCLASS = concat(xmlCLASS, "<classgroup><attrgroup occ=\"",n,"\">", 
+			                      Class,
+			                      "</attrgroup></classgroup>" );				                    
+					}
+				
+				var xmlZMIXABLE = ""; 
+				var ZMIXABLETag = buildXmlTag("name", "ZMIXABLE", log);
+				var ZMIXABLE = buildXmlTag("value", SAP_ROOT["ZMIXABLE"], log);
+				if (SAP_ROOT["ZMIXABLE"] !="") {
+				xmlZMIXABLE = concat("<characteristics><attrgroup occ=\"","1","\">", 
+			               ZMIXABLETag, ZMIXABLE, "</attrgroup></characteristics>" );				                
+			               						}
+	
+				var xmlZCLETAB = "";			
+				var ZCLETABTag = buildXmlTag("name", "ZCLETAB", log);
+				var ZCLETAB = buildXmlTag("value", SAP_ROOT["ZCLETAB"], log);
+				if (SAP_ROOT["ZCLETAB"] !="") {		               						
+				xmlZCLETAB = concat("<characteristics><attrgroup occ=\"","2","\">", 
+			               ZCLETABTag, ZCLETAB, "</attrgroup></characteristics>" );	
+			               						}
+	
+				var xmlSF_THICKNESS = ""; 
+				var SF_THICKNESSTag = buildXmlTag("name", "SF_THICKNESS", log);
+				var SF_THICKNESS = buildXmlTag("value", SAP_ROOT["SF_THICKNESS"], log);
+				if (SAP_ROOT["SF_THICKNESS"] !="") {			               							
+				xmlSF_THICKNESS = concat("<characteristics><attrgroup occ=\"","3","\">", 
+			               SF_THICKNESSTag, SF_THICKNESS, "</attrgroup></characteristics>" );				                
+			               						}
+	
+				var xmlSF_WIDTH = "";
+				var SF_WIDTHTag = buildXmlTag("name", "SF_WIDTH", log);
+				var SF_WIDTH = buildXmlTag("value", SAP_ROOT["SF_WIDTH"], log);
+				if (SAP_ROOT["SF_WIDTH"] !="") {		
+				xmlSF_WIDTH = concat("<characteristics><attrgroup occ=\"","4","\">", 
+			               SF_WIDTHTag, SF_WIDTH, "</attrgroup></characteristics>" );				                
+			               						}
+				var xmlSF_LENGTH = "";
+				var SF_LENGTHTag = buildXmlTag("name", "SF_LENGTH", log);
+				var SF_LENGTH = buildXmlTag("value", SAP_ROOT["SF_LENGTH"], log);
+				if (SAP_ROOT["SF_LENGTH"] !="") {	
+				xmlSF_LENGTH = concat("<characteristics><attrgroup occ=\"","5","\">", 
+			               SF_LENGTHTag, SF_LENGTH, "</attrgroup></characteristics>" );				                
+			               						}
+				var xmlSF_TYPE = "";
+				var SF_TYPETag = buildXmlTag("name", "SF_TYPE", log);
+				var SF_TYPE = buildXmlTag("value", SAP_ROOT["SF_TYPE"], log);
+				if (SAP_ROOT["SF_TYPE"] !="") {	
+				xmlSF_TYPE = concat("<characteristics><attrgroup occ=\"","6","\">", 
+			               SF_TYPETag, SF_TYPE, "</attrgroup></characteristics>" );				                
+			               						}
+				var xmlSF_EDGE = "";
+				var SF_EDGETag = buildXmlTag("name", "SF_EDGE", log);
+				var SF_EDGE = buildXmlTag("value", SAP_ROOT["SF_EDGE"], log);
+				if (SAP_ROOT["SF_EDGE"] !="") {
+				xmlSF_EDGE = concat("<characteristics><attrgroup occ=\"","7","\">", 
+			              SF_EDGETag, SF_EDGE, "</attrgroup></characteristics>" );				                
+			               						}
+				var xmlSF_PACKAGING = "";
+				var SF_PACKAGINGTag = buildXmlTag("name", "SF_PACKAGING", log);
+				var SF_PACKAGING = buildXmlTag("value", SAP_ROOT["SF_PACKAGING"], log);
+				if (SAP_ROOT["SF_PACKAGING"] !="" && SAP_ROOT["SF_PACKAGING"] !=null) {
+				xmlSF_PACKAGING = concat("<characteristics><attrgroup occ=\"","8","\">", 
+			              SF_PACKAGINGTag, SF_PACKAGING, "</attrgroup></characteristics>" );				                
+			               						}				               	                 				               	             
+					               	                      		
+			   	xmlCLFMAS = concat(xmlCLFMAS, "<attrgroup occ=\"",i,"\">", 
+			                      ClassType, MATNR, xmlCLASS, xmlZMIXABLE, xmlZCLETAB, xmlSF_THICKNESS, xmlSF_WIDTH,
+			                      xmlSF_LENGTH, xmlSF_TYPE, xmlSF_EDGE, xmlSF_PACKAGING,
+			                      "</attrgroup>" );  
+		
+			     var xmlSAPCLFMAS=concat(
+			       "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:classification xmlns:ns0=\"http://etexgroup.com/xi/ibm_mdm\">",
+			         xmlCLFMAS,                                           
+			       "</ns0:classification>"
+			    );
+			
+			
+	//			 	var logText  = "*** Output to QNTC/SPFW0110/sapsystems/SHARED/Dev/MDMKheops/ *** ==>";
+	//			  	var logValue = SAP_ROOT["ERPCode"];
+	//			 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+	//			    var name = "file:////QNTC/SPFW0110/sapsystems/SHARED/Dev/MDMKheops/SAPCLFMAS_" + SAP_ROOT["ERPCode"] + "_" + SAP_CLS_GRP[i][1] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+					if (SAP_CLS_GRP[i][1] != null) {
+						var name = Path_XI + "SAPCLFMAS_" + SAP_ROOT["ERPCode"] + "_" + SAP_CLS_GRP[i][1] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+		
+	     			 	// out.writeln(" Path_XI =           " + checkString(Path_XI, ""));
+	     			 	// out.writeln(" ERPCode =           " + checkString(SAP_ROOT["ERPCode"], ""));
+	     			 	// out.writeln(" Class   =           " + checkString(SAP_CLS_GRP[i][1], ""));
+	     			 	     			 	     			 	
+	     			 	var logText  = Path_XI + "SAPCLFMAS_" + SAP_ROOT["ERPCode"] + "_" + SAP_CLS_GRP[i][1] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+					  	var logValue = SAP_ROOT["ERPCode"];
+					 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		
+						// Check existence of outputfile
+						var FileSave = FileExist(SAP_ROOT["ERPCode"]);
+							if (FileSave == "False") {
+								var Writer = createOtherOut(name, "UTF-8");
+								
+								Writer.writeln(xmlSAPCLFMAS);
+								Writer.save(name);
+								moni.loggerInfo("*** To SAP (CLFMAS) " + name);
+							} else {
+								moni.loggerInfo("*** Alreay (CLFMAS) exported To SAP " + name);	
+							}
+						}
+			} else {
+						var xmlCLFMAS = "";
+						var ClassType = buildXmlTag("classtype", SAP_CLS_GRP[i][1]);
+	
+		   				var xmlCLASS = "";
+						for(var n=0;n<SAP_CLS_GRP[i]["CLASS"].size();n++) {
+							var Class = buildXmlTag("class", SAP_CLS_GRP[i]["CLASS"][n]);
+							
+						xmlCLASS = concat(xmlCLASS, "<classgroup><attrgroup occ=\"",n,"\">", 
+					               Class,
+					               "</attrgroup></classgroup>" );
+					   
+			   		   	xmlCLFMAS = concat(xmlCLFMAS, "<attrgroup occ=\"",i,"\">", 
+	                      ClassType, MATNR, xmlCLASS,  
+	                      "</attrgroup>" );  
+			                                         
+					     var xmlSAPCLFMAS=concat(
+					       "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:classification xmlns:ns0=\"http://etexgroup.com/xi/ibm_mdm\">",
+					         xmlCLFMAS,                                           
+					       "</ns0:classification>"
+					    );
+						
+				
+//							 	var logText  = "*** Output to QNTC/SPFW0110/sapsystems/SHARED/Dev/MDMKheops/ *** ==> ";
+//							  	var logValue = SAP_ROOT["ERPCode"];
+//							 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+								if (SAP_CLS_GRP[i][1] != null) {
+				     			 	// out.writeln(" Path_XI =           " + checkString(Path_XI, ""));
+				     			 	// out.writeln(" ERPCode =           " + checkString(SAP_ROOT["ERPCode"], ""));
+				     			 	// out.writeln(" Class   =           " + checkString(SAP_CLS_GRP[i][1], ""));									
+						
+								    var name = Path_XI + "SAPCLFMAS_" + SAP_ROOT["ERPCode"] + "_" + SAP_CLS_GRP[i][1] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+	
+				     			 	var logText  = Path_XI + "SAPCLFMAS_" + SAP_ROOT["ERPCode"] + "_" + SAP_CLS_GRP[i][1] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+								  	var logValue = SAP_ROOT["ERPCode"];
+								 	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+									
+									// Check existence of outputfile
+									var FileSave = FileExist(SAP_ROOT["ERPCode"]);
+										if (FileSave == "False") {
+											var Writer = createOtherOut(name, "UTF-8");
+											
+											Writer.writeln(xmlSAPCLFMAS);
+											Writer.save(name);
+											moni.loggerInfo("*** To SAP (CLFMAS) " + name);
+										} else {
+											moni.loggerInfo("*** Alreay (CLFMAS) exported To SAP " + name);	
+										}									
+									
+									}
+						 				                    
+					}
+	    		}		
+			}
+		}
+	
+
+// Begin: Basic Text: 9500 Siniat     
+    logText  = "xmlBASICTEXT";
+   	logValue = "";
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+    
+    var quote = "\"";
+	var xmlBASICTEXT = "";
+    var SAP_BASICTEXT = sap["BASICTEXT"];
+
+    for(var i=0;i<SAP_BASICTEXT.size();i++) {
+
+		log.loggerDebug("SAP_BASICTEXT I : " + i);
+
+	    var TDOBJECT  = createXmlTag("TDOBJECT", "MATERIAL", log);
+	    var TDNAME    = var MATNR = createXmlTag("MATNR", SAP_ROOT["MATNR"], log);	
+	  	var TDID      = createXmlTag("TDID", "GRUN", log);
+	  	
+	    var TDSPRAS    = createXmlTag("TDSPRAS", SAP_BASICTEXT[i]["LANGU"], log);	    
+	    var TDTEXTTYPE = createXmlTag("TDTEXTTYPE", "ASCII", log); 
+	    var TDFORMAT   = createXmlTag("TDFORMAT", "*", log);
+		var TDLINE01   = createXmlTag("TDLINE", SAP_BASICTEXT[i]["LINE01"], log);
+		var TDLINE02   = createXmlTag("TDLINE", SAP_BASICTEXT[i]["LINE02"], log);		
+		
+	    xmlBASICTEXT = concat(xmlBASICTEXT, "<attrgroup occ=\"",i,"\">", 
+	                      TDOBJECT, TDNAME, TDID, TDSPRAS, TDTEXTTYPE, TDFORMAT, TDLINE01, TDLINE02,
+	                      "<textlines><attrgroup occ=", quote, "0", quote, ">", TDLINE01, "</attrgroup></textlines>",
+  	                      "<textlines><attrgroup occ=", quote, "1", quote, ">", TDLINE02, "</attrgroup></textlines>",
+	                      "</attrgroup>" ); 
+	}
+	var xmlSAPOutPI = "";
+	var xmlSAPBody = "";
+	if (XI_Active == "Y") {	    
+		// End: Basic Text: 9500 Siniat
+
+		var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+		var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+				
+		logText  = "*** Communication with XI is Active ***";
+   		logValue = "";
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+   	       
+	     xmlSAPOutPI=concat(
+	       "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:sap_export xmlns:ns0=\"http://etexgroup.com/xi/ibm_mdm\">",
+	       "<sap_export>", 
+	       "<attrgroup occ=\"0\">",
+	         xmlROOT_PI,
+	         "<placesofstoragegroup>",
+	           xmlMCU,
+	         "</placesofstoragegroup>",
+	         "<unitconversionsgroup>",
+	           xmlUOM,
+	         "</unitconversionsgroup>",
+	         "<salesorganisationgroup>",
+	           xmlSOG,
+	         "</salesorganisationgroup>",
+	         "<translations>",
+	           xmlTXT,
+	         "</translations>",   
+		// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over                                 
+	         "<classificationgroup>",
+	           xmlCLASSTYPE,
+	         "</classificationgroup>", 
+		// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over
+		// Begin: 9500 Siniat SA-0000141 Basic Text                                 
+	         "<basictext>",
+	           xmlBASICTEXT,
+	         "</basictext>", 
+		// End: 9500 Siniat SA-0000141 Basic Text                                              
+	       "</attrgroup>",
+	       "</sap_export>",
+	       "</ns0:sap_export>"       
+	    );
+	    
+	    // Fin du message XML
+		log.loggerDebug("End of message " + SAP_ROOT["ERPCode"]);
+	
+		// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over 
+	
+			var name = Path_XI + "SAPExport_" + SAP_ROOT["ERPCode"] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+			
+ 			// out.writeln(" Path_XI =           " + checkString(Path_XI, ""));
+ 		 	// out.writeln(" ERPCode =           " + checkString(SAP_ROOT["ERPCode"], ""));
+	
+		   	var logText  = Path_XI + "SAPExport_" + SAP_ROOT["ERPCode"] + "_" + formatDate(today(),"yyyyddmm") + "_" + formatDate(today(),"HHmmss") + ".xml";
+		   	var logValue = SAP_ROOT["ERPCode"];
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	
+// Check existence of outputfile
+			var FileSave = FileExist(SAP_ROOT["ERPCode"]);
+			if (FileSave == "False") {
+				var Writer = createOtherOut(name, "UTF-8");
+				
+				Writer.writeln(xmlSAPOutPI);
+				Writer.save(name);
+				moni.loggerInfo("*** To SAP (MATMAS)" + name);
+
+				inout.loggerDebug("MDM_OUTSINGLE" + ";" +"OUTBOUND" + ";" + today().formatDate("yyyyMMdd;HHmmss") + ";" + checkString(myTargetSystemId,"") + ";" + checkString(SAP_ROOT["ERPCode"], "") + ";" + checkString(SAP_ROOT["MATNR"],""));
+			} else {
+				moni.loggerInfo("*** Alreay (MATMAS) exported To SAP " + name);	
+			}
+			
+
+		
+		// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over      
+		} else {
+		
+				logText  = "*** Communication with IBM Web Broker is Active ***";
+		   		logValue = "";
+   				getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+		    xmlSAPBody=concat(
+		       "<sap_export>",
+		       "<attrgroup occ=\"0\">",
+		         xmlROOT,
+		         "<placesofstoragegroup>",
+		           xmlMCU,
+		         "</placesofstoragegroup>",
+		         "<unitconversionsgroup>",
+		           xmlUOM,
+		         "</unitconversionsgroup>",
+		         "<salesorganisationgroup>",
+		           checkString(xmlSOG, ""),
+		         "</salesorganisationgroup>",
+		         "<translations>",
+		           xmlTXT,
+		         "</translations>",   
+		// Begin: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over                                 
+		         "<classificationgroup>",
+		           xmlCLASSTYPE,
+		         "</classificationgroup>", 
+		// End: 9500 Siniat SA-0000141 Classification SINIATFR_FFPAP not taken over
+		// Begin: 9500 Siniat SA-0000141 Basic Text                                 
+		         "<basictext>",
+		           checkString(xmlBASICTEXT, ""),
+		         "</basictext>", 
+		// End: 9500 Siniat SA-0000141 Basic Text                                              
+		       "</attrgroup>",
+		       "</sap_export>"
+		    );
+  		}
+  		
+  		logText  = "*** SAP Export PI *** >";
+		logValue = xmlSAPOutPI;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+  		
+  		logText  = "*** SAP Export *** >";
+		logValue = xmlSAPBody;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+ 
+   		logText  = "*** xmlROOT PI *** >";
+		logValue = xmlROOT_PI;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+ 
+   		logText  = "*** xmlROOT *** >";
+		logValue = xmlROOT;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+   		logText  = "*** xmlMCU *** >";
+		logValue = xmlMCU;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);   		 		
+  		
+  		logText  = "*** xmlUOM *** >";
+		logValue = xmlUOM;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+   		logText  = "*** xmlSOG *** >";
+		logValue = xmlSOG;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);   		 		
+ 
+   		logText  = "*** xmlTXT *** >";
+		logValue = xmlTXT;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+   		logText  = "*** xmlCLASSTYPE *** >";
+		logValue = xmlCLASSTYPE;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);   		 		
+  		
+  		logText  = "*** xmlBASICTEXT *** >";
+		logValue = xmlBASICTEXT;
+   		getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+
+    return xmlSAPBody;
+}
+

@@ -1,0 +1,267 @@
+//
+// Interfacage avec la base etiquettes TMA100280
+// export XML ou fichier plat / catalogue "C020-Doublages - Composite panels"
+//
+
+//
+// technical utils functions
+//
+
+function addMapElement(mapEl, key, val) {
+    getScriptByPath("/scripts/triggers/LG.Library.Utils")
+          .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+   return getScriptByPath("/scripts/triggers/LG.Library.Utils") .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey){
+    return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getBoolValue(oitem, nodeName){
+    var ovalue = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+	if(ovalue!=null && ovalue=="true") {
+		return "Oui";
+	}
+	else if(ovalue!=null && ovalue=="false") {
+		return "Non";
+	}
+	else {
+		return "";
+	}
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getDateValue").invoke(oitem, nodeName, "yyyyMMdd HH:mm:ss");
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpMultiValues").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getMultiValues(oItem,nodeName) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getMultiValues").invoke(oItem,nodeName);
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+function getItemLevel(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,nodeName);
+}
+
+//
+//
+//
+
+// findSitePath
+// @desc return the attribute path of a production site from its code
+// @param oitem the item
+// @param siteCode the site code in 02FR0063-ProductionSite
+// @return the attribute path eg "ProductionSiteGroup#3"
+function findSitePath(oitem, siteCode){
+  var productionSiteGroup = getEn(oitem,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return null; }
+  for(var i=0; i<productionSiteGroup.size(); i++) {
+    var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+    if (fProductionSite.contains(siteCode)){
+      return "ProductionSiteGroup#"+i;
+    }
+  }
+  return null; 
+}
+
+// Concatenates all the elements of a string array, using the specified separator between each element. 
+function arrayJoin(array, separator){
+  var str = "";
+  for (var i=0; i<array.size(); i++){
+     str = str + ((i==0) ? "" : separator ) + array[i];
+  }
+  return str;
+}
+
+// filtre des décimaux finissant par '.0'  
+function filterDecimalZero(str){
+    if(str!=null && str!="") {
+		if(str.endsWith(".0")) {
+		   return  replace(str, ".0","");
+		}
+	}
+    return str;
+}
+
+function getDataSite(oitem, productionSiteGroupID){
+  var parentBUnit = getPublishingItemAtLevel(oitem,"BUnit");
+  var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+  var DATA = [];
+  addMapElement(DATA, "INTERFACE_ID", "12");
+  addMapElement(DATA, "PROD_ID", getSimpleValue( oitem ,"01AC0044-ERPCode")) ;
+  addMapElement(DATA, "USER_STATUS", "");
+  var siteCode= getLkpValue(parentProd ,"ProductionSiteGroup#"+productionSiteGroupID+"/02FR0063-ProductionSite" , "C01-Code");
+  var prodSitePath = findSitePath(parentProd, siteCode);
+  var siteSAPCode= getLkpValue(parentProd ,"ProductionSiteGroup#"+productionSiteGroupID+"/02FR0063-ProductionSite" , "C07-SAP PlantCode"); 
+  addMapElement(DATA, "K13TECH1570",siteSAPCode);
+  addMapElement(DATA, "CCODEGEMMS_1", getSimpleValue( oitem ,"01AC0664-MaterialNumber")) ;
+  addMapElement(DATA, "CSEQ_ID_1", "");
+  addMapElement(DATA, "C10ID112_1", getDateValue( oitem ,"01AC0004-LastUpdate")) ; 
+  addMapElement(DATA, "C10ID114_1", getDateValue( oitem ,"01AC0006-CreationDate")) ;
+  addMapElement(DATA, "C10ID204_1", getSimpleValue(parentBUnit, "01AC0042-GTIN"));
+  addMapElement(DATA, "C10ID220_1", getSimpleValue( oitem ,"01AC0664-MaterialNumber")) ;
+  addMapElement(DATA, "C10ID226_1", getSimpleValue( oitem ,"01AC0664-MaterialNumber")) ;
+  addMapElement(DATA, "C10ID227_1", filterDecimalZero(getSimpleValue( parentProd ,"04CP0098-InsulationRealThickness"))) ;
+  addMapElement(DATA, "C10ID630_1", getSimpleValue( parentProd ,"01AC0017-LabelName1")) ;
+  addMapElement(DATA, "C10ID631_1", getSimpleValue( parentProd ,"01AC0018-LabelName2")) ;
+  addMapElement(DATA, "C11DESC220_1", getLkpValue( parentProd ,"01AC0036-brandName", "C07-Logo")) ;
+  addMapElement(DATA, "C12CDIM105_1", filterDecimalZero(getSimpleValue( parentProd ,"04CP0085-CommercialBoardThickness"))) ;
+  addMapElement(DATA, "C12CDIM107_1", filterDecimalZero(getSimpleValue( parentProd ,"04CP0087-RealBoardThickness"))) ;
+  addMapElement(DATA, "C12CDIM109_1", filterDecimalZero(getSimpleValue( parentProd ,"04CP0089-InsulationThickness"))) ;
+  addMapElement(DATA, "C12CDIM113_1", getSimpleValue( parentProd ,"04CP0093-InternalBoardCommercialThickness")) ;
+  addMapElement(DATA, "C12CDIM120_1", filterDecimalZero(getSimpleValue(parentProd ,"04CP0095-Width"))) ;
+  addMapElement(DATA, "C12CDIM122_1", getLkpValue(parentProd, "04CP0097-WidthUnit", "C03-Code unité non standard"));
+  addMapElement(DATA, "C12CDIM140_1", filterDecimalZero(getSimpleValue( parentBUnit ,"04CP0103-Length"))) ;
+  addMapElement(DATA, "C12CDIM141_1", getLkpValue(parentBUnit, "04CP0104-LengthUnits", "C03-Code unité non standard"));
+  addMapElement(DATA, "C13TECH1110_1", getLkpValue( parentProd ,"05PG0245-ENReference", "C01-N° de norme")) ;
+  addMapElement(DATA, "C13TECH1112_1", getLkpValue( parentProd ,"05PG0247-ENBoardType", "C01-Type de produit selon la norme en code")) ;
+  addMapElement(DATA, "C13TECH1117_1", getBoolValue( parentProd ,"05PG0249-CECertified")) ;
+  addMapElement(DATA, "C13TECH1301_1", getLkpValue( parentProd ,"05PG0341-TechnicalNoteRef#0", "C07-Texte et n°ATEC qui figurent sur l étiquette")) ;
+  addMapElement(DATA, "C13TECH1500_1", getLkpValue( parentProd ,"05PG0342-LabelQuality", "C02-Logo")) ;
+  addMapElement(DATA, "C13TECH1570_1",siteSAPCode);
+  addMapElement(DATA, "C13TECH1600_1", getBoolValue( parentProd ,prodSitePath+"/02FR0053-CSTBATCertified"));
+  addMapElement(DATA, "C13TECH1601_1", getLkpValue( parentProd ,prodSitePath+"/02FR0054-CSTBATReferences" ,"C01-N° de certificat CSTBAT"));
+  addMapElement(DATA, "C13TECH1700_1", "");
+  addMapElement(DATA, "C13TECH1701_1", filterDecimalZero( getSimpleValue(oitem, "06DN0433-stackingFactor") ));
+  addMapElement(DATA, "C13TECH1701_2", "");
+  addMapElement(DATA, "C13TECH2104_1", getLkpValue( parentProd ,"04CP0160-LongitudinalEdgeType", "C02-Libellé court")) ;
+  addMapElement(DATA, "C13TECH2200_1", getLkpValue( parentProd ,"04CP0172-InsulationType", "C02-Type de la norme")) ;
+  addMapElement(DATA, "C13TECH3281_1", getLkpValue( parentProd ,"05PC0297-PermeabilityClass", "C01-Libellé")) ;
+  addMapElement(DATA, "C13TECH3283_1", getSimpleValue( parentProd ,"05PC0299-FactorOfResistanceToWaterVapour")) ;
+  addMapElement(DATA, "C13TECH3290_1", getSimpleValue( parentProd ,"05PC0300-ThermalResistance")) ;
+  addMapElement(DATA, "C13TECH3300_1", getLkpValue( parentProd ,"05PC0305-EuroclasseClassification", "C01-Code")) ;
+  addMapElement(DATA, "C16CDE282_1", getSimpleValue( oitem ,"06DN0407-TotalQuantityOfNextLowerLevel")) ;
+  addMapElement(DATA, "C16CDE300_1", getSimpleValue( oitem ,"04CP0213-netWeight")) ;
+  addMapElement(DATA, "C16CDE301_1", getLkpValue( oitem ,"04CP0214-netWeightUnit","C03-Code unité non standard")) ; 
+  addMapElement(DATA, "C16CDE705_1", getLkpValue( oitem ,"06DN0412-Stacking","C01-Code")) ; 
+  addMapElement(DATA, "C16CDE710_1", getLkpValue( oitem ,"06DN0413-Support","C01-Code")) ; 
+  addMapElement(DATA, "C16CDE715_1", getLkpValue( oitem ,"06DN0414-Covering", "C01-Code"));
+  addMapElement(DATA, "C16CDE720_1", getLkpValue( oitem ,"06DN0415-Hooping", "C01-Code"));
+  addMapElement(DATA, "C16CDE910_1", getLkpValue( oitem ,"06DN0436-handlingInstructions#0","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_2", getLkpValue( oitem ,"06DN0436-handlingInstructions#1","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_3", getLkpValue( oitem ,"06DN0436-handlingInstructions#2","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_4", getLkpValue( oitem ,"06DN0436-handlingInstructions#3","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_5", getLkpValue( oitem ,"06DN0436-handlingInstructions#4","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_6", getLkpValue( oitem ,"06DN0436-handlingInstructions#5","C02-Libellé")) ; 
+  addMapElement(DATA, "C16CDE910_7", getLkpValue( oitem ,"06DN0436-handlingInstructions#6","C02-Libellé")) ; 
+  addMapElement(DATA, "C08IE0653_1", getLkpValue( parentProd, "08IE0653-LabelingHealth", "C01-Classement"));
+  addMapElement(DATA, "C02FR0657_1", getBoolValue( parentProd ,prodSitePath+"/02FR0657-ACERMICertified"));
+  addMapElement(DATA, "C02FR0658C2_1", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#0" ,"C01-N° de certificat ACERMI isolant"));
+  addMapElement(DATA, "C02FR0658C2_2", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#1" ,"C01-N° de certificat ACERMI isolant"));
+  addMapElement(DATA, "C02FR0658C5_1", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#0" ,"C04-sites d origine de fabrication couverts par le certificat ACERMI"));
+  addMapElement(DATA, "C02FR0658C5_2", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#1" ,"C04-sites d origine de fabrication couverts par le certificat ACERMI"));  
+  addMapElement(DATA, "C02FR0063C1_1", getLkpValue( parentProd ,prodSitePath+"/02FR0063-ProductionSite" ,"C07-SAP PlantCode"));
+  addMapElement(DATA, "C02FR0063C2_1", getLkpValue( parentProd ,prodSitePath+"/02FR0063-ProductionSite" ,"C02-Libellé"));
+  addMapElement(DATA, "C05PC0285_1", getLkpValue( parentProd ,"05PC0285-MechanicalResistanceToInflection" ,"C00-DisplayName"));
+  addMapElement(DATA, "C05PG0767_1", getSimpleValue(parentProd, "05PG0767-DOPNumber"));
+  addMapElement(DATA, "C05PG0768_1", getSimpleValue(parentProd, "05PG0768-ProductTypeID"));
+  addMapElement(DATA, "C05PG0770_1", getSimpleValue(parentProd, "05PG0770-ProductUsage"));
+  addMapElement(DATA, "C05PG0773_1", getSimpleValue(parentProd, "05PG0773-OrganismNotified"));
+  addMapElement(DATA, "C05PG0795_1", getSimpleValue(parentProd, "05PG0795-YearOfFirstCEMarking"));
+  addMapElement(DATA, "C05PG0769_1", getSimpleValue(parentProd, "05PG0769-DOPUrl"));
+  addMapElement(DATA, "ERP Produit", getSimpleValue(parentProd, "01AC0044-ERPCode"));
+  return DATA;
+}
+
+function getData(oitem){
+  var dataGrp = [];
+  var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+  var productionSiteGroup = getEn(parentProd,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return dataGrp; }
+  var e;
+  catchError(e) {
+    for(var i=0; i<productionSiteGroup.size(); i++) {
+      // var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+	  dataGrp.add(getDataSite(oitem, i));
+    }
+  }
+  if (e!=null){
+    err.writeln("Error on "+oitem.getPrimaryKey()+", "+e); 
+  }
+  return dataGrp;
+}
+
+function canExport(oitem){
+    // Catalogue 
+    if (!oitem.getPrimaryKey().substring(1,4).contains("020")) {
+      return false;
+    }
+
+    // Que le PItem (?)
+    if (!oitem.getPrimaryKey().contains("I")) {
+      return false;
+    }
+
+    // Les items ayant le statut 01AC0548-Status = ACTIF 
+    if (!getSimpleValue(oitem,"01AC0548-Status").contains("[ACTIVE] - Actif")) {
+      return false;
+    }
+
+    return true;
+}
+
+///////
+///////
+
+function getFullCSV(){
+    var oitem;
+    var csv = "";
+    var headerDone = false;
+    forEachCtgItem("C020-Doublages - Composite panels",oitem) {
+		var e;
+		catchError(e) {
+			if(!canExport(oitem)) {
+				continue;
+			}
+			logDebug("Export "+oitem.getPrimaryKey());
+			var dataGrp = getData(oitem);
+			for(var i=0; i<dataGrp.size(); i++) {
+				if (!headerDone){
+					csv = csv + buildMapElementCSV(dataGrp[i], true);
+					headerDone = true;
+				}
+				csv = csv + buildMapElementCSV(dataGrp[i], false);
+			}
+		} 
+		if (e!=null) { 
+			// out.writeln(oitem.getPrimaryKey()+" "+e);
+			// e=null;
+		}
+	}
+    return csv;
+}

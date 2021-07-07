@@ -1,0 +1,2150 @@
+//----------------------------------------------------
+// File : Siniat.Kheops.Interface
+// Author : Ronan Guével
+// Creation date : 2017-03-25
+// Functionalities : Interface SAP vers Kheops pour le catalogue 805
+// Copyright © 2017 RGLIS
+//------------------------------------------------------
+
+// Reste à faire :
+// 1. Gestion des créations -> Finished - 26/03
+// 2. Gestion des mises à jour -> Finished - 26/03
+// 3. Gestion Country Group -> Finished - 26/03
+// 4. Notifications par email après traitement -> Finished - 26/03
+// 5. Gestion des erreurs -> In process
+// 6. Déclenchement manuel du process depuis un report -> Finished - 27/03
+// 7. Tests complémentaires -> In process
+// 8. Avant de traiter un fichier, vérifier que son format est valide -> Pas possible en l'état
+// 9. Revoir problème date
+
+function initGlobals(){
+    var hmGlobalConst = [];
+    hmGlobalConst = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+    var hmGlobals = [];
+	hmGlobals["SCRIPT_INITIAL_RULES"]=getScriptByPath("/scripts/triggers/LG.Business.Initial.Rules");	
+    hmGlobals["LOGGER"]=getLogger("Lafarge.Cloner");
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ATTRS_TO_CLONE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToClone");
+    hmGlobals["FN_MERGE_HASHES"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("mergeHashes");
+    hmGlobals["FN_GET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+    hmGlobals["FN_SET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("setStatus");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+   	hmGlobals["FN_GET_ATTRS_TO_INHERIT"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToInherit");
+    
+    return hmGlobals["FN_MERGE_HASHES"].invoke(hmGlobals,hmGlobalConst);
+}
+
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getFirstEn(hmGlobals, item, sNodeName){
+    var nodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+    if (nodes == null || nodes.size() < 1 ) {
+        return null;
+    }
+    return nodes[0];
+}
+
+function deletezero(strMaterialNumber) {
+	if(strMaterialNumber!=null && strMaterialNumber!=""){
+		var iMaterialNumber = strMaterialNumber.length();
+		for(var k=0;k<iMaterialNumber;k++) {
+			var testzero=strMaterialNumber.startsWith("0");
+			if(testzero==true) {
+				strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+			}
+		}
+	}
+	return strMaterialNumber;
+}
+
+function roundNum(invalue, idiv) {
+	var resvalue=0;
+	var dvalue = toDouble(invalue);
+	var ddivvalue = dvalue/idiv;
+	var idivvalue = toInteger(ddivvalue);
+	var dtempvalue = toDouble(idivvalue);
+	var ddifvalue = ddivvalue-dtempvalue;
+	if(ddifvalue<=0.5) {
+		resvalue=idivvalue;
+	}
+	else {
+		resvalue=(idivvalue+1);
+	}
+	return resvalue;
+}
+
+function allocateC805ERPCode(containerCode, type) {
+	var typeCode;
+	if (type == "Prod") {
+		typeCode = "P";
+	} else if (type == "BUnit") {
+		typeCode = "B";
+	} else if (type == "PItem") {
+		typeCode = "I";
+	} else {
+		typeCode = "X";
+	}	
+	var iSeq=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getLGNextSeqValue").invoke("ERPCode");
+	return concat("X" + containerCode + typeCode + iSeq.formatNumber("00000", null));
+}
+
+function getLkpKheopsValueFromSAPCode(strLkpName,strAttrSAPCode,strSAPValue) {
+	var attrValueNewValue = "";
+	var oLkpTemp = getCtgByName(strLkpName);
+	if(oLkpTemp!=null) {
+		var strLkpTempSpecName = oLkpTemp.getCtgSpec().getSpecName();
+		var oLkpTempItemSet = oLkpTemp.getItemSetForCatalog();
+		forEachItemSetElement(oLkpTempItemSet,oLkpItem) {
+			attrValueNewValue = oLkpItem.getPrimaryKey();
+			var strLkpSAPValue = oLkpItem.getEntryAttrib(strLkpTempSpecName+"/"+strAttrSAPCode);
+			if(strLkpSAPValue==strSAPValue) {
+				return attrValueNewValue;
+			}
+		}
+	}
+	return "";
+}
+
+function getPItem(oBUnit) {
+    var children = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(null,oBUnit);
+    var child;
+    var i;
+	var itemChild;
+    forEachHmElement(children,i,child) {
+      itemChild = getCtgByName(children[i]["itemCatalog"]).getEntryByPrimaryKey(children[i]["itemPrimaryKey"]);
+	}
+	return itemChild;
+}
+
+// Fonction qui retourne le code ERP
+// Code SAP => Code ERP
+function getPrimaryKeyFromSAPCode(strSAPCode) {
+	var strSAPCode = checkString(strSAPCode,"");
+	var pk = "";
+	var iasref = strSAPCode.length();
+	if(iasref!=null && iasref<18) {
+		for(var j=iasref;j<18;j++) {
+			strSAPCode = concat("0",strSAPCode);
+			
+		}
+	}
+	// out.writeln("code sap : "+strSAPCode+"<br />");
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+	var aTypes = [];
+	aTypes.add("Prod");
+	aTypes.add("BUnit");
+	aTypes.add("PItem");
+	var bERPCodeRetrieved=false;
+	for (var m=0; m<aCatalogNames.size(); m++) {
+		var strCatalogName = aCatalogNames[m];
+		if(!strCatalogName.startsWith("C999") && !strCatalogName.startsWith("E")) {
+			var ctg = getCtgByName(aCatalogNames[m]); 
+			var filters = [];
+			filters["CONTAINER"] = ctg;
+			filters["SPECTYPE"] = "SECONDARY_SPEC";
+			var aSpecNames = getSpecNameList(filters);
+			var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+			for (var j=0; j<aTypes.size(); j++) {
+				if(bERPCodeRetrieved==false) {
+					var e;
+					catchError(e) {
+						var queryString = "select item.pk from catalog('" + aCatalogNames[m] + "') where item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] = '" + strSAPCode + "'";
+						var query = new SearchQuery(queryString);
+						var resultset = query.execute();
+						if(resultset!=null) {
+							while (resultset.next()) {
+								pk = checkString(resultset.getString(1),"");
+								bERPCodeRetrieved=true;
+								return pk;
+							}
+						}
+					}
+					if(e!=null) {
+						out.writeln("PK item not found for SAP code ="+strSAPCode+"<br />");
+					}
+				}
+			}
+		}
+	}
+	return pk;
+}
+
+function process_MAT(matfilename,errorlist,logOut) {
+	var hmGlobals=initGlobals();
+
+	var dCurrentDate = today();
+
+	var typeProd = "Prod";
+	var typeBUnit = "BUnit";
+	var typePItem = "PItem";
+	var catalog = getCtgByName("C805-Produits hors Siniat - External Siniat products");
+	var strCatalogProdSpecName = "SC805-Produits_hors_Siniat_External_Siniat_products_Prod";
+	var strCatalogBUnitSpecName = "SC805-Produits_hors_Siniat_External_Siniat_products_BUnit";
+	var strCatalogPItemSpecName = "SC805-Produits_hors_Siniat_External_Siniat_products_PItem";
+	var oProdSpec = getSpecByName(strCatalogProdSpecName);
+	var oBUnitSpec = getSpecByName(strCatalogBUnitSpecName);
+	var oPItemSpec = getSpecByName(strCatalogBUnitSpecName);
+	var catProd = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]).getCategoryByPath(typeProd, "/");
+	var catBUnit = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]).getCategoryByPath(typeBUnit, "/");
+	var catPItem = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]).getCategoryByPath(typePItem, "/");
+	var sName = catalog.getCtgName();
+	var desc = sName.parseDelim(" - ")[0]; 
+	var containerCode = sName.substring(1,4);
+
+	var L910Lkp = getCtgByName("L910-SAPtoKheopsMapping");
+	var L910LkpItemSet = L910Lkp.getItemSetForCatalog();
+
+	var attrProd = [];
+	var attrBUnit = [];
+	var attrPItem = [];
+	var attrCountryGroup = [];
+	var attrSalesOrga = [];
+	
+	// Notification
+	var strKheopsURL = getProductCenterURL()+"/utils/enterLogin.jsp";
+	var strMailto = "polegestionproduits@siniat.com";
+
+	if(matfilename!=null && matfilename!="") {
+		// *****************************************
+		// Extraction des données transmises par SAP
+		// *****************************************
+		
+		var strMaterialNumber="";
+		var strTotalReplenishmentLeadTime="";
+		var strMaterialType="";
+		
+		var attrName="";
+		var attrGroupName="";
+		var attrValue="";
+		var attrType="";
+		
+		// Relevant Item check
+		var bRelavantSaleOrga=false;
+		var bRelavantMaterialType=false;
+
+		// Pour chaque fichier disponible depuis le listing, on exécute la procédure
+		var xmlDoc=new XmlDocument("file://XFER/MAT_XML/"+matfilename);
+
+		// Recherche ERPCode
+		var strERPCode = "";
+		var nNodeERPCode=xmlDoc.getXMLNode("IDOC/E1MARAM/Z1MARA01");
+		if(nNodeERPCode!=null) {
+			strERPCode = checkString(nNodeERPCode.getXMLNodeValue("ZZERPCODE"),"");
+		}
+
+		var strBUnitPoidsNet = "0";
+		var dBUnitPoidsNet=0.0;
+
+		// Attributs standards
+		var nNode=xmlDoc.getXMLNode("IDOC/E1MARAM");
+		forEachItemSetElement(L910LkpItemSet,oitem) {
+			var strTagName = oitem.getPrimaryKey();
+			var strTagValue = nNode.getXMLNodeValue(strTagName);
+			if(strTagValue!=null && strTagValue!="") {
+				var strAttrKheopsCode = oitem.getEntryAttrib("SL910-SAPtoKheopsMapping/C01-KheopsAttributeCode");
+				var strAttrGroupName = checkString(oitem.getEntryAttrib("SL910-SAPtoKheopsMapping/C02-KheopsGroupingName"),"");
+				var bProdRelevant = checkString(oitem.getEntryAttrib("SL910-SAPtoKheopsMapping/C04-KheopsProdRelevant"),"");
+				var bBUnitRelevant = checkString(oitem.getEntryAttrib("SL910-SAPtoKheopsMapping/C05-KheopsBUnitRelevant"),"");
+				var bPItemRelevant = checkString(oitem.getEntryAttrib("SL910-SAPtoKheopsMapping/C06-KheopsPItemRelevant"),"");
+				if(bBUnitRelevant=="true" || bBUnitRelevant==true) {
+					attrBUnit.add(strTagName+"|"+strAttrKheopsCode+"|"+strAttrGroupName+"|"+strTagValue);
+					if(strTagName=="MATNR"){
+						strMaterialNumber=strTagValue;
+					}
+					if(strTagName=="NTGEW"){
+						strBUnitPoidsNet = strTagValue;
+						dBUnitPoidsNet = checkDouble(strBUnitPoidsNet, 0.0); 
+					}
+					if(strTagName=="MTART"){
+						strMaterialType=strTagValue;
+					}
+				}
+				if(bProdRelevant=="true" || bProdRelevant==true) {
+					attrProd.add(strTagName+"|"+strAttrKheopsCode+"|"+strAttrGroupName+"|"+strTagValue);
+				}
+				if(bPItemRelevant=="true" || bPItemRelevant==true) {
+					attrPItem.add(strTagName+"|"+strAttrKheopsCode+"|"+strAttrGroupName+"|"+strTagValue);
+				}
+				// out.writeln(strTagName+"|"+strAttrKheopsCode+"|"+strAttrGroupName+"|"+strTagValue);
+			}
+		}
+
+		if(strMaterialType!=null && (strMaterialType=="ZDI3" || strMaterialType=="ZDI5" ||strMaterialType=="ZFE1" ||strMaterialType=="ZHW1")) {
+			bRelavantMaterialType=true;
+		}
+
+		// EAN - Longueur - Largeur - BUnit
+		var strBUnitEAN11 = "";
+		var strBUnitEANCategory = "";
+		var strPItemEAN11 = "";
+		var strPItemEANCategory = "";
+		var strLongueur = "0";
+		var strLargeur = "0";
+		var bPItemExists = false;
+		var strPItemQuantityOfNextLowerLevel = "1";
+		var strPItemHeight = "0";
+		var dPItemHeight = 0.0;
+		var strPItemLargeur = "0";
+		var strPItemProfondeur = "0";
+		var strPItemPoidsBrut = "0";
+		var dPItemPoidsNet = 0.0;
+		var strPItemVolumeBrut = "0";
+		var nNodeConversionsGroups=xmlDoc.getXMLNodes("IDOC/E1MARAM/E1MARMM");
+		for(var i=0;i<nNodeConversionsGroups.size();i++) {
+			var nNodeConversionsGroup = nNodeConversionsGroups[i];
+			var strEANTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("EAN11"),"");
+			var strEANCategoryTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("NUMTP"),"");
+			var strConvType = checkString(nNodeConversionsGroup.getXMLNodeValue("MEINH"),"");
+			var strLargeurTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("BREIT"),"");
+			var strLongueurTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("LAENG"),"");
+			var strQuantityOfNextLowerLevelTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("UMREZ"),"");
+			var strPItemHeightTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("HOEHE"),"");
+			// var strPItemPoidsNetTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("NTGEW"),"");
+			var strPItemPoidsBrutTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("BRGEW"),"");
+			var strPItemVolumeBrutTemp = checkString(nNodeConversionsGroup.getXMLNodeValue("VOLUM"),"");
+			
+			if(checkString(strEANTemp,"")!="" && strConvType=="PCE") {
+				strBUnitEAN11 = strEANTemp;
+			}
+			if(checkString(strEANCategoryTemp,"")!="" && strConvType=="PCE") {
+				strBUnitEANCategory = strEANCategoryTemp;
+			}
+			if(checkString(strLargeurTemp,"")!="" && strConvType=="PCE") {
+				strLargeur = strLargeurTemp;
+			}
+			if(checkString(strLargeurTemp,"")!="" && strConvType=="PF") {
+				strPItemLargeur = strLargeurTemp;
+			}
+			if(checkString(strLongueurTemp,"")!="" && strConvType=="PCE") {
+				strLongueur = strLongueurTemp;
+			}
+			if(checkString(strLongueurTemp,"")!="" && strConvType=="PF") {
+				strPItemProfondeur = strLongueurTemp;
+			}
+			if(checkString(strPItemHeightTemp,"")!="" && strConvType=="PF") {
+				strPItemHeight = strPItemHeightTemp;
+				if(strPItemHeightTemp>0) {
+					dPItemHeight = toDouble(roundNum(strPItemHeightTemp,0.01))/100;
+				}
+			}
+			// if(checkString(strPItemPoidsNetTemp,"")!="" && strConvType=="PF") {
+			//	strPItemPoidsNet = strPItemPoidsNetTemp;
+			// }
+			if(checkString(strPItemPoidsBrutTemp,"")!="" && strConvType=="PF") {
+				strPItemPoidsBrut = strPItemPoidsBrutTemp;
+			}
+			if(checkString(strPItemVolumeBrutTemp,"")!="" && strConvType=="PF") {
+				strPItemVolumeBrut = strPItemVolumeBrutTemp;
+			}
+			if(checkString(strEANTemp,"")!="" && strConvType=="PF") {
+				strPItemEAN11 = strEANTemp;
+			}
+			if(checkString(strEANCategoryTemp,"")!="" && strConvType=="PF") {
+				strPItemEANCategory = strEANCategoryTemp;
+			}
+			if(checkString(strQuantityOfNextLowerLevelTemp,"")!="" && strConvType=="PF") {
+				strPItemQuantityOfNextLowerLevel = strQuantityOfNextLowerLevelTemp;
+				var iPItemQuantityOfNextLowerLevel = checkInt(strPItemQuantityOfNextLowerLevel,0);
+				// Gestion du poids net pour le PItem
+				if(dBUnitPoidsNet>0) {
+					dPItemPoidsNet = iPItemQuantityOfNextLowerLevel*dBUnitPoidsNet;
+				}
+			}
+			if(strConvType=="PF" && bPItemExists==false) {
+				bPItemExists=true;
+			}
+		}
+
+		// logDebug("strBUnitEAN11="+strBUnitEAN11);
+		// logDebug("strPItemEAN11="+strPItemEAN11);
+		// logDebug("strBUnitEANCategory="+strBUnitEANCategory);
+		// logDebug("strPItemEANCategory="+strPItemEANCategory);
+
+		var btestLibelle=false;
+		var strLibelleLong="";
+		var strLibelleLongEN="";
+		// Attributs Libellés
+		var nNodeContryGroups=xmlDoc.getXMLNodes("IDOC/E1MARAM/E1MAKTM");
+		for(var i=0;i<nNodeContryGroups.size();i++) {
+			var nNodeContryGroup = nNodeContryGroups[i];
+			var strLibelle = checkString(nNodeContryGroup.getXMLNodeValue("MAKTX"),"");
+			var strCountryCode = checkString(nNodeContryGroup.getXMLNodeValue("SPRAS_ISO"),"");
+			if(strLibelle!="" && strCountryCode!="") {
+				attrCountryGroup.add(strCountryCode+"|"+strLibelle);
+				if(strCountryCode=="FR") {
+					strLibelleLong=strLibelle;
+				}
+				if(strCountryCode=="EN") {
+					strLibelleLongEN=strLibelle;
+				}
+			}
+		}
+		if(strLibelleLong=="" && strLibelleLongEN!="") {
+			strLibelleLong=strLibelleLongEN;
+		}
+
+		var strSalesOrgaCode = "";
+		var strSalesOrgaDistributionChannel = "";
+		var strSalesOrgaDistributionChannelStatus = "";
+		var strSalesOrgaDistributionChannelStatusValidFrom = "";
+		var strSalesOrgaBrandCode = "";
+		var strSalesOrgaProfile = "";
+		var strSalesOrgaBusinessUnit = "";
+		var strSalesOrgaMaterialGroup5 = "";
+		var strOrderQuantityMultiple = "";
+		var iOrderQuantityMultiple = 0;
+		var strTotalQuantityOfNextLowerLevelTradeItem = "";
+		var iTotalQuantityOfNextLowerLevelTradeItem = 0;
+		// Attributs Sales Orga
+		var nNodeSalesOrgaGroups=xmlDoc.getXMLNodes("IDOC/E1MARAM/E1MVKEM");
+		for(var i=0;i<nNodeSalesOrgaGroups.size();i++) {
+			var nNodeSalesOrgaGroup = nNodeSalesOrgaGroups[i];
+			strSalesOrgaCode = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("VKORG"),"");
+			if(strSalesOrgaCode=="9501" || strSalesOrgaCode=="9502" || strSalesOrgaCode=="9503" || strSalesOrgaCode=="9504" || strSalesOrgaCode=="9505") {
+				strSalesOrgaDistributionChannel = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("VTWEG"),"");
+				strSalesOrgaDistributionChannelStatus = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("VMSTA"),"");
+				strSalesOrgaDistributionChannelStatusValidFrom = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("VMSTD"),""); // Format yyyyMMdd
+				strSalesOrgaBrandCode = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("MVGR1"),"");
+				strSalesOrgaProfile = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("MVGR2"),"");
+				strSalesOrgaBusinessUnit = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("MVGR4"),"");
+				strSalesOrgaMaterialGroup5 = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("MVGR5"),"");
+				strOrderQuantityMultiple = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("SCMNG"),"");
+				if(strOrderQuantityMultiple!=""){
+					iOrderQuantityMultiple=toInteger(strOrderQuantityMultiple);
+				}
+				strTotalQuantityOfNextLowerLevelTradeItem = checkString(nNodeSalesOrgaGroup.getXMLNodeValue("AUMNG"),"");
+				if(strTotalQuantityOfNextLowerLevelTradeItem!=""){
+					iTotalQuantityOfNextLowerLevelTradeItem=toInteger(strTotalQuantityOfNextLowerLevelTradeItem);
+				}
+				//
+				attrSalesOrga.add(strSalesOrgaCode+"|"+strSalesOrgaDistributionChannel+"|"+strSalesOrgaDistributionChannelStatus+"|"+strSalesOrgaDistributionChannelStatusValidFrom);
+				//
+				if(strSalesOrgaDistributionChannelStatus=="" || strSalesOrgaDistributionChannelStatus=="YU"){
+					bRelavantSaleOrga=true;
+				}
+			}
+		}
+
+		// Delai reappro - PlaceOfStorage / Intrastat code
+		var strBUnitDelaiReappro= "[99] - J+Y";
+		var strIntrastatCode = "";
+		var nNodeSalesOrga2Groups=xmlDoc.getXMLNodes("IDOC/E1MARAM/E1MARCM");
+		for(var i=0;i<nNodeSalesOrga2Groups.size();i++) {
+			var nNodeSalesOrga2Group = nNodeSalesOrga2Groups[i];
+			var strBUnitDelaiReapproTemp = checkString(nNodeSalesOrga2Group.getXMLNodeValue("WZEIT"),"");
+			var strBUnitPlaceOfStorageTemp = checkString(nNodeSalesOrga2Group.getXMLNodeValue("WERKS"),"");
+			//
+			var strIntrastatCodeTemp = checkString(nNodeSalesOrga2Group.getXMLNodeValue("STAWN"),"");
+			if(strIntrastatCodeTemp!="" && strIntrastatCode=="") {
+				strIntrastatCode = strIntrastatCodeTemp;
+			}
+			//
+			if(strBUnitDelaiReapproTemp!="" && (strBUnitPlaceOfStorageTemp=="9501" || strBUnitPlaceOfStorageTemp=="9502" || strBUnitPlaceOfStorageTemp=="9503" || strBUnitPlaceOfStorageTemp=="9504" || strBUnitPlaceOfStorageTemp=="9505")) {
+				if(strBUnitDelaiReapproTemp=="0" || strBUnitDelaiReapproTemp=="99") {
+					strBUnitDelaiReappro= "[99] - J+Y";
+				}
+				else if(strBUnitDelaiReapproTemp=="98") {
+					strBUnitDelaiReappro= "[98] - J+X";
+				}
+				else if(strBUnitDelaiReapproTemp=="2" || strBUnitDelaiReapproTemp=="3" || strBUnitDelaiReapproTemp=="4" || strBUnitDelaiReapproTemp=="5" || strBUnitDelaiReapproTemp=="6" || strBUnitDelaiReapproTemp=="7" || strBUnitDelaiReapproTemp=="8" || strBUnitDelaiReapproTemp=="9" || strBUnitDelaiReapproTemp=="10" || strBUnitDelaiReapproTemp=="11" || strBUnitDelaiReapproTemp=="12" || strBUnitDelaiReapproTemp=="13" || strBUnitDelaiReapproTemp=="14" || strBUnitDelaiReapproTemp=="15") {
+					strBUnitDelaiReappro = concat("[",strBUnitDelaiReapproTemp,"] - J+",strBUnitDelaiReapproTemp);
+				}
+			}
+		}	
+
+		var strERPCodeExistsInKheops = "";
+		if(strMaterialNumber!="") {
+			strERPCodeExistsInKheops=getPrimaryKeyFromSAPCode(strMaterialNumber);
+		}
+
+		// If item relevant (SaleOrga + MaterialType)
+		if (bRelavantSaleOrga==true && bRelavantMaterialType==true) {
+			// ERPCode vide = new BUnit
+			// ERPCode renseigné = Mise à jour 
+
+			if(strERPCode=="") {
+				if(strERPCodeExistsInKheops=="") {
+					// **************************
+					// Création du niveau Produit
+					// **************************
+					var oProd = new CtgItem(catalog, false, false, false);
+					var sERPCodeProd = allocateC805ERPCode(containerCode, typeProd);
+					oProd.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCodeProd);
+					if(strLibelleLong!="") {
+						oProd.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", strLibelleLong + " - A modifier");
+					} else {
+						oProd.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - A compléter");
+					}
+					oProd.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[ACTIVE] - Actif");
+					oProd.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+					oProd.setEntryAttrib("/SC000-GlobPrim/01AC0006-CreationDate",dCurrentDate);
+					oProd.setEntryAttrib("/SC000-GlobPrim/01AC0005-CreationUser", "Admin - SAP 2 Kheops Interface");
+					
+					oProd.mapCtgItemToCategory(catProd);
+					
+					getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initializeTargetSystemGroup").invoke(oProd);
+					
+					// Initialisation des valeurs à l'aide des règles d'initialisation
+					var aAttribToRunInitialRulesOnProd=[];
+					var sSrcAttribsProd=oProd.getEntryAttribsList();
+					var oKey;
+					var oValue;
+					forEachHmElement(sSrcAttribsProd,oKey,oValue){
+						sSrcAttribsProd[oKey]=oValue;
+					}
+					forEachHmElement(sSrcAttribsProd,oKey,oValue){
+						if(getRidOfRootName(oValue)!="01AC0044-ERPCode" && getRidOfRootName(oValue)!="99CTL100-ParentItem" && getRidOfRootName(oValue)!="01AC0548-Status" && getRidOfRootName(oValue)!="01AC0012-LongName" && getRidOfRootName(oValue)!="99CTL010-RevNum") {
+							aAttribToRunInitialRulesOnProd.add(oValue);
+						}
+					}
+					getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oProd,aAttribToRunInitialRulesOnProd);
+
+					// **************************
+					// Creation du Prod à l'aide des données du flux SAP vers Kheops
+					// **************************
+					for(var j=0;j<attrProd.size();j++) {
+						var sapdatatemp = checkString(attrProd[j],"");
+						if(sapdatatemp!="") {
+							var asapdata = sapdatatemp.parseDelim( "|");
+							if(asapdata!=null) {
+								attrName=checkString(asapdata[1],"");
+								attrGroupName=checkString(asapdata[2],"");
+								attrValue=checkString(asapdata[3],"");						
+								if(attrName!="") {
+									var oNode = oProdSpec.getNodeByPath(strCatalogProdSpecName+"/"+attrName);
+									if(oNode!=null) {
+										attrType=oNode.getNodeAttributeValue("TYPE");
+										if(attrType=="LOOKUP_TABLE") {
+											var strLookupTableName=oNode.getNodeLookupTableName();
+											// out.writeln("strLookupTableName="+strLookupTableName);
+											var strLkpPrimaryKey="";
+											if(strLookupTableName=="T006A-Units of measure") {
+												var strAttrSAPCode="C01-PrimaryCode";
+												// strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+												strLkpPrimaryKey="ST";
+												if(strLkpPrimaryKey!="") {
+													if(attrGroupName=="") {
+														oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, strLkpPrimaryKey);
+													}
+													else {
+														oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+													}
+												}
+											}
+											else if(strLookupTableName.startsWith("T")) {
+												if(attrGroupName=="") {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+												}
+												else {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+												}
+											}
+										}
+										else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+											var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+											if(attrValue.length() > nodelength) {
+												errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+											}
+											else {
+												if(attrGroupName=="") {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+												}
+												else {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+												}
+											}
+										}
+										else if(attrType=="NUMBER" || attrType=="INTEGER"){
+											if(attrGroupName=="") {
+												oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+											}
+											else {
+												oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+											}
+										}
+										else if(attrType=="DATE"){
+											if(attrValue!="" && attrValue!="00000000") {
+												var dAttrValue = new Date("yyyyMMdd", attrValue);
+												if(attrGroupName=="") {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, dAttrValue);
+												}
+												else {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}		
+					
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0020-UnitDescriptor", "[MODEL] - Produit / Modèle");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0775-PublishedIntoSAP","false");	
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0668-EANCategory", "XA");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0664-MaterialNumber", "");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/04CP0081-CommercialThicknessUnits","");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/04CP0097-WidthUnit", "[MMT] - Millimètre");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/07MO0487-ShelfLifeUnit", "[DAY] - Jour");
+					if(strLibelleLong.length()<=35) {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0014-invoiceName",strLibelleLong);
+					}
+					
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/ChannelOfDistributionGroup#0/06DN0422-ChannelOfDistribution","[01] - Negoce");
+					oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/ChannelOfDistributionGroup#0/06DN0346-IsInCatalog","false");
+
+					if(strSalesOrgaProfile!="") {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+					}
+					if(strSalesOrgaBusinessUnit!="") {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+					}
+					if(strSalesOrgaMaterialGroup5!="") {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+					}			
+					if(strIntrastatCode!="") {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/06DN0774-IntrastatCode", strIntrastatCode);
+					}
+					
+					// Définition de la marque
+					var strBrandNameValue="";
+					if(strSalesOrgaBrandCode=="XAZ") {
+						strBrandNameValue="[1008] - BLUCLAD";
+					}
+					else if(strSalesOrgaBrandCode=="AB3") {
+						strBrandNameValue="[9998] - NIDA";
+					}
+					else if(strSalesOrgaBrandCode=="GD1") {
+						strBrandNameValue="[151] - SINIAT UK";
+					}
+					else if(strSalesOrgaBrandCode=="XAX") {
+						strBrandNameValue="[1010] - DURIPANEL";
+					}
+					else if(strSalesOrgaBrandCode=="XAY") {
+						strBrandNameValue="[1009] - HYDROPANEL";
+					}
+					else if(strSalesOrgaBrandCode=="XBK") {
+						strBrandNameValue="[75] - PREGYMETAL";
+					}
+					else if(strSalesOrgaBrandCode=="XC2") {
+						strBrandNameValue="[93] - PREGYDRO";
+					}
+					else if(strSalesOrgaBrandCode=="XBT") {
+						strBrandNameValue="[87] - PREGY";
+					}
+					else if(strSalesOrgaBrandCode=="XCV") {
+						strBrandNameValue="[1007] - SlimVac";
+					}
+					else if(strSalesOrgaBrandCode=="XDG") {
+						strBrandNameValue="[1012] - EQUITONE";
+					}
+					else if(strSalesOrgaBrandCode=="AA0") {
+						strBrandNameValue="[9992] - Sans marque";
+					}
+					if(checkString(strBrandNameValue,"")!="") {
+						oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0036-brandName", strBrandNameValue);
+						
+						// Génération du GTIN
+						// var lengthSequence = "6";
+						// var lkpMarqueCialeDetenteur = getLkpByName("L103-Marque ciale Detenteur - Brand name");  
+						// var lkpMarqueCialeDetenteurValues=lookupValues(lkpMarqueCialeDetenteur,strBrandNameValue);
+						// if(checkString(lkpMarqueCialeDetenteurValues[3],"")!="") {
+						//	var sCNUF = lkpMarqueCialeDetenteurValues[3];               
+						//	if (sCNUF!= null && sCNUF != ""){
+						//		var lCountGLIN=getScriptByPath("/scripts/triggers/LG.Business.Rules").getFunctionByName("getNewGLINCount").invoke(sCNUF);						
+						//		if (lCountGLIN != -1){
+						//			var ScodeGLIN=getScriptByPath("/scripts/triggers/LG.Business.Rules").getFunctionByName("genereGLINCode").invoke("3",sCNUF,lCountGLIN,lengthSequence);
+						//			if(ScodeGLIN!="") {
+						//				oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0042-GTIN", ScodeGLIN);
+						//			}
+						//		}
+						//	}
+						// }
+					}
+
+					var test = oProd.saveCtgItem();
+					out.writeln(test);
+					
+					// **************************
+					// Création du niveau BUnit
+					// **************************
+					var oBUnit = new CtgItem(catalog, false, false, false);
+					var sERPCodeBUnit = allocateC805ERPCode(containerCode, typeBUnit);
+					oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCodeBUnit);
+					if(strLibelleLong!="") {
+						oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", strLibelleLong + " - A modifier");
+					} else {
+						oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - A compléter");
+					}
+					oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[ACTIVE] - Actif");
+					oBUnit.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+					oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0006-CreationDate",dCurrentDate);
+					oBUnit.setEntryAttrib("/SC000-GlobPrim/01AC0005-CreationUser", "Admin");
+					
+					oBUnit.mapCtgItemToCategory(catBUnit);
+					
+					getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initializeTargetSystemGroup").invoke(oBUnit);
+					
+					// Initialisation des valeurs à l'aide des règles d'initialisation
+					var aAttribToRunInitialRulesOnBUnit=[];
+					var sSrcAttribsBUnit=oBUnit.getEntryAttribsList();
+					var oKey;
+					var oValue;
+					forEachHmElement(sSrcAttribsBUnit,oKey,oValue){
+						sSrcAttribsBUnit[oKey]=oValue;
+					}
+					forEachHmElement(sSrcAttribsBUnit,oKey,oValue){
+						if(getRidOfRootName(oValue)!="01AC0044-ERPCode" && getRidOfRootName(oValue)!="99CTL100-ParentItem" && getRidOfRootName(oValue)!="01AC0548-Status" && getRidOfRootName(oValue)!="01AC0012-LongName" && getRidOfRootName(oValue)!="99CTL010-RevNum") {
+							aAttribToRunInitialRulesOnBUnit.add(oValue);
+						}
+					}
+					getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oBUnit,aAttribToRunInitialRulesOnBUnit);
+					
+					// Rattachement Bunit au Prod
+					oBUnit.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oProd);
+
+					// **************************
+					// Mise à jour de la BUnit à l'aide des données du flux SAP vers Kheops
+					// **************************
+					for(var j=0;j<attrBUnit.size();j++) {
+						var sapdatatemp = checkString(attrBUnit[j],"");
+						if(sapdatatemp!="") {
+							var asapdata = sapdatatemp.parseDelim( "|");
+							if(asapdata!=null) {
+								attrName=checkString(asapdata[1],"");
+								attrGroupName=checkString(asapdata[2],"");
+								attrValue=checkString(asapdata[3],"");						
+								if(attrName!="") {
+									var oNode = oBUnitSpec.getNodeByPath(strCatalogBUnitSpecName+"/"+attrName);
+									if(oNode!=null) {
+										attrType=oNode.getNodeAttributeValue("TYPE");
+										if(attrType=="LOOKUP_TABLE") {
+											var strLookupTableName=oNode.getNodeLookupTableName();
+											// out.writeln("strLookupTableName="+strLookupTableName);
+											var strLkpPrimaryKey="";
+											if(strLookupTableName=="T006A-Units of measure") {
+												var strAttrSAPCode="C01-PrimaryCode";
+												// strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+												strLkpPrimaryKey="ST";
+												if(strLkpPrimaryKey!="") {
+													if(attrGroupName=="") {
+														oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, strLkpPrimaryKey);
+													}
+													else {
+														oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+													}
+												}
+											}
+											else if(strLookupTableName.startsWith("T")) {
+												if(attrGroupName=="") {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+												}
+												else {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+												}
+											}
+										}
+										else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+											var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+											if(attrValue.length() > nodelength) {
+												errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+											}
+											else {
+												if(attrGroupName=="") {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+												}
+												else {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+												}
+											}
+										}
+										else if(attrType=="NUMBER" || attrType=="INTEGER"){
+											if(attrGroupName=="") {
+												oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+											}
+											else {
+												oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+											}
+										}
+										else if(attrType=="DATE"){
+											if(attrValue!="" && attrValue!="00000000") {
+												var dAttrValue = new Date("yyyyMMdd", attrValue);
+												if(attrGroupName=="") {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, dAttrValue);
+												}
+												else {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					
+					// CountryGroup
+					var countrygroupcode="";
+					var countrygrouplibelle="";
+					for(var j=0;j<attrCountryGroup.size();j++) {
+						var countrygroupdatatemp = checkString(attrCountryGroup[j],"");
+						if(countrygroupdatatemp!="") {
+							var acountrygroupsapdata = countrygroupdatatemp.parseDelim( "|");
+							if(acountrygroupsapdata!=null) {
+								countrygroupcode=checkString(acountrygroupsapdata[0],"");
+								countrygrouplibelle=checkString(acountrygroupsapdata[1],"");
+								
+								if(countrygroupcode!="" && countrygrouplibelle!="") {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/CountryGroup#"+j+"/06DN0419-Country", countrygroupcode);
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/CountryGroup#"+j+"/06DN0420-TranslatedInvoiceName", countrygrouplibelle);
+								}
+							}
+						}
+					}
+					
+					// SalesOrga
+					var salesorgacode="";
+					var salesorgadistrchannel="";
+					var salesorgadistrchannelstatus="";
+					var salesorgadistrchannelstatusvalidfrom="";
+					var dsalesorgadistrchannelstatusvalidfrom;
+					for(var k=0;k<attrSalesOrga.size();k++) {
+						var salesorgagroupdatatemp = checkString(attrSalesOrga[k],"");
+						if(salesorgagroupdatatemp!="") {
+							var asalesorgagroupsapdata = salesorgagroupdatatemp.parseDelim( "|");
+							if(asalesorgagroupsapdata!=null) {
+								salesorgacode=checkString(asalesorgagroupsapdata[0],"");
+								salesorgadistrchannel=checkString(asalesorgagroupsapdata[1],"");
+								salesorgadistrchannel = concat(salesorgacode,"-",salesorgadistrchannel);
+								salesorgadistrchannelstatus=checkString(asalesorgagroupsapdata[2],"");
+								salesorgadistrchannelstatusvalidfrom=checkString(asalesorgagroupsapdata[3],"");
+								if(salesorgadistrchannelstatusvalidfrom!=""){
+									dsalesorgadistrchannelstatusvalidfrom=new Date("yyyyMMdd", salesorgadistrchannelstatusvalidfrom);
+								}
+								//
+								if(salesorgacode!="") {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+k+"/10GC0725-SalesOrganisation", salesorgacode);
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+k+"/10GC0726-DistributionChannel", salesorgadistrchannel);
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+k+"/10GC0733-DistrChannelStatus", salesorgadistrchannelstatus);
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+k+"/10GC0734-DistrChannelStatusValidFrom", dsalesorgadistrchannelstatusvalidfrom);
+								}
+							}
+						}
+					}
+					
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0020-UnitDescriptor", "[BASE_UNIT_OR_EACH] - Unité consommateur / Unité de base");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0097-WidthUnit", "[MMT] - Millimètre");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0104-LengthUnits", "[MMT] - Millimètre");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0775-PublishedIntoSAP","true");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0356-ItemBillable","false");
+					if(strLibelleLong.length()<=35) {
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0014-invoiceName",strLibelleLong);
+					}
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/ChannelOfDistributionGroup#0/06DN0422-ChannelOfDistribution","[01] - Negoce");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/ChannelOfDistributionGroup#0/06DN0346-IsInCatalog","false");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/10GC0747-TotalReplenishmentLeadTime",strBUnitDelaiReappro);
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0347-TradeItemOrderable","true");
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0351-orderQuantityMultiple",iOrderQuantityMultiple);
+					oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0352-orderQuantityMini",iTotalQuantityOfNextLowerLevelTradeItem);
+					
+					if(strBUnitEAN11!=""){
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0042-GTIN",strBUnitEAN11);
+					}
+					if(strBUnitEANCategory!=""){
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0668-EANCategory",strBUnitEANCategory);
+					}
+					if(strLargeur!=""){
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0095-Width",strLargeur);
+					}
+					if(strLongueur!=""){
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0103-Length",strLongueur);
+					}
+					
+					if(strSalesOrgaProfile!="") {
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+					}
+					if(strSalesOrgaBusinessUnit!="") {
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+					}
+					if(strSalesOrgaMaterialGroup5!="") {
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+					}	
+					
+					if(strIntrastatCode!="") {
+						oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0774-IntrastatCode", strIntrastatCode);
+					}
+					
+					var test = oBUnit.saveCtgItem();
+					if(test==null || test=="") {
+						// out.writeln("Envoi notification de l'import de la référence SAP");
+						sendEmail(strMailto,"Notification de création de la référence SAP "+deletezero(strMaterialNumber), "La référence "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a bien été importée dans Kheops.\n\nLe code Kheops correspondant est le "+sERPCodeBUnit+".\n\n"+strKheopsURL); 
+						//
+						logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | La référence "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a bien été importée dans Kheops. Le code Kheops correspondant est le "+sERPCodeBUnit+".");
+					}
+					
+					// ********************************************************
+					// Création du niveau PItem -- Uniquement si palette existe
+					// ********************************************************
+					if(bPItemExists==true) {
+						var oPItem = new CtgItem(catalog, false, false, false);
+						var sERPCodePItem = allocateC805ERPCode(containerCode, typePItem);
+						oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCodePItem);
+						if(strLibelleLong!="") {
+							oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", strLibelleLong + " - A modifier");
+						} else {
+							oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - A compléter");
+						}
+						oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[ACTIVE] - Actif");
+						oPItem.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+						oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0006-CreationDate",dCurrentDate);
+						oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0005-CreationUser", "Admin");
+						
+						oPItem.mapCtgItemToCategory(catPItem);
+						
+						getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initializeTargetSystemGroup").invoke(oPItem);
+						
+						// Initialisation des valeurs à l'aide des règles d'initialisation
+						var aAttribToRunInitialRulesOnPItem=[];
+						var sSrcAttribsPItem=oPItem.getEntryAttribsList();
+						var oKey;
+						var oValue;
+						forEachHmElement(sSrcAttribsPItem,oKey,oValue){
+							sSrcAttribsPItem[oKey]=oValue;
+						}
+						forEachHmElement(sSrcAttribsPItem,oKey,oValue){
+							if(getRidOfRootName(oValue)!="01AC0044-ERPCode" && getRidOfRootName(oValue)!="99CTL100-ParentItem" && getRidOfRootName(oValue)!="01AC0548-Status" && getRidOfRootName(oValue)!="01AC0012-LongName" && getRidOfRootName(oValue)!="99CTL010-RevNum") {
+								aAttribToRunInitialRulesOnPItem.add(oValue);
+							}
+						}
+						getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oPItem,aAttribToRunInitialRulesOnPItem);
+						
+						// Rattachement PItem à la Bunit
+						oPItem.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oBUnit);
+						
+						// **************************
+						// Mise à jour de la PItem à l'aide des données du flux SAP vers Kheops
+						// **************************
+						for(var j=0;j<attrPItem.size();j++) {
+							var sapdatatemp = checkString(attrPItem[j],"");
+							if(sapdatatemp!="") {
+								var asapdata = sapdatatemp.parseDelim( "|");
+								if(asapdata!=null) {
+									attrName=checkString(asapdata[1],"");
+									attrGroupName=checkString(asapdata[2],"");
+									attrValue=checkString(asapdata[3],"");						
+									if(attrName!="") {
+										var oNode = oPItemSpec.getNodeByPath(strCatalogPItemSpecName+"/"+attrName);
+										if(oNode!=null) {
+											attrType=oNode.getNodeAttributeValue("TYPE");
+											if(attrType=="LOOKUP_TABLE") {
+												var strLookupTableName=oNode.getNodeLookupTableName();
+												// out.writeln("strLookupTableName="+strLookupTableName);
+												var strLkpPrimaryKey="";
+												if(strLookupTableName=="T006A-Units of measure") {
+													var strAttrSAPCode="C01-PrimaryCode";
+													// strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+													strLkpPrimaryKey="ST";
+													if(strLkpPrimaryKey!="") {
+														if(attrGroupName=="") {
+															oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, strLkpPrimaryKey);
+														}
+														else {
+															oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+														}
+													}
+												}
+												else if(strLookupTableName.startsWith("T")) {
+													if(attrGroupName=="") {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+													}
+													else {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+											}
+											else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+												var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+												if(attrValue.length() > nodelength) {
+													errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+												}
+												else {
+													if(attrGroupName=="") {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+													}
+													else {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+											}
+											else if(attrType=="NUMBER" || attrType=="INTEGER"){
+												if(attrGroupName=="") {
+													oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+												}
+												else {
+													oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+												}
+											}
+											else if(attrType=="DATE"){
+												if(attrValue!="" && attrValue!="00000000") {
+													var dAttrValue = new Date("yyyyMMdd", attrValue);
+													if(attrGroupName=="") {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, dAttrValue);
+													}
+													else {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						
+						// CountryGroup
+						var countrygroupcode="";
+						var countrygrouplibelle="";
+						for(var j=0;j<attrCountryGroup.size();j++) {
+							var countrygroupdatatemp = checkString(attrCountryGroup[j],"");
+							if(countrygroupdatatemp!="") {
+								var acountrygroupsapdata = countrygroupdatatemp.parseDelim( "|");
+								if(acountrygroupsapdata!=null) {
+									countrygroupcode=checkString(acountrygroupsapdata[0],"");
+									countrygrouplibelle=checkString(acountrygroupsapdata[1],"");
+									
+									if(countrygroupcode!="" && countrygrouplibelle!="") {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/CountryGroup#"+j+"/06DN0419-Country", countrygroupcode);
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/CountryGroup#"+j+"/06DN0420-TranslatedInvoiceName", countrygrouplibelle);
+									}
+								}
+							}
+						}
+						
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0020-UnitDescriptor", "[PALLET] - Palette homogène standard");
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0405-quantityOfNextLowerLevel",strPItemQuantityOfNextLowerLevel);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0775-PublishedIntoSAP","false");
+						if(strLibelleLong.length()<=35) {
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0014-invoiceName",strLibelleLong);
+						}
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0356-ItemBillable",false);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/ChannelOfDistributionGroup#0/06DN0422-ChannelOfDistribution","[01] - Negoce");
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/ChannelOfDistributionGroup#0/06DN0346-IsInCatalog","false");
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/10GC0747-TotalReplenishmentLeadTime",strBUnitDelaiReappro);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0661-BaseUnitOfMeasure","ST");
+						// oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0407-TotalQuantityOfNextLowerLevel",iTotalQuantityOfNextLowerLevelTradeItem);
+						
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0115-HeightUnits","[MMT] - Millimètre");
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0120-PItemWidthUnits","[MMT] - Millimètre");
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0117-DepthUnits","[MMT] - Millimètre");
+						
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0114-Height",dPItemHeight);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0118-PItemWidth",strPItemLargeur);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0116-Depth",strPItemProfondeur);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0213-netWeight",dPItemPoidsNet);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0215-grossWeight",strPItemPoidsBrut);
+						oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0217-RoughVolume",strPItemVolumeBrut);			
+						
+						if(strPItemEAN11!=""){
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0042-GTIN",strPItemEAN11);
+						}
+						if(strPItemEANCategory!=""){
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0668-EANCategory",strPItemEANCategory);
+						}
+						
+						if(strSalesOrgaProfile!="") {
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+						}
+						if(strSalesOrgaBusinessUnit!="") {
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+						}
+						if(strSalesOrgaMaterialGroup5!="") {
+							oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+						}	
+						
+						// SalesOrga
+						var salesorgacode="";
+						var salesorgadistrchannel="";
+						var salesorgadistrchannelstatus="";
+						var salesorgadistrchannelstatusvalidfrom="";
+						var dsalesorgadistrchannelstatusvalidfrom;
+						for(var k=0;k<attrSalesOrga.size();k++) {
+							var salesorgagroupdatatemp = checkString(attrSalesOrga[k],"");
+							if(salesorgagroupdatatemp!="") {
+								var asalesorgagroupsapdata = salesorgagroupdatatemp.parseDelim( "|");
+								if(asalesorgagroupsapdata!=null) {
+									salesorgacode=checkString(asalesorgagroupsapdata[0],"");
+									salesorgadistrchannel=checkString(asalesorgagroupsapdata[1],"");
+									salesorgadistrchannel = concat(salesorgacode,"-",salesorgadistrchannel);
+									salesorgadistrchannelstatus=checkString(asalesorgagroupsapdata[2],"");
+									salesorgadistrchannelstatusvalidfrom=checkString(asalesorgagroupsapdata[3],"");
+									if(salesorgadistrchannelstatusvalidfrom!=""){
+										dsalesorgadistrchannelstatusvalidfrom=new Date("yyyyMMdd", salesorgadistrchannelstatusvalidfrom);
+									}
+									//
+									if(salesorgacode!="") {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0725-SalesOrganisation", salesorgacode);
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0726-DistributionChannel", salesorgadistrchannel);
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0733-DistrChannelStatus", salesorgadistrchannelstatus);
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0734-DistrChannelStatusValidFrom", dsalesorgadistrchannelstatusvalidfrom);
+									}
+								}
+							}
+						}
+						
+						var test = oPItem.saveCtgItem();
+						out.writeln(test);
+					}
+				}
+				else {
+					sendEmail(strMailto,"!!! Tentative d'ajout de la référence SAP "+deletezero(strMaterialNumber), "La référence SAP "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a été envoyée par SAP alors qu'un enregistrement Kheops existe déjà et que le code ERP n'est pas renseigné dans SAP.\n\n"+strKheopsURL); 
+					//
+					logDebug("!!! Tentative d'ajout de la référence SAP "+deletezero(strMaterialNumber));
+					//
+					logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | La référence SAP "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a été envoyée par SAP alors qu'un enregistrement Kheops existe déjà et que le code ERP n'est pas renseigné dans SAP.");
+				}
+			}
+			else {
+				if (strERPCode.contains("X805")) {
+					// Mise à jour des données transmises par le flux SAP vers Kheops pour la BUnit ainsi que pour le produit associé
+					// out.writeln("strERPCode="+strERPCode);
+					var strModificationList="";
+					var oBUnit = catalog.getEntryByPrimaryKey(strERPCode);
+					if(oBUnit!=null) {
+						// var oPItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oBUnit,"PItem");
+						var oPItem = getPItem(oBUnit);
+						var oProd = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oBUnit,"Prod");
+						if(oProd!=null) {
+							var btosave=false;
+							// **************************
+							// Mise à jour de la BUnit à l'aide des données du flux SAP vers Kheops
+							// **************************
+							for(var j=0;j<attrBUnit.size();j++) {
+								var sapdatatemp = checkString(attrBUnit[j],"");
+								if(sapdatatemp!="") {
+									var asapdata = sapdatatemp.parseDelim( "|");
+									if(asapdata!=null) {
+										attrName=checkString(asapdata[1],"");
+										attrGroupName=checkString(asapdata[2],"");
+										attrValue=checkString(asapdata[3],"");
+										if(attrName!="") {
+											var oNode = oBUnitSpec.getNodeByPath(strCatalogBUnitSpecName+"/"+attrName);
+											if(oNode!=null) {
+												attrType=oNode.getNodeAttributeValue("TYPE");
+												if(attrType=="LOOKUP_TABLE") {
+													var strLookupTableName=oNode.getNodeLookupTableName();
+													// out.writeln("strLookupTableName="+strLookupTableName);
+													var strLkpPrimaryKey="";
+													if(strLookupTableName=="T006A-Units of measure") {
+														var strAttrSAPCode="C01-PrimaryCode";
+														if(attrValue=="PCE") {
+															strLkpPrimaryKey="ST";
+														} else {
+															strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+														}
+														if(strLkpPrimaryKey!="") {
+															if(attrGroupName=="") {
+																var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName),"");
+																if(strItemAttrValue!=strLkpPrimaryKey) {
+																	btosave=true;
+																	strModificationList=strModificationList+" | "+attrName+" [ "+strItemAttrValue+" >> "+strLkpPrimaryKey+" ]";
+																	oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, strLkpPrimaryKey);
+																}
+															}
+															else {
+																oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+															}
+														}
+													}
+													else if(strLookupTableName.startsWith("T")) {
+														if(attrGroupName=="") {
+															var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName),"");
+															if(strItemAttrValue!=attrValue) {
+																btosave=true;
+																strModificationList=strModificationList+" | "+attrName+" [ "+strItemAttrValue+" >> "+attrValue+" ]";
+																oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+												}
+												else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+													var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+													if(attrValue.length() > nodelength) {
+														errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+													}
+													else {
+														if(attrGroupName=="") {
+															var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName),"");
+															if(strItemAttrValue!=attrValue) {
+																btosave=true;
+																strModificationList=strModificationList+" | "+attrName+" [ "+strItemAttrValue+" >> "+attrValue+" ]";
+																oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+												}
+												else if(attrType=="NUMBER"){
+													if(attrGroupName=="") {
+														var strItemAttrValue = oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName);
+														if(strItemAttrValue!=toDouble(attrValue)) {
+															btosave=true;
+															strModificationList=strModificationList+" | "+attrName+" [ "+strItemAttrValue+" >> "+toDouble(attrValue)+" ]";
+															
+															oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, toDouble(attrValue));
+														}
+													}
+													else {
+														oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+												else if(attrType=="INTEGER"){
+													if(attrGroupName=="") {
+														var strItemAttrValue = oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName);
+														if(strItemAttrValue!=toInteger(attrValue)) {
+															btosave=true;
+															strModificationList=strModificationList+" | "+attrName+" [ "+strItemAttrValue+" >> "+toInteger(attrValue)+" ]";
+															oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, attrValue);
+														}
+													}
+													else {
+														oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+												else if(attrType=="DATE"){
+													if(attrValue!="" && attrValue!="00000000") {
+														var dAttrValue = new Date("yyyyMMdd", attrValue);
+														if(attrGroupName=="") {
+															var dItemAttrValue = oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName);
+															if(dItemAttrValue!=dAttrValue) {
+																btosave=true;
+																strModificationList=strModificationList+" | "+attrName+" [ "+dItemAttrValue.formatDate("dd/MM/yyyy")+" >> "+dAttrValue.formatDate("dd/MM/yyyy")+" ]";
+																oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrName, dAttrValue);
+															}
+														}
+														else {
+															oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							 
+							// CountryGroup
+							var iCountryGroupLen = 0;
+							var strCountry = "";
+							var CountryGroup = getEn(hmGlobals,oBUnit,"CountryGroup");
+							var countrygroupcode="";
+							var countrygrouplibelle="";
+							for(var j=0;j<attrCountryGroup.size();j++) {
+								var bFound=false;
+								var countrygroupdatatemp = checkString(attrCountryGroup[j],"");
+								if(countrygroupdatatemp!="") {
+									var acountrygroupsapdata = countrygroupdatatemp.parseDelim( "|");
+									if(acountrygroupsapdata!=null) {
+										countrygroupcode=checkString(acountrygroupsapdata[0],"");
+										countrygrouplibelle=checkString(acountrygroupsapdata[1],"");
+										
+										if(countrygroupcode!="" && countrygrouplibelle!="") {
+											if(CountryGroup!=null) {
+												iCountryGroupLen = CountryGroup.size();
+												for(l=0;l<iCountryGroupLen;l++) {
+													if(bFound==false) {
+														var oCountry = getEn(hmGlobals,oBUnit,"CountryGroup#"+l+"/06DN0419-Country");
+														if(oCountry!=null) {
+															var strCountry = checkString(oCountry[0].getEntryNodeValue(),"");
+															if(strCountry==countrygroupcode) {
+																bFound=true;
+																var oTranslatedInvoiceNameEn = getEn(hmGlobals,oBUnit,"CountryGroup#"+l+"/06DN0420-TranslatedInvoiceName");
+																if(oTranslatedInvoiceNameEn!=null) {
+																	var strItemTranslatedInvoiceName = oTranslatedInvoiceNameEn[0].getEntryNodeValue();
+																	if(strItemTranslatedInvoiceName!=countrygrouplibelle) {
+																		strModificationList=strModificationList+" | Libellé facture traduit "+countrygroupcode+" [ "+strItemTranslatedInvoiceName+" >> "+countrygrouplibelle+" ]";
+																		btosave=true;
+																		oTranslatedInvoiceNameEn[0].setEntryNodeValue(countrygrouplibelle);
+																	}
+																}
+															}
+														}
+													}
+												}
+												if(bFound==false) {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0419-Country", countrygroupcode);
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0420-TranslatedInvoiceName", countrygrouplibelle);
+													btosave=true;
+												}
+											}
+										}
+									}
+								}
+							}
+
+							// SalesOrgaGroup
+							var iSalesOrgaGroupLen = 0;
+							var strSalesOrgaCode = "";
+							var SalesOrganisationGroup = getEn(hmGlobals,oBUnit,"SalesOrganisationGroup");
+							var salesorgacode="";
+							var salesorgadistrchannel="";
+							var salesorgadistrchannelstatus="";
+							var salesorgadistrchannelstatusvalidfrom="";
+							var dsalesorgadistrchannelstatusvalidfrom;
+							for(var j=0;j<attrSalesOrga.size();j++) {
+								var bFound=false;
+								var salesorgagroupdatatemp = checkString(attrSalesOrga[j],"");
+								if(salesorgagroupdatatemp!="") {
+									var asalesorgagroupsapdata = salesorgagroupdatatemp.parseDelim( "|");
+									if(asalesorgagroupsapdata!=null) {
+										salesorgacode=checkString(asalesorgagroupsapdata[0],"");
+										salesorgadistrchannel=checkString(asalesorgagroupsapdata[1],"");
+										salesorgadistrchannel = concat(salesorgacode,"-",salesorgadistrchannel);
+										salesorgadistrchannelstatus=checkString(asalesorgagroupsapdata[2],"");
+										salesorgadistrchannelstatusvalidfrom=checkString(asalesorgagroupsapdata[3],"");
+										if(salesorgadistrchannelstatusvalidfrom!=""){
+											dsalesorgadistrchannelstatusvalidfrom=new Date("yyyyMMdd", salesorgadistrchannelstatusvalidfrom);
+										}
+										//
+										if(salesorgacode!="") {
+											if(SalesOrganisationGroup!=null) {
+												iSalesOrganisationGroupLen = SalesOrganisationGroup.size();
+												for(m=0;m<iSalesOrganisationGroupLen;m++) {
+													if(bFound==false) {
+														var oSalesOrga = getEn(hmGlobals,oBUnit,"SalesOrganisationGroup#"+m+"/10GC0725-SalesOrganisation");
+														if(oSalesOrga!=null) {
+															var strSalesOrga = checkString(oSalesOrga[0].getEntryNodeValue(),"");
+															if(strSalesOrga==salesorgacode) {
+																bFound=true;
+																var oDistributionChannelEn = getEn(hmGlobals,oBUnit,"SalesOrganisationGroup#"+m+"/10GC0726-DistributionChannel");
+																if(oDistributionChannelEn!=null) {
+																	var strDistributionChannel = oDistributionChannelEn[0].getEntryNodeValue();
+																	if(strDistributionChannel!=salesorgadistrchannel) {
+																		strModificationList=strModificationList+" | Canal de distribution "+salesorgacode+" [ "+strDistributionChannel+" >> "+salesorgadistrchannel+" ]";
+																		btosave=true;
+																		oDistributionChannelEn[0].setEntryNodeValue(salesorgadistrchannel);
+																	}
+																}
+																var oDistrChannelStatusEn = getEn(hmGlobals,oBUnit,"SalesOrganisationGroup#"+m+"/10GC0733-DistrChannelStatus");
+																if(oDistrChannelStatusEn!=null) {
+																	var strDistrChannelStatus = oDistrChannelStatusEn[0].getEntryNodeValue();
+																	if(strDistrChannelStatus!=salesorgadistrchannelstatus) {
+																		strModificationList=strModificationList+" | Statut article - Canal de distribution "+salesorgacode+" [ "+strDistrChannelStatus+" >> "+salesorgadistrchannelstatus+" ]";
+																		btosave=true;
+																		oDistrChannelStatusEn[0].setEntryNodeValue(salesorgadistrchannelstatus);
+																	}
+																}
+																var oDistrChannelStatusValidFromEn = getEn(hmGlobals,oBUnit,"SalesOrganisationGroup#"+m+"/10GC0734-DistrChannelStatusValidFrom");
+																if(oDistrChannelStatusValidFromEn!=null) {
+																	var strItemTranslatedInvoiceName = oDistrChannelStatusValidFromEn[0].getEntryNodeValue();
+																	// if(strItemTranslatedInvoiceName!=salesorgadistrchannelstatusvalidfrom) {
+																		// strModificationList=strModificationList+" | Libellé facture traduit "+salesorgacode+" [ "+strItemTranslatedInvoiceName+" >> "+countrygrouplibelle+" ]";
+																		btosave=true;
+																		oDistrChannelStatusValidFromEn[0].setEntryNodeValue(dsalesorgadistrchannelstatusvalidfrom);
+																	// }
+																}
+															}
+														}
+													}
+												}
+												if(bFound==false) {
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+m+"/10GC0725-SalesOrganisation", salesorgacode);
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+m+"/10GC0726-DistributionChannel", salesorgadistrchannel);
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+m+"/10GC0733-DistrChannelStatus", salesorgadistrchannelstatus);
+													oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/SalesOrganisationGroup#"+m+"/10GC0734-DistrChannelStatusValidFrom", dsalesorgadistrchannelstatusvalidfrom);
+													btosave=true;
+												}
+											}
+										}
+									}
+								}
+							}
+
+							// Attributs complémentaires
+							// Délai de reappro
+							var oTotalReplenishmentLeadTimeEn = getEn(hmGlobals,oBUnit,"10GC0747-TotalReplenishmentLeadTime");
+							if(oTotalReplenishmentLeadTimeEn!=null) {
+								var strTotalReplenishmentLeadTime = oTotalReplenishmentLeadTimeEn[0].getEntryNodeValue();
+								if(strTotalReplenishmentLeadTime!=strBUnitDelaiReappro) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/10GC0747-TotalReplenishmentLeadTime",strBUnitDelaiReappro);
+									btosave=true;
+								}
+							}
+							
+							if(strLibelleLong.length()<=35) {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0014-invoiceName"),"");
+								if(strItemAttrValue!=strLibelleLong) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/01AC0014-invoiceName",strLibelleLong);
+									btosave=true;
+								}
+							}
+							
+							if(strSalesOrgaProfile!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0736-Profile"),"");
+								if(strItemAttrValue!=strSalesOrgaProfile) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+									btosave=true;
+								}
+							}
+							if(strSalesOrgaBusinessUnit!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0737-BusinessUnit"),"");
+								if(strItemAttrValue!=strSalesOrgaBusinessUnit) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+									btosave=true;
+								}
+							}
+							if(strSalesOrgaMaterialGroup5!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0738-MaterialGroup5"),"");
+								if(strItemAttrValue!=strSalesOrgaMaterialGroup5) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+									btosave=true;
+								}
+							}	
+							
+							if(strIntrastatCode!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0774-IntrastatCode"),"");
+								if(strItemAttrValue!=strIntrastatCode) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0774-IntrastatCode", strIntrastatCode);
+									btosave=true;
+								}
+							}
+							
+							if(strOrderQuantityMultiple!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0351-orderQuantityMultiple"),"");
+								if(strItemAttrValue!=strOrderQuantityMultiple) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0351-orderQuantityMultiple",iOrderQuantityMultiple);
+								}
+							}
+				
+							if(strTotalQuantityOfNextLowerLevelTradeItem!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0352-orderQuantityMini"),"");
+								if(strItemAttrValue!=strTotalQuantityOfNextLowerLevelTradeItem) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/06DN0352-orderQuantityMini",iTotalQuantityOfNextLowerLevelTradeItem);
+								}
+							}
+				
+							if(strLargeur!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0095-Width"),"");
+								if(strItemAttrValue!=strLargeur) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0095-Width",strLargeur);
+								}
+							}
+							
+							if(strLongueur!="") {
+								var strItemAttrValue = checkString(oBUnit.getEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0103-Length"),"");
+								if(strItemAttrValue!=strLongueur) {
+									oBUnit.setEntryAttrib("/"+strCatalogBUnitSpecName+"/04CP0103-Length",strLongueur);
+								}
+							}
+
+							if(btosave==true){
+								var dSaveDate = today();
+								//	
+								oBUnit.setEntryAttrib("SC000-GlobPrim/01AC0003-LastUpdateUser","Admin - SAP 2 Kheops Interface");
+								oBUnit.setEntryAttrib("SC000-GlobPrim/01AC0004-LastUpdate",dSaveDate);
+								
+								var test = oBUnit.saveCtgItem();
+								if(test==null || test=="") {
+								
+									logDebug("test="+test);
+								
+									// out.writeln("Envoi notification de l'import de la référence SAP");
+									sendEmail(strMailto,"Notification de mise à jour de la référence SAP "+deletezero(strMaterialNumber), "La référence SAP "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a bien été mise à jour dans Kheops.\n\nLes modifications apportées sont les suivantes \n"+strModificationList+"\n\nLe code Kheops correspondant est le "+strERPCode+".\n\n"+strKheopsURL); 
+									//
+									logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | La référence SAP "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a bien été mise à jour dans Kheops.\n\nLes modifications apportées sont les suivantes \n"+strModificationList+"\nLe code Kheops correspondant est le "+strERPCode+".");
+								}
+							}
+							
+							// **************************
+							// Mise à jour du Prod à l'aide des données du flux SAP vers Kheops
+							// **************************
+							btosave=false;
+							for(var j=0;j<attrProd.size();j++) {
+								var sapdatatemp = checkString(attrProd[j],"");
+								if(sapdatatemp!="") {
+									var asapdata = sapdatatemp.parseDelim( "|");
+									if(asapdata!=null) {
+										attrName=checkString(asapdata[1],"");
+										attrGroupName=checkString(asapdata[2],"");
+										attrValue=checkString(asapdata[3],"");
+										if(attrName!="") {
+											var oNode = oProdSpec.getNodeByPath(strCatalogProdSpecName+"/"+attrName);
+											if(oNode!=null) {
+												attrType=oNode.getNodeAttributeValue("TYPE");
+												if(attrType=="LOOKUP_TABLE") {
+													var strLookupTableName=oNode.getNodeLookupTableName();
+													// out.writeln("strLookupTableName="+strLookupTableName);
+													var strLkpPrimaryKey="";
+													if(strLookupTableName=="T006A-Units of measure") {
+														var strAttrSAPCode="C01-PrimaryCode";
+														if(attrValue=="PCE") {
+															strLkpPrimaryKey="ST";
+														} else {
+															strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+														}
+														if(strLkpPrimaryKey!="") {
+															if(attrGroupName=="") {
+																var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName),"");
+																if(strItemAttrValue!=strLkpPrimaryKey) {
+																	btosave=true;
+																	oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, strLkpPrimaryKey);
+																}
+															}
+															else {
+																oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+															}
+														}
+													}
+													else if(strLookupTableName.startsWith("T")) {
+														if(attrGroupName=="") {
+															var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName),"");
+															if(strItemAttrValue!=attrValue) {
+																btosave=true;
+																oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+												}
+												else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+													var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+													if(attrValue.length() > nodelength) {
+														errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+													}
+													else {
+														if(attrGroupName=="") {
+															var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName),"");
+															if(strItemAttrValue!=attrValue) {
+																btosave=true;
+																oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+												}
+												else if(attrType=="NUMBER"){
+													if(attrGroupName=="") {
+														var strItemAttrValue = oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName);
+														if(strItemAttrValue!=toDouble(attrValue)) {
+															btosave=true;
+															oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+														}
+													}
+													else {
+														oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+												else if(attrType=="INTEGER"){
+													if(attrGroupName=="") {
+														var strItemAttrValue = oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName);
+														if(strItemAttrValue!=toInteger(attrValue)) {
+															btosave=true;
+															oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, attrValue);
+														}
+													}
+													else {
+														oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+													}
+												}
+												else if(attrType=="DATE"){
+													if(attrValue!="" && attrValue!="00000000") {
+														var dAttrValue = new Date("yyyyMMdd", attrValue);
+														if(attrGroupName=="") {
+															var dItemAttrValue = oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName);
+															if(dItemAttrValue!=dAttrValue) {
+																btosave=true;
+																oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrName, dAttrValue);
+															}
+														}
+														else {
+															oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							
+							// CountryGroup
+							var iCountryGroupLen = 0;
+							var strCountry = "";
+							var CountryGroup = getEn(hmGlobals,oProd,"CountryGroup");
+							var countrygroupcode="";
+							var countrygrouplibelle="";
+							for(var j=0;j<attrCountryGroup.size();j++) {
+								var bFound=false;
+								var countrygroupdatatemp = checkString(attrCountryGroup[j],"");
+								if(countrygroupdatatemp!="") {
+									var acountrygroupsapdata = countrygroupdatatemp.parseDelim( "|");
+									if(acountrygroupsapdata!=null) {
+										countrygroupcode=checkString(acountrygroupsapdata[0],"");
+										countrygrouplibelle=checkString(acountrygroupsapdata[1],"");
+										
+										if(countrygroupcode!="" && countrygrouplibelle!="") {
+											if(CountryGroup!=null) {
+												iCountryGroupLen = CountryGroup.size();
+												for(l=0;l<iCountryGroupLen;l++) {
+													if(bFound==false) {
+														var oCountry = getEn(hmGlobals,oProd,"CountryGroup#"+l+"/06DN0419-Country");
+														if(oCountry!=null) {
+															var strCountry = checkString(oCountry[0].getEntryNodeValue(),"");
+															if(strCountry==countrygroupcode) {
+																bFound=true;
+																var oTranslatedInvoiceNameEn = getEn(hmGlobals,oProd,"CountryGroup#"+l+"/06DN0420-TranslatedInvoiceName");
+																if(oTranslatedInvoiceNameEn!=null) {
+																	var strItemTranslatedInvoiceName = oTranslatedInvoiceNameEn[0].getEntryNodeValue();
+																	if(strItemTranslatedInvoiceName!=countrygrouplibelle) {
+																		btosave=true;
+																		oTranslatedInvoiceNameEn[0].setEntryNodeValue(countrygrouplibelle);
+																	}
+																}
+															}
+														}
+													}
+												}
+												if(bFound==false) {
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0419-Country", countrygroupcode);
+													oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0420-TranslatedInvoiceName", countrygrouplibelle);
+													btosave=true;
+												}
+											}
+										}
+									}
+								}
+							}
+
+							if(strLibelleLong.length()<=35) {
+								var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/01AC0014-invoiceName"),"");
+								if(strItemAttrValue!=strLibelleLong) {
+									oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0014-invoiceName",strLibelleLong);
+									btosave=true;
+								}
+							}
+							
+							if(strSalesOrgaProfile!="") {
+								var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/12BI0736-Profile"),"");
+								if(strItemAttrValue!=strSalesOrgaProfile) {
+									oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+									btosave=true;
+								}
+							}
+							if(strSalesOrgaBusinessUnit!="") {
+								var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/12BI0737-BusinessUnit"),"");
+								if(strItemAttrValue!=strSalesOrgaBusinessUnit) {
+									oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+									btosave=true;
+								}
+							}
+							if(strSalesOrgaMaterialGroup5!="") {
+								var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/12BI0738-MaterialGroup5"),"");
+								if(strItemAttrValue!=strSalesOrgaMaterialGroup5) {
+									oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+									btosave=true;
+								}
+							}	
+							
+							if(strIntrastatCode!="") {
+								var strItemAttrValue = checkString(oProd.getEntryAttrib("/"+strCatalogProdSpecName+"/06DN0774-IntrastatCode"),"");
+								if(strItemAttrValue!=strIntrastatCode) {
+									oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/06DN0774-IntrastatCode", strIntrastatCode);
+									btosave=true;
+								}
+							}
+							
+							if(btosave==true){
+								var dSaveDate = today();
+								//	
+								oProd.setEntryAttrib("/"+strCatalogProdSpecName+"/01AC0664-MaterialNumber", "");
+								//
+								oProd.setEntryAttrib("SC000-GlobPrim/01AC0003-LastUpdateUser","Admin - SAP 2 Kheops Interface");
+								oProd.setEntryAttrib("SC000-GlobPrim/01AC0004-LastUpdate",dSaveDate);
+								
+								var test = oProd.saveCtgItem();
+								out.writeln(test);
+							}
+							
+							// **************************
+							// Mise à jour du PItem à l'aide des données du flux SAP vers Kheops -- Uniquement si palette existe
+							// **************************
+							if(bPItemExists==true) {
+								btosave=false;
+								
+								if(oPItem==null) {
+									oPItem = new CtgItem(catalog, false, false, false);
+									var sERPCodePItem = allocateC805ERPCode(containerCode, typePItem);
+									oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCodePItem);
+									if(strLibelleLong!="") {
+										oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", strLibelleLong + " - A modifier");
+									} else {
+										oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - A compléter");
+									}
+									oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[ACTIVE] - Actif");
+									oPItem.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+									oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0006-CreationDate",dCurrentDate);
+									oPItem.setEntryAttrib("/SC000-GlobPrim/01AC0005-CreationUser", "Admin");
+									
+									oPItem.mapCtgItemToCategory(catPItem);
+									
+									getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initializeTargetSystemGroup").invoke(oPItem);
+									
+									// Initialisation des valeurs à l'aide des règles d'initialisation
+									var aAttribToRunInitialRulesOnPItem=[];
+									var sSrcAttribsPItem=oPItem.getEntryAttribsList();
+									var oKey;
+									var oValue;
+									forEachHmElement(sSrcAttribsPItem,oKey,oValue){
+										sSrcAttribsPItem[oKey]=oValue;
+									}
+									forEachHmElement(sSrcAttribsPItem,oKey,oValue){
+										if(getRidOfRootName(oValue)!="01AC0044-ERPCode" && getRidOfRootName(oValue)!="99CTL100-ParentItem" && getRidOfRootName(oValue)!="01AC0548-Status" && getRidOfRootName(oValue)!="01AC0012-LongName" && getRidOfRootName(oValue)!="99CTL010-RevNum") {
+											aAttribToRunInitialRulesOnPItem.add(oValue);
+										}
+									}
+									getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oPItem,aAttribToRunInitialRulesOnPItem);
+									
+									// Rattachement PItem à la Bunit
+									oPItem.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oBUnit);
+									
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0020-UnitDescriptor", "[PALLET] - Palette homogène standard");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0405-quantityOfNextLowerLevel",strPItemQuantityOfNextLowerLevel);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0775-PublishedIntoSAP","false");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0356-ItemBillable","false");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/ChannelOfDistributionGroup#0/06DN0422-ChannelOfDistribution","[01] - Negoce");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/ChannelOfDistributionGroup#0/06DN0346-IsInCatalog","false");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/10GC0747-TotalReplenishmentLeadTime",strBUnitDelaiReappro);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0661-BaseUnitOfMeasure","ST");
+									// oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0407-TotalQuantityOfNextLowerLevel",iTotalQuantityOfNextLowerLevelTradeItem);
+									
+									if(strPItemEAN11!=""){
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0042-GTIN",strPItemEAN11);
+									}
+									if(strPItemEANCategory!=""){
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0668-EANCategory",strPItemEANCategory);
+									}
+									
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0115-HeightUnits","[MMT] - Millimètre");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0120-PItemWidthUnits","[MMT] - Millimètre");
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0117-DepthUnits","[MMT] - Millimètre");
+									
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0118-PItemWidth",strPItemLargeur);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0116-Depth",strPItemProfondeur);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0213-netWeight",dPItemPoidsNet);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0215-grossWeight",strPItemPoidsBrut);
+									oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0217-RoughVolume",strPItemVolumeBrut);	
+								}
+								
+								for(var j=0;j<attrPItem.size();j++) {
+									var sapdatatemp = checkString(attrPItem[j],"");
+									if(sapdatatemp!="") {
+										var asapdata = sapdatatemp.parseDelim( "|");
+										if(asapdata!=null) {
+											attrName=checkString(asapdata[1],"");
+											attrGroupName=checkString(asapdata[2],"");
+											attrValue=checkString(asapdata[3],"");
+											if(attrName!="") {
+												var oNode = oPItemSpec.getNodeByPath(strCatalogPItemSpecName+"/"+attrName);
+												if(oNode!=null) {
+													attrType=oNode.getNodeAttributeValue("TYPE");
+													if(attrType=="LOOKUP_TABLE") {
+														var strLookupTableName=oNode.getNodeLookupTableName();
+														// out.writeln("strLookupTableName="+strLookupTableName);
+														var strLkpPrimaryKey="";
+														if(strLookupTableName=="T006A-Units of measure") {
+															var strAttrSAPCode="C01-PrimaryCode";
+															if(attrValue=="PCE") {
+																strLkpPrimaryKey="ST";
+															} else {
+																strLkpPrimaryKey=checkString(getLkpKheopsValueFromSAPCode(strLookupTableName,strAttrSAPCode,attrValue),"");
+															}
+															if(strLkpPrimaryKey!="") {
+																if(attrGroupName=="") {
+																	var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName),"");
+																	if(strItemAttrValue!=strLkpPrimaryKey) {
+																		btosave=true;
+																		oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, strLkpPrimaryKey);
+																	}
+																}
+																else {
+																	oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, strLkpPrimaryKey);
+																}
+															}
+														}
+														else if(strLookupTableName.startsWith("T")) {
+															if(attrGroupName=="") {
+																var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName),"");
+																if(strItemAttrValue!=attrValue) {
+																	btosave=true;
+																	oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+																}
+															}
+															else {
+																oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+															}
+														}
+													}
+													else if(attrType=="STRING" || attrType=="STRING_ENUMERATION"){
+														var nodelength = checkInt(oNode.getNodeAttributeValue("MAXLENGTH"),0);
+														if(attrValue.length() > nodelength) {
+															errorlist.add(sERPCodeProd+" - The length value is too long for the attribute "+attrName+" (Material Number : "+strMaterialNumber);
+														}
+														else {
+															if(attrGroupName=="") {
+																var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName),"");
+																if(strItemAttrValue!=attrValue) {
+																	btosave=true;
+																	oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+																}
+															}
+															else {
+																oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+															}
+														}
+													}
+													else if(attrType=="NUMBER"){
+														if(attrGroupName=="") {
+															var strItemAttrValue = oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName);
+															if(strItemAttrValue!=toDouble(attrValue)) {
+																btosave=true;
+																oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+													else if(attrType=="INTEGER"){
+														if(attrGroupName=="") {
+															var strItemAttrValue = oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName);
+															if(strItemAttrValue!=toInteger(attrValue)) {
+																btosave=true;
+																oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, attrValue);
+															}
+														}
+														else {
+															oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, attrValue);
+														}
+													}
+													else if(attrType=="DATE"){
+														if(attrValue!="" && attrValue!="00000000") {
+															var dAttrValue = new Date("yyyyMMdd", attrValue);
+															if(attrGroupName=="") {
+																var dItemAttrValue = oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName);
+																if(dItemAttrValue!=dAttrValue) {
+																	btosave=true;
+																	oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrName, dAttrValue);
+																}
+															}
+															else {
+																oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/"+attrGroupName+"#0/"+attrName, dAttrValue);
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+								
+								// SalesOrga
+								var salesorgacode="";
+								var salesorgadistrchannel="";
+								var salesorgadistrchannelstatus="";
+								var salesorgadistrchannelstatusvalidfrom="";
+								var dsalesorgadistrchannelstatusvalidfrom;
+								for(var k=0;k<attrSalesOrga.size();k++) {
+									var salesorgagroupdatatemp = checkString(attrSalesOrga[k],"");
+									if(salesorgagroupdatatemp!="") {
+										var asalesorgagroupsapdata = salesorgagroupdatatemp.parseDelim( "|");
+										if(asalesorgagroupsapdata!=null) {
+											salesorgacode=checkString(asalesorgagroupsapdata[0],"");
+											salesorgadistrchannel=checkString(asalesorgagroupsapdata[1],"");
+											salesorgadistrchannel = concat(salesorgacode,"-",salesorgadistrchannel);
+											salesorgadistrchannelstatus=checkString(asalesorgagroupsapdata[2],"");
+											salesorgadistrchannelstatusvalidfrom=checkString(asalesorgagroupsapdata[3],"");
+											if(salesorgadistrchannelstatusvalidfrom!=""){
+												dsalesorgadistrchannelstatusvalidfrom=new Date("yyyyMMdd", salesorgadistrchannelstatusvalidfrom);
+											}
+											//
+											if(salesorgacode!="") {
+												oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0725-SalesOrganisation", salesorgacode);
+												oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0726-DistributionChannel", salesorgadistrchannel);
+												oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0733-DistrChannelStatus", salesorgadistrchannelstatus);
+												oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/SalesOrganisationGroup#"+k+"/10GC0734-DistrChannelStatusValidFrom", dsalesorgadistrchannelstatusvalidfrom);
+											}
+										}
+									}
+								}
+								
+								// CountryGroup
+								var iCountryGroupLen = 0;
+								var strCountry = "";
+								var CountryGroup = getEn(hmGlobals,oPItem,"CountryGroup");
+								var countrygroupcode="";
+								var countrygrouplibelle="";
+								for(var j=0;j<attrCountryGroup.size();j++) {
+									var bFound=false;
+									var countrygroupdatatemp = checkString(attrCountryGroup[j],"");
+									if(countrygroupdatatemp!="") {
+										var acountrygroupsapdata = countrygroupdatatemp.parseDelim( "|");
+										if(acountrygroupsapdata!=null) {
+											countrygroupcode=checkString(acountrygroupsapdata[0],"");
+											countrygrouplibelle=checkString(acountrygroupsapdata[1],"");
+											
+											if(countrygroupcode!="" && countrygrouplibelle!="") {
+												if(CountryGroup!=null) {
+													iCountryGroupLen = CountryGroup.size();
+													for(l=0;l<iCountryGroupLen;l++) {
+														if(bFound==false) {
+															var oCountry = getEn(hmGlobals,oPItem,"CountryGroup#"+l+"/06DN0419-Country");
+															if(oCountry!=null) {
+																var strCountry = checkString(oCountry[0].getEntryNodeValue(),"");
+																if(strCountry==countrygroupcode) {
+																	bFound=true;
+																	var oTranslatedInvoiceNameEn = getEn(hmGlobals,oPItem,"CountryGroup#"+l+"/06DN0420-TranslatedInvoiceName");
+																	if(oTranslatedInvoiceNameEn!=null) {
+																		var strItemTranslatedInvoiceName = oTranslatedInvoiceNameEn[0].getEntryNodeValue();
+																		if(strItemTranslatedInvoiceName!=countrygrouplibelle) {
+																			btosave=true;
+																			oTranslatedInvoiceNameEn[0].setEntryNodeValue(countrygrouplibelle);
+																		}
+																	}
+																}
+															}
+														}
+													}
+													if(bFound==false) {
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0419-Country", countrygroupcode);
+														oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/CountryGroup#"+iCountryGroupLen+"/06DN0420-TranslatedInvoiceName", countrygrouplibelle);
+														btosave=true;
+													}
+												}
+											}
+										}
+									}
+								}
+
+								// Attributs complémentaires
+								// QuantityOfNextLowerLevel
+								var oQuantityOfNextLowerLevelEn = getEn(hmGlobals,oPItem,"06DN0405-quantityOfNextLowerLevel");
+								if(oQuantityOfNextLowerLevelEn!=null) {
+									var strQuantityOfNextLowerLevel = oQuantityOfNextLowerLevelEn[0].getEntryNodeValue();
+									if(strQuantityOfNextLowerLevel!=strPItemQuantityOfNextLowerLevel) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/06DN0405-quantityOfNextLowerLevel",strPItemQuantityOfNextLowerLevel);
+										btosave=true;
+									}
+								}
+								
+								if(strLibelleLong.length()<=35) {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0014-invoiceName"),"");
+									if(strItemAttrValue!=strLibelleLong) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0014-invoiceName",strLibelleLong);
+										btosave=true;
+									}
+								}
+								
+								if(strPItemEAN11!=""){
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0042-GTIN"),"");
+									if(strItemAttrValue!=strPItemEAN11) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0042-GTIN",strPItemEAN11);
+										btosave=true;
+									}
+								}
+								if(strPItemEANCategory!=""){
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0668-EANCategory"),"");
+									if(strItemAttrValue!=strPItemEANCategory) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/01AC0668-EANCategory",strPItemEANCategory);
+										btosave=true;
+									}
+								}
+								
+								if(strSalesOrgaProfile!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0736-Profile"),"");
+									if(strItemAttrValue!=strSalesOrgaProfile) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0736-Profile", strSalesOrgaProfile);
+										btosave=true;
+									}
+								}
+								if(strSalesOrgaBusinessUnit!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0737-BusinessUnit"),"");
+									if(strItemAttrValue!=strSalesOrgaBusinessUnit) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0737-BusinessUnit", strSalesOrgaBusinessUnit);
+										btosave=true;
+									}
+								}
+								if(strSalesOrgaMaterialGroup5!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0738-MaterialGroup5"),"");
+									if(strItemAttrValue!=strSalesOrgaMaterialGroup5) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/12BI0738-MaterialGroup5", strSalesOrgaMaterialGroup5);
+										btosave=true;
+									}
+								}	
+								
+								if(strPItemLargeur!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0118-PItemWidth"),"");
+									if(strItemAttrValue!=strPItemLargeur) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0118-PItemWidth", strPItemLargeur);
+										btosave=true;
+									}
+								}
+								if(strPItemProfondeur!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0116-Depth"),"");
+									if(strItemAttrValue!=strPItemProfondeur) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0116-Depth", strPItemProfondeur);
+										btosave=true;
+									}
+								}
+								if(dPItemPoidsNet!=null) {
+									var dItemAttrValue = oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0213-netWeight");
+									if(dItemAttrValue!=dPItemPoidsNet) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0213-netWeight", dPItemPoidsNet);
+										btosave=true;
+									}
+								}
+								if(strPItemPoidsBrut!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0215-grossWeight"),"");
+									if(strItemAttrValue!=strPItemPoidsBrut) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0215-grossWeight", strPItemPoidsBrut);
+										btosave=true;
+									}
+								}
+								if(strPItemVolumeBrut!="") {
+									var strItemAttrValue = checkString(oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0217-RoughVolume"),"");
+									if(strItemAttrValue!=strPItemVolumeBrut) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0217-RoughVolume", strPItemVolumeBrut);
+										btosave=true;
+									}
+								}
+								if(strPItemHeight!="") {
+									var strItemAttrValue = oPItem.getEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0114-Height");
+									if(strItemAttrValue!=dPItemHeight) {
+										oPItem.setEntryAttrib("/"+strCatalogPItemSpecName+"/04CP0114-Height", dPItemHeight);
+										btosave=true;
+									}
+								}
+								if(btosave==true){
+									var dSaveDate = today();
+									//	
+									oPItem.setEntryAttrib("SC000-GlobPrim/01AC0003-LastUpdateUser","Admin - SAP 2 Kheops Interface");
+									oPItem.setEntryAttrib("SC000-GlobPrim/01AC0004-LastUpdate",dSaveDate);
+									
+									var test = oPItem.saveCtgItem();
+									out.writeln(test);
+								}
+							}
+							
+						}
+					}
+					else {
+						sendEmail(strMailto,"Notification de mise à jour de la référence SAP "+deletezero(strMaterialNumber), "La référence "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a été envoyée dans Kheops mais le code ERP "+strERPCode+" renseigné dans SAP n'existe pas ou plus dans Kheops.\n\n"); 
+						//
+						logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | La référence SAP "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " qui fait référence au code ERP "+strERPCode+" n'existe pas ou plus dans Kheops.");
+					}
+				}
+			}
+		}
+		else {
+			sendEmail(strMailto,"Notification de création de la référence SAP "+deletezero(strMaterialNumber), "La référence "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a été envoyée dans Kheops mais n'est pas éligible (9501-9502-9503-9504-9505 + YU ou vide / Material Type ZDI3-ZDI5-ZFE1-ZHW1).\n\n"); 
+			//
+			logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | La référence "+deletezero(strMaterialNumber)+" - " + strLibelleLong + " a été envoyée dans Kheops mais n'est pas éligible (9501-9502-9503-9504 + YU ou vide / Material Type ZDI3-ZDI5-ZFE1-ZHW1).");
+		}
+	}
+}
+
+function processSAPDataImport() {
+	// (1) deactivate ctg rules
+	var optionstodesactivate=[];
+	optionstodesactivate[0]="ALL";
+	var scriptnameTemp=[];
+
+	var oKey;
+	var ctgName;
+	var ctgs = getCatalogNamesList();
+
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+	forEachHmElement(ctgs,oKey,ctgName) {
+		if(ctgName.startsWith("C")) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			
+			ctg.disableContainerProcessingOptions(optionstodesactivate);
+			
+			scriptnameTemp[0]="";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+			ctg.saveCatalog();
+		}
+	}
+
+	var logPath = "/744/processimport-"+today().formatDate("yyyyMMdd-HHmm")+".csv";
+	var logOut = createOtherOut(logPath);
+	logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Import process started");
+	
+	var bFileToProcess=false;
+	
+	// Gestion des erreurs
+	var errorlist=[];
+		
+	// Retrieve all SAP Material files
+	var matfilelistDoc = new Reader("file://XFER/MAT_XML/matfilelist.txt");
+	var parser = newDelimParser(matfilelistDoc, "|");
+	var bDone = false;
+	while(!bDone)
+	{
+		var attrs = parser.splitLine();
+		bDone = (null == attrs);
+		if (!bDone)
+		{
+			var matfilename=attrs[0];
+			matfilename = substring(matfilename,matfilename.lastIndexOf("/")+1);
+			// Process the SAP import for all xml files
+			logDebug("File name:"+matfilename);
+			
+			logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Import file "+matfilename+" process started");
+			
+			process_MAT(matfilename,errorlist,logOut);
+			
+			logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Import file "+matfilename+" process finished");
+			
+			bFileToProcess=true;
+		}
+	}
+
+	logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Import process finished");
+	//
+	if(bFileToProcess==true) {
+		logOut.save(logPath);
+	}
+	
+	// (3) reactivate ctg rules
+	var scriptnameTemp2=[];
+
+	forEachHmElement(ctgs,oKey,ctgName) {
+		if(ctgName.startsWith("C")) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			scriptnameTemp2[0]="LG.Catalog.PreProc";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+			ctg.saveCatalog();
+		}
+	}
+	
+	return errorlist;
+}

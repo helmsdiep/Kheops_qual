@@ -1,0 +1,44 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Library.ValueRules
+// @description: 
+//   contains all the value rules for the search engine
+// @ownership: 
+//   Sandrine
+//
+/////////////////////////////////////////////////////////////////
+
+
+// Value Rule for SC000-GlobPrim/99CTL501-SearchText:
+// Concat all the attributes -- value rule for /SC000-GlobPrim/99CTL501-SearchText
+function getValueForSearchText(item) {
+	var fct = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath");
+	var res = "";
+	var str = fct.invoke(item, "01AC0012-LongName").getEntryNodeValue();
+	res = res + ((str != null) ? str : "");
+	str = fct.invoke(item, "06DN0397-PackagingItemDescription").getEntryNodeValue();
+	res = res + ((str != null) ? str : "");
+	str = fct.invoke(item, "01AC0014-invoiceName").getEntryNodeValue();
+	res = res + ((str != null) ? str : "");
+	return res;
+}
+
+// Value Rule for 99CTL502–SearchThickness:
+function getValueForSearchThickness(item) {
+	var fct = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath");
+	var res =  fct.invoke(item, "04CP0080-CommercialThickness").getEntryNodeValue();
+	var unit = null;
+	if (res == null || res == "") {
+   		res =  fct.invoke(item, "04CP0082-RealThickness").getEntryNodeValue();
+   		if (res == null || res == "") {
+       		res =  fct.invoke(item, "04CP0091-Thickness").getEntryNodeValue();
+       		unit = fct.invoke(item, "04CP0092-ThicknessUnits").getEntryNodeValue();
+   		} else {
+       		unit = fct.invoke(item, "04CP0084-RealThicknessUnit").getEntryNodeValue();
+   		}
+	} else {
+   		unit = fct.invoke(item, "04CP0081-CommercialThicknessUnits").getEntryNodeValue();
+	}
+	item.setEntryAttrib("SC000-GlobPrim/99CTL503-SearchThicknessUnits", unit);
+	return res;	
+}

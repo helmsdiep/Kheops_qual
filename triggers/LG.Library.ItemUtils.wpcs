@@ -1,0 +1,342 @@
+// Remplace l'ancien BATIDATA
+// Plateforme d'Information Produits (PIP) / Agena 3000
+// MEP le 21/02 rfc 11374
+//
+// Remplacement de 06DN0351 par 06DN0351 dans l'export - G. Breton
+//
+// WebSphere Product Center Script
+//
+//Les structures utilisees dans ce script sont princilement :
+// - des hashmap pour stocker les données et y acceder de maniere plus rapide et plus efficace
+// - des arbres afin de representer les attributs associés a chaque item
+// - des Lookup table qui stockent les références vers des valeurs
+//   (chaque lookup table est associé à un groupe de donnéées : constantes, unitees normees...)
+
+//	FONCTION QUI INITIALISE LA HASH MAP DE VARIABLES GLOBALES
+function initGlobals() {
+  //On déclare la hash map
+  var hmGlobals = [];
+  //On récupère des fonctions qui sont stockées dans des librairies de fonctions,
+  //Elles seront utiles plus tard dans le programme
+  //On les stocke dans une hash map de variables globales
+  var lib = getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+  var thislib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+  hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = lib.getFunctionByName("getEntryNodesFromAttrPath");
+  hmGlobals["FN_GET_ITEM_TYPE"] = lib.getFunctionByName("getItemType");
+  hmGlobals["FN_GET_CHILD_ITEMS"] = lib.getFunctionByName("getChildItems");
+  hmGlobals["FN_GET_CONST"] = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+  hmGlobals["FN_GET_ENTRY_NODE_AT_LEVEL"] = lib.getFunctionByName("getEntryNodeAtLevel");
+  //hmGlobals["FN_GET_PARENT_AT_LEVEL"]=thislib.getFunctionByName("getParentAtLevel");
+  //hmGlobals["FN_GET_ITEM_AT_LEVEL"]=thislib.getFunctionByName("getItemAtLevel");
+  hmGlobals["FN_GET_STATUS"] = lib.getFunctionByName("getStatus");
+  //Recupere la constant kheops "QUOT" de la table L902-KheopsConstants et la stocke dans la variable globale
+  hmGlobals["QUOT"] = lookupValues(getLkpByName("L902-KheopsConstants"), "QUOT")[0];
+  return hmGlobals;
+}
+
+
+//	FONCTION QUI RETOURNE LE NOEUD (attribut de l'item) EN FONCTION DU CHEMIN 
+//la m�thode associ�e � la variable hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] (ici il s'agit de getEntryNodesFromAttrPath())
+//est ex�cut�e sur item et sNodeName via la fonction invoke()
+function getEn(hmGlobals, item, sNodeName) {
+  return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sNodeName);
+}
+
+//	FONCTION QUI RETOURNE LA VALEUR DU NOEUD (valeur attribut de l'item) EN FONCTION DU CHEMIN 
+//Idem fonction pr�c�dente sauf que l'on r�cup�re la valeur correspondand au noeud sp�cifi�
+function getValue(hmGlobals, item, sNodeName) {
+  return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sNodeName)[0].getEntryNodeValue();
+}
+
+
+
+//	FONCTION QUI RETOURNE LE PARENT D'UN ITEM
+function getParentItem(hmGlobals, item) {
+  //On retourne l'objet item situé à l'adresse contenue dans la varible globale "PARENT_RELATIONSHIP_FIELD"
+  return item.getItemUsingEntryRelationshipAttrib(hmGlobals["PARENT_RELATIONSHIP_FIELD"]);
+}
+
+//	FONCTION QUI RETOURNE LE PARENT DE PLUS HAUT NIVEAU QUI POSSEDE UNE ATTRIBUT DONNE
+function getHigherParent(hmGlobals, item, sAttrPath) {
+  if (item==null) {
+    return null;
+  }else{
+    if (getEn(hmGlobals, item, sAttrPath) != null) {//Si la valeur de l'attribut du noeud parent n'est pas nul
+      return item;
+    }else{
+      var parent=getParentItem(hmGlobals["FN_GET_CONST"].invoke(), item);
+      return getHigherParent(hmGlobals, parent, sAttrPath);
+    }
+  }
+  
+  // var hmParents = getParentsItem(hmGlobals, item);
+  // var l = hmParents.size();
+  // if (l == 0) {
+  //   throwError("getHigherParent invoked, but no parents were found in hmGlobals hashmap.");
+  // }
+  // var i;
+  // for (i = 0; i < l; i++) {//On boucle sur la hashmap de parents
+  //   if (getEn(hmGlobals, hmParents[i], sAttrPath) != null) {//Si la valeur de l'attribut du noeud parent n'est pas nul
+  //     return (hmParents[i]);//On retourne le noeud parent
+  //   }
+  // }
+  // return (null);
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS-GRANDS PARENTS D'UN ITEM	(tous les anc�tres de l'item)
+function getParentsItem(hmGlobals, item, hmParents) {
+  //Ajoute l'item/parent/grandparent � la hashmap de Parents (selon l'�tape de r�cursivit� sur la fonction)
+  hmParents.add(item);
+  //On appelle la fonction getParentItem d�crite ci dessus et qui retourne le parent d'un item 
+  //on stocke le r�sultat dans parent
+  var parent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(), item);
+  if (parent != null) {//Si il y a un parent on effectue une r�cursivit� avec comme argument parent (pour trouver les grand-parents)
+    return (getParentsItem(hmGlobals, parent, hmParents));
+  }
+  else {//sinon on retourne hmParents
+    return (hmParents);
+  }
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS DE L'ITEM A UN NIVEAU DONNE (PROD, BUNIT, PITEM...)
+function getParentAtLevel(hmGlobals, item, iLevel) {
+  if (iLevel == 0) { //Si le niveau pour récupérere la valeur de l'attribut est au niveau courant on retourne l'item
+    return (item);
+  } else { //On appelle la fonction getParentItem décrite ci dessus et qui retourne le parent d'un item
+    //on stocke le résultat dans parentItem
+    var parentItem = getParentItem(hmGlobals["FN_GET_CONST"].invoke(), item);
+    if (parentItem == null) { //si l'item n'a pas de parent
+      return (null); //on retourne null
+    } else { //sinon on recherche les parents au niveau supérieur (PROD, BUNIT, PITEM...) par recursivite
+      return getParentAtLevel(hmGlobals, parentItem, iLevel + 1);
+    }
+  }
+}
+
+function getItemFullLevel(hmGlobals, item) {
+  if (hmGlobals == null) {
+    hmGlobals = initGlobals();
+  }
+  var currentItemLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+  if (currentItemLevel == "Prod" || currentItemLevel == "BUnit") {
+    return currentItemLevel;
+  } else {
+    var oParent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(), item);
+    if (oParent != null) {
+      var parentLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oParent);
+      if (currentItemLevel == "PItem" && parentLevel == "BUnit") {
+        return "PItem1";
+      } else {
+        if (currentItemLevel == "PItem" && parentLevel == "PItem") {
+          return "PItem2";
+        } else {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+//	FONCTION QUI RECUPERE L'ITEM A UN NIVEAU DONNE
+function getItemAtLevel(hmGlobals, item, sLevel) {
+  if (item == null) { //Si l'item n'existe pas, on retourne la valeur null
+    return null;
+  }
+  var currentItemLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+  // dans le cas où on est Prod ou BUnit,
+  // et si le type de l'item correspond au niveau demandé, on retourne l'item
+  if ((sLevel == "Prod" || sLevel == "BUnit") && currentItemLevel == sLevel) {
+    return item;
+  } else {
+    // sinon on doit regarder le parent.
+    var oParent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(), item); //Sinon on récupère le parent de l'item
+    if (oParent != null) {
+      var parentLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oParent);
+
+      if (sLevel == "PItem1" && currentItemLevel == "PItem" && parentLevel == "BUnit") {
+        return item;
+      }
+
+      if (sLevel == "PItem2" && currentItemLevel == "PItem" && parentLevel == "BUnit") {
+        return null;
+      }
+
+      if (sLevel == "PItem2" && currentItemLevel == "PItem" && parentLevel == "PItem") {
+        return item;
+      }
+      return getItemAtLevel(hmGlobals, oParent, sLevel); //Et on regarde si il correspond au niveau demandé par recursivité
+    }
+
+  }
+  return null;
+}
+// FONCTION QUI RECUPERE LA OU LES VALEURS D'UN ATTRIBUT (champr de la matrice Kheops) POUR UN ITEM DONNE
+function tech(hmGlobals, item, sAttrName, iLkpCol, sGroupingName, sAttrNameGroupingKey, sAttrValGroupingKey, iLevel) {
+  //- hmGlobals : tableau de variables globales
+  //- item : item
+  //- sAttrName : nom de l'attribut (ex : "06DN0346-IsInCatalog")
+  //- iLkpCol : numéro de la colonne de la lookup table (ex : 2)
+  //- iLevel : niveau où récupérer la valeur de l'attribut (de -2 à 4)
+  //- sGroupingName : nom du grouping (ex : "ChannelOfDistributionGroup")
+  //- sAttrNameGroupingKey : nom de l’attribut clé du grouping
+  //- sAttrValGroupingKey : valeur de l’attribut clé du grouping
+  if (hmGlobals == null) {
+    hmGlobals = initGlobals();
+  }
+
+  // cache the item parents.
+  if (hmGlobals["parents"] == null || hmGlobals["parents"][0].getPrimaryKey() != item.getPrimaryKey()) {
+    hmGlobals["parents"] = getParentsItem(hmGlobals, item, []);//Remplissage de la hashmap avec les parents de l'item 
+  }
+
+  var val = []; //tableau des valeurs de sAttrName si c'est un grouping ou un multivalué
+  var en;
+  var sKey;
+
+  //Si on veut la valeur de sAttrName à un niveau différent de celui sur lequel on est
+  //On remplace l'item item par celui du niveau désiré
+
+  //  null = valeur de l'attribut de l'item au niveau courant s'il existe, et sinon on va chercher plus haut :)
+  //     0 = valeur de l'attribut de l'item au niveau Courant, 
+  //     1 = valeur de l'attribut de l'item au niveau Prod,
+  //     2 = valeur de l'attribut de l'item au niveau BUnit,
+  //     3 = valeur de l'attribut de l'item au niveau Pitem1,
+  //     4 = valeur de l'attribut de l'item au niveau Pitem2,
+  //    -1 = valeur de l'attribut de l'item au niveau du parent,
+  //    -2 = valeur de l'attribut de l'item au niveau du grand parent
+  var sLevel = "";
+  if (iLevel != null) { //Si le niveau est a null on prend le premier item dans les parents qui possede cet attribut
+    if (iLevel == 1) { //Si le niveau est a 1, sLevel prend la valeur "Prod"
+      sLevel = "Prod";
+    } else if (iLevel == 2) { //Si le niveau est a 2, sLevel prend la valeur "BUnit"
+      sLevel = "BUnit";
+    } else if (iLevel == 3) { //Si le niveau est a 3, sLevel prend la valeur "PItem"
+      sLevel = "PItem1";
+    } else if (iLevel == 4) { //Si le niveau est a 3, sLevel prend la valeur "PItem"
+      sLevel = "PItem2";
+    } else if (iLevel < 0) { //Si le niveau est inférieur a 0, on récupère l'attribut chez le parent, grand-parent de l'item
+      //item = getParentAtLevel(hmGlobals,item,iLevel);
+      item = getParentAtLevel(hmGlobals, item, iLevel);
+    }
+    if (sLevel != "") { //Si la variable sLevel n'est pas vide, on récupère l'item au niveau demandé
+      item = getItemAtLevel(hmGlobals, item, sLevel);
+    }
+  } 
+  
+  item = getHigherParent(hmGlobals, item, (checkString(sGroupingName, "") == "" ? "" : (sGroupingName + "/")) + sAttrName);
+  
+
+  if (item == null) {
+    return [];
+  }
+  //---------------------------------------------------------------------------------------------------------------------
+
+  //Si on est dans un grouping
+  if (checkString(sGroupingName, "") != "") {
+    var myGroup = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sGroupingName);
+    if (myGroup != null) {
+      var i;
+      //On parcourt le grouping sGroupingName
+      for (i = 0; i < myGroup.size(); i++) {
+        //Si on veut récupérer les valeurs de sAttrName sur une occcurrence spéciale
+        if (checkString(sAttrNameGroupingKey, "") != "" && checkString(sAttrValGroupingKey, "") != "") {
+          //Recherche de l'occurrence tel que sAttrNameGroupingKey = sAttrValGroupingKey
+          var r = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sGroupingName + "#" + i + "/" + sAttrNameGroupingKey)[0].getEntryNodeValue();
+          if (r == sAttrValGroupingKey) {
+            en = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sGroupingName + "#" + i + "/" + sAttrName);
+            if (en != null) {
+              //Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+              if (iLkpCol != null) {
+                var j;
+                for (j = 0; j < en.size(); j++) {
+                  //sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+                  sKey = en[j].getEntryNodeValue();
+                  if (sKey != null) {
+                    var sLkpName = en[j].getNodeFromEntryNode().getNodeLookupTableName();
+                    val.add(lookupValues(getLkpByName(sLkpName), sKey)[iLkpCol]);
+                  }
+                }
+              }
+              //Si on veut simplement la valeur de l'attribut de sAttrName
+              else {
+                var j;
+                for (j = 0; j < en.size(); j++) {
+                  //val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+                  val.add(en[j].getEntryNodeValue());
+                }
+              }
+            }
+          }
+        }
+        //Si on veut récupérer les valeurs de sAttrName sur toutes les occurrences
+        else {
+          en = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sGroupingName + "#" + i + "/" + sAttrName);
+          if (en != null) {
+            //Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+            if (iLkpCol != null) {
+              var j;
+              for (j = 0; j < en.size(); j++) {
+                //sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+                sKey = en[j].getEntryNodeValue();
+                if (sKey != null) {
+                  var sLkpName = en[j].getNodeFromEntryNode().getNodeLookupTableName();
+                  var v=lookupValues(getLkpByName(sLkpName), sKey)[iLkpCol];
+                  val.add((v == "null" ? null : v));
+                }
+              }
+            }
+            //Si on veut simplement la valeur de l'attribut de sAttrName
+            else {
+              var j;
+              for (j = 0; j < en.size(); j++) {
+                //val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+                val.add(en[j].getEntryNodeValue());
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  //Si on n'est pas dans un grouping
+  else {
+    en = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, sAttrName);
+    if (en != null) {
+      //Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+      if (iLkpCol != null) {
+        var j;
+        for (j = 0; j < en.size(); j++) {
+          sKey = en[j].getEntryNodeValue();
+          if (sKey != null) {
+            var sLkpName = en[j].getNodeFromEntryNode().getNodeLookupTableName();
+            var v=lookupValues(getLkpByName(sLkpName), sKey)[iLkpCol];
+            val.add((v == "null" ? null : v));
+          }
+        }
+      }
+      //Si on veut simplement la valeur de l'attribut de sAttrName
+      else {
+        var j;
+
+        for (j = 0; j < en.size(); j++) {
+          val.add(en[j].getEntryNodeValue());
+        }
+      }
+    }
+  }
+  return val;
+}
+
+
+
+
+function test() {
+  var hmGlobals = initGlobals();
+  var ctg = getCtgByName("C010-Plaques de plâtre - Gypsum plasterBoards");
+  var item = ctg.getCtgItemByPrimaryKey("K010P02309");
+  var r = tech(hmGlobals, item, "06DN0425-effectiveDate", null, 0, "", "", "");
+  out.writeln(r);
+}
+
+

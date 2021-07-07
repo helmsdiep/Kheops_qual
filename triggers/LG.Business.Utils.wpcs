@@ -1,0 +1,45 @@
+//
+// check Business Rules on an item
+//
+
+function checkBusinessRules(hmGlobals, oitem){
+    var errorMessages = [];
+    var errCnt = 0;
+    var e;
+    catchError(e) {
+        var script = getScriptByPath("/scripts/triggers/LG.Business.Rules");
+        var i;
+        var aAttrsList = oitem.getEntryAttribsList();
+        for(i=0;i<aAttrsList.size();i++)
+        {   
+            var en = null;
+            var attrName = getNameFromPath(aAttrsList[i],"/");
+            var fnValidationRule = script.getFunctionByName(concat("fn",substring(attrName,0,8),"_Ctl"));
+            if (fnValidationRule!=null)
+            {
+                var ee;
+                var result="";
+                catchError(ee){
+                    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,aAttrsList[i].parseDelim("/",1));
+                    if (enitem!=null && enitem.size()>0){
+                      en = enitem[0];
+                      result = fnValidationRule.invoke(hmGlobals,oitem,en,"false");
+                    }
+                }
+                if (ee!=null){
+                    result= concat ("Unexpected Error ", ee );
+                }
+                if(checkString(result,"")!="") {
+                    errorMessages[errCnt] = concat (  attrName ," " , result );
+                    errCnt ++;
+                }
+            }
+        }
+    } // end catch
+    if(e!=null){
+       errorMessages[errCnt] = concat ( "Error occured: ",  e );
+       errCnt ++;
+    }
+
+    return errorMessages;
+}

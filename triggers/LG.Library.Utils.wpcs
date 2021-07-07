@@ -1,0 +1,235 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Library.Utils 
+// @description: 
+//   consolidate every utility functions not specific to 
+//  Kheops project here 
+//
+/////////////////////////////////////////////////////////////////
+
+
+//=================================================================================
+// @brief arrayToCsv(array) : to transform an array to a CSV String
+// @param array
+// @param type HashMap
+// @return String
+function arrayToCsv(array){
+	var i;
+	var a;
+	var csvString ="";
+	forEachHmElement(array,i,a) {
+		csvString = csvString + a + ",";
+	}
+	return (csvString);	
+}
+
+//=================================================================================
+// @brief csvToArray : to transform a String CSV into an array
+// @param csv
+// @param type String
+// @return HashMap
+function csvToArray(csv){
+	return (parseCSV(csv));	
+}
+
+
+//=================================================================================
+// @brief getLkpNamesList : return the list of lkp names
+// @return String[]
+function getLkpNamesList(){
+	var aLkpNames = [];
+	var ctx = getWPCDBContext();
+	var dbCtx = ctx.getWPCDBConnection();
+	// script operation doesn't exist - need to go to sql directly
+	var res = dbCtx.executeQuery("select ctg_name from ctg, cmp where ctg_type = 'LOOKUP_TABLE'"
+									+ "and ctg_company_id = cmp_company_id "
+									+ "and cmp_company_code = '" + getCompanyCode()+ "'"); 
+	while (res.next()) {
+		aLkpNames.add(res.getColumnAt(1));
+	}
+	ctx.releaseWPCDBConnection(dbCtx);
+	return aLkpNames;	
+}
+
+// mergeHashes
+// @desc return hm1 and hm2 merged.
+// @param hm1
+// @param hm2
+// @return HashMap
+function mergeHashes(hm1,hm2){
+	var sKey;
+	var sValue;
+	forEachHmElement(hm2,sKey,sValue) 
+	{
+		hm1[sKey]=sValue;
+	}
+	return hm1;
+}
+
+// getEntrySpecAttribNames
+// @desc returns  an array with the Attribute Names of this entry
+// @param entry entry
+// @return String[]
+function getEntrySpecAttribNames(entry){
+	var oKey;
+	var oValue;
+	var result=[];
+	forEachHmElement(entry.getRootEntryNode().getEntryNodeChildren(),oKey,oValue){
+		result=mergeValues(result,oValue.getNodeFromEntryNode().getNodeSpec().getSpecAttribNames());
+	}
+	return result;
+}
+
+// buildArrayExtractCSV
+// turn a double array (key, value) into a csv on key or vaue
+// @param arr the double array to process
+// @param processKey put it true to process key, false for values
+// @return csv string
+function buildArrayExtractCSV(arr, processKey){
+    var oValue; var oKey;
+    var sep = ",";
+    var s = "";
+    forEachHmElement(arr,oKey,oValue) {
+       if (s.length()>0) {
+         s = s + sep ;
+       }
+       var val = oValue;
+       if ( processKey ) { 
+         val = oKey; 
+       }
+       val = checkString(val,"").replace( sep, " " );
+       if (val=="null") {
+         val = "";
+       }
+       s = s + val ;
+    }
+    return s + "\r\n";
+}
+
+// createXmlAttributeTag
+// @descr return a 'attribute' xml tag with the given name and value 
+function createXmlAttributeTag(attrName, attrValue){
+    var xml="";
+    if (attrValue=="") {
+        xml=concat("<attribute type=\"SIMPLE\" name=\"",attrName,"\"><value type=\"STRING\"/></attribute>");
+    } else {
+        xml=concat("<attribute type=\"SIMPLE\" name=\"",attrName,"\"><value type=\"STRING\"><![CDATA[",attrValue,"]]></value></attribute>");
+    }
+    return xml;
+}
+
+//
+// =================================================================================
+// 'Map element' functions, useful for interface, export...
+// double array with key/value pair, better than hashmap because it is orderd
+//
+
+// addMapElement
+// @desc add a key/value pair in a 'map element'
+// @param mapEl 'map element' designed to replace a hashmap with a key/value and ordered association
+function addMapElement(mapEl, key, val) {
+    var tmp = [];
+    tmp["key"] = key;
+    tmp["val"] = val;
+    mapEl.add(tmp);
+}
+
+// buildMapElementXML
+// @desc create a xml line with the data of a 'map element'
+// @param mapEl 'map element' designed to replace a hashmap with a key/value and ordered association
+// @return xml string
+function buildMapElementXML(mapEl){
+    var xml ="";
+    for(var k=0; k<mapEl.size(); k++) {
+        xml = xml + createXmlAttributeTag(mapEl[k]["key"], mapEl[k]["val"]);
+    }
+    return xml;
+}
+
+
+// buildMapElementCSV
+// @desc create a csv line with the data of a 'map element'
+// @param mapEl 'map element' designed to replace a hashmap with a key/value and ordered association
+// @param processKey put it true to process keys, false for values
+// @return csv string
+function buildMapElementCSV(mapEl, processKey){
+    var sep = ";";
+    var res = "";
+    for(var k=0; k<mapEl.size(); k++) {
+       if (res.length()>0) {
+         res = res + sep ;
+       }
+       var str = mapEl[k]["val"];
+       if ( processKey ) { 
+         str = mapEl[k]["key"];
+       }
+       str = checkString(str,"").replace( sep, " " );
+       if (str=="null") {
+         str = "";
+       }
+       res = res + str ;
+    }
+    return res + "\r\n";
+}
+
+//
+// =================================================================================
+//
+//
+
+// getLatestDocInDirectory
+// @desc get the latest document (LastModified) in the directory (docstore)
+// @param dirName the directory to search
+// @return the latest document in the directory
+function getLatestDocInDirectory(dirName) {
+  var files = getDocStoreFilesInDirectory(dirName);
+  var filePath;
+  var index;
+  var latestDoc = null;
+  var latestDocDate = null;
+  forEachHmElement(files, index, filePath) {
+    var doc = getDocByPath(filePath);
+    if (doc == null) { continue; }
+    var timeStamp = doc.getDocLastModifiedTimeStamp();
+    if ( latestDocDate == null) {
+    	latestDoc = doc;
+    	latestDocDate = timeStamp;
+    }
+    if ( timeStamp.isDateAfter(latestDocDate)) {
+     	latestDoc = doc;
+     	latestDocDate = timeStamp;
+    }
+  }
+  return latestDoc;
+}
+
+//
+// =================================================================================
+//
+//
+// getDeduplicatedArray
+// @desc get a deduplicated array
+// @param array to deduplicate
+// @return the dedupliacted array
+function getDeduplicatedArray(arr){
+	var arrDD=[];
+	if (arr!=null) {
+		var arrLen = arr.size();
+		//
+		for(i=0;i<arrLen-1;i++){ 
+			for(j=i+1;j<arrLen;j++){ 
+				if(arr[i]==arr[j]) {
+					arr[j]=""; 
+				}
+			} 
+		} 
+		//
+		var j=0; 
+		for(i=0;i<arr.size();i++){ 
+			if(arr[i]!=""){ 
+				arrDD.add(arr[i]);
+			} 
+		} 
+	}
+	return arrDD;
+}

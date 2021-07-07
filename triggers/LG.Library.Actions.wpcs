@@ -1,0 +1,1192 @@
+// initGlobals
+// @desc init global values
+// @return hashmap
+function initGlobals(){
+    var hmGlobalConst = [];
+    hmGlobalConst = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+    var hmGlobals = [];
+	hmGlobals["SCRIPT_INITIAL_RULES"]=getScriptByPath("/scripts/triggers/LG.Business.Initial.Rules");	
+    hmGlobals["LOGGER"]=getLogger("Lafarge.Cloner");
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ATTRS_TO_CLONE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToClone");
+    hmGlobals["FN_MERGE_HASHES"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("mergeHashes");
+    hmGlobals["FN_GET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+    hmGlobals["FN_SET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("setStatus");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+   	hmGlobals["FN_GET_ATTRS_TO_INHERIT"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToInherit");
+    
+    return hmGlobals["FN_MERGE_HASHES"].invoke(hmGlobals,hmGlobalConst);
+}
+
+function setStatus(hmGlobals,entry,status){
+    return hmGlobals["FN_SET_STATUS"].invoke(entry,status);
+  }
+
+function allocateERPCode(containerCode, type){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("allocateERPCode").invoke(containerCode, type);
+}
+
+function getAttrsToClone(hmGlobals,oItem){
+	return hmGlobals["FN_GET_ATTRS_TO_CLONE"].invoke(oItem);
+}
+
+function getAttrsToInherit(hmGlobals,oItem) {
+	return hmGlobals["FN_GET_ATTRS_TO_INHERIT"].invoke(oItem);
+}
+
+
+// putInCollabArea
+// called by all actions to put new Item in collab area and return result.
+// ca=collab area
+// initialStep = step into which we want to put the entry
+// oItem=entry
+// hmLabels = table for translations and labels
+// linkStep = step for the link we show to the user on the popup.
+
+function putInCollabArea(ca,initialStep,oItem,hmLabels,linkStep){
+	var hmResult=[];
+	var err;
+    catchError(err) 
+    {
+        if (oItem==null)
+        {
+        	hmResult["status"] = hmLabels["USERSTATUS"];
+        }
+        else
+        {
+        var bStatus = ca.addEntryIntoColArea(oItem, initialStep);
+	        if (bStatus) 
+	        {
+			    hmResult["status"] = hmLabels["USERSTATUS"];
+				hmResult["pk"] = oItem.getPrimaryKey();
+				hmResult["desc"] = oItem.getDisplayValue();
+	            var aObjects = [];
+	            aObjects.add(ca);
+	            aObjects.add(linkStep);
+	            aObjects.add(hmResult["pk"]);
+	            hmResult["url"] = getPageURL("COLAREA_ENTRY", aObjects);            
+	        }
+	        else 
+	        {
+	            hmResult["status"] = hmLabels["ERROR"];
+	        }
+	   }
+    }
+    if (err != null) 
+    {
+        hmResult["status"] = hmLabels["ERROR"]+ " " + err;
+    }
+    return hmResult;
+}
+
+function initializeTargetSystemGroup(item) {
+	var hmTargetSystemId = [];
+	var lkpInterfaces = getLkpByName("L900-Interfaces - Interfaces");
+	hmTargetSystemId = lkpInterfaces.getLkpKeys();
+	var i;
+	for(i=0;i<hmTargetSystemId.size();i++) {
+		item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+i+"/99CTL210-TargetSystemId",hmTargetSystemId[i]);
+		item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+i+"/99CTL220-MessageStatus","MSGTOBESENT");
+		item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+i+"/99CTL230-TechnicalStatus","NA");
+		item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+i+"/99CTL250-Information","Item has never been exported.");
+	}
+}
+
+function initializeSalesOrgaGroup(item) {
+	var hmGlobals=initGlobals();
+	var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemLevel").invoke(item);
+	if(strItemType!=null && strItemType!="") {
+		if (strItemType=="3" || strItemType=="4") {
+			var strSecSpecName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"01AC0014-invoiceName").getEntryNodeExactPath();
+			if(strSecSpecName!=null && strSecSpecName!="") {
+				strSecSpecName = substring(strSecSpecName,1);
+				strSecSpecName = checkString(substring(strSecSpecName,0,strSecSpecName.indexOf("/")), "");
+				//
+				var strSalesOrganisationPath0 = "/"+strSecSpecName+"/SalesOrganisationGroup#0/10GC0725-SalesOrganisation";
+				var strDistributionChannelPath0 = "/"+strSecSpecName+"/SalesOrganisationGroup#0/10GC0726-DistributionChannel";
+				item.setEntryAttrib(strSalesOrganisationPath0,"9501");
+				item.setEntryAttrib(strDistributionChannelPath0,"9501-10");
+				//
+				var strSalesOrganisationPath1 = "/"+strSecSpecName+"/SalesOrganisationGroup#1/10GC0725-SalesOrganisation";
+				var strDistributionChannelPath1 = "/"+strSecSpecName+"/SalesOrganisationGroup#1/10GC0726-DistributionChannel";
+				item.setEntryAttrib(strSalesOrganisationPath1,"9509");
+				item.setEntryAttrib(strDistributionChannelPath1,"9509-30");
+			}
+		}	
+	}
+}
+
+// itemCloner
+//@brief Copy part of a Fiche Produit to another Fiche Produit (based on Attribute Collection)
+//@param hmGlobals hmGlobals
+//@param itmSrc - Item : Fiche Produit to copy
+//@param itmDst - Item : Fiche Produit that will get source product values
+//@param aAttrColl - String Array : Array of AttrColl names
+///@return String Array : copy report (HTML format)
+function itemCloner(hmGlobals,itmSrc, itmDst, aAttrColl) {
+	// var log = hmGlobals["LOGGER"];
+	// log.loggerInfo("BEGIN OF itemCloner");
+    
+    var sSpecSrc="_" + hmGlobals["FN_GET_ITEM_TYPE"].invoke(itmSrc)+"/";
+    var sSpecDest="_" + hmGlobals["FN_GET_ITEM_TYPE"].invoke(itmDst)+"/";
+    
+    var pathDelimiter = "/";
+    
+    var asOutput = [];
+    
+    if (itmSrc != null && itmDst != null) {
+        // log.loggerDebug("Item source and dest are not null");
+		
+		var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType").invoke(itmSrc);
+		var strCtgName = itmSrc.getCatalog().getCtgName();
+
+		if(strItemType=="Prod" && strCtgName.contains("800")) {
+			aAttrColl.add("SC800-Dalles_plafond_Ceiling_tiles_Prod/04CP0095-Width");
+		}
+		
+        var sKey;
+        var sPath = null;
+        // log.loggerDebug("For each attribute");
+        forEachHmElement(aAttrColl, sKey, sPath) {
+        // log.loggerDebug("------------------------------------------------------------");
+        // log.loggerDebug("------> sPath : " + sPath);
+        
+        if (sPath.indexOf(pathDelimiter) > 0) 
+        {
+            var spec = getSpecByName(substring(sPath, 0, sPath.indexOf(pathDelimiter)));
+            if (spec == null) 
+            {
+                // log.loggerDebug("----> Spec is null");
+                throwError("Spec is null");
+            }
+                
+            //if node is a grouping node it will not be set
+            var nodeTmp = spec.getNodeByPath(sPath);
+            if(nodeTmp.isNodeGrouping()) 
+            {
+                // log.loggerDebug("------------> Node is a grouping");               
+            } else if (nodeTmp.isNodeNonPersisted()) 
+            	{
+                	// log.loggerDebug("------------> Node is Non Persisted");
+            	} 
+            	else if (sPath.contains("01AC0044-ERPCode") || sPath.contains("01AC0548-Status") || sPath.contains("01AC0012-LongName")) 
+            	{    
+                  	// log.loggerDebug("------------> Node is PK or desc");
+            	}
+            	else 
+            		{
+                    // log.loggerDebug("------------> Node is OK");
+                    
+                    //////////
+                    
+                    var bMultiOcc=false;
+                    if(spec.getSpecMultiOccurAttributePaths().containsValue(sPath)) {
+                        // log.loggerDebug("------------------> Attribute multi-occurrence : " + sPath);
+                        
+                        var aNodeValue = itmSrc.getRootEntryNode().getEntryNodes(sPath);
+                        // log.loggerDebug("------------------------------------------------------> aNodeValue : " + aNodeValue);
+                        for(var i = 0; i < aNodeValue.size(); i++) 
+                        {
+                            // log.loggerDebug("------------------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeValue());
+                            // log.loggerDebug("------------------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeExactPath());
+                            if(spec.getNodeByPath(sPath).getNodeAttributeValue("TYPE") == "RELATIONSHIP") 
+                            {
+                                var aRelatedInfo = itmSrc.getEntryRelatedItemInfo(aNodeValue[i].getEntryNodeValue());
+                                if (aRelatedInfo != null) 
+                                {
+                                	var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                    itmDst.setEntryRelationshipAttrib(dst, getCtgByName(aRelatedInfo[0]), aRelatedInfo[1]);
+                                    asOutput.add(dst + " - " + checkString(aRelatedInfo[1], "null"));
+                                }
+                            }
+                            else
+                            {    
+								var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                itmDst.setCtgItemAttrib(dst, aNodeValue[i].getEntryNodeValue());
+                                asOutput.add(dst + " - " + checkString(aNodeValue[i].getEntryNodeValue(), "null"));
+                            }
+                        }
+                        bMultiOcc=true;
+                    }
+                    else 
+                    {
+                        var sParentAttr=getParentPath(sPath);
+                        if(sParentAttr != null && sParentAttr.length() > 0) {
+                            // log.loggerDebug("------------------> Parent : " + sParentAttr);
+                            var child = null;
+                            var sGrandParentAttr = getParentPath(sParentAttr);
+                            if(sGrandParentAttr != null && spec.getSpecMultiOccurAttributePaths().containsValue(sGrandParentAttr)) 
+                            {
+                                //grandParent is multioccurence
+                                // log.loggerDebug("------------------> grandParent : " + sGrandParentAttr);
+                                // log.loggerDebug("------------------> grandParent is multioccurence");
+                                
+                                var aNodeValue = itmSrc.getRootEntryNode().getEntryNodes(sPath);
+                                // log.loggerDebug("------------------------------------------> aNodeValue : " + aNodeValue);
+                                for (var i = 0; i < aNodeValue.size(); i++) 
+                                {
+                                    // log.loggerDebug("-------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeValue());
+                                    // log.loggerDebug("-------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeExactPath());
+                                    if (spec.getNodeByPath(sPath).getNodeAttributeValue("TYPE") == "RELATIONSHIP") 
+                                    {
+                                        var aRelatedInfo = itmSrc.getEntryRelatedItemInfo(aNodeValue[i].getEntryNodeValue());
+                                        if (aRelatedInfo != null) 
+                                        {
+	                                        var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                            itmDst.setEntryRelationshipAttrib(dst, getCtgByName(aRelatedInfo[0]), aRelatedInfo[1]);
+                                            asOutput.add(sPath + " - " + checkString(aRelatedInfo[1], "null"));
+                                        }
+                                    }
+                                    else
+                                    {    
+										var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                        itmDst.setCtgItemAttrib(dst, aNodeValue[i].getEntryNodeValue());
+                                        asOutput.add(dst + " - " + checkString(aNodeValue[i].getEntryNodeValue(), "null"));
+                                    }
+                                }
+                                
+                                //log("DEBUG",concat("sParentAttr --> ",sParentAttr," - sPath --> ",sPath));
+                                child = concat(sParentAttr.substring(sParentAttr.lastIndexOf(pathDelimiter),sParentAttr.length()),sPath.substring(sPath.lastIndexOf(pathDelimiter),sPath.length()));
+                                // log.loggerDebug("------------------> child : " + child);
+                                sParentAttr=sGrandParentAttr;
+                            }
+                            if(spec.getSpecMultiOccurAttributePaths().containsValue(sParentAttr)) 
+                            {
+                                //parent or grandParent is multioccurence
+                                // log.loggerDebug("------------------> parent or grandParent is multioccurence");
+                                
+                                var aNodeValue = itmSrc.getRootEntryNode().getEntryNodes(sPath);
+                                // log.loggerDebug("------------------------------------------------------> aNodeValue : " + aNodeValue);
+                                for(var i = 0; i < aNodeValue.size(); i++) 
+                                {
+                                    // log.loggerDebug("------------------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeValue());
+                                    // log.loggerDebug("------------------------------------------------------> aNodeValue[i] : " + aNodeValue[i].getEntryNodeExactPath());
+                                    if(spec.getNodeByPath(sPath).getNodeAttributeValue("TYPE") == "RELATIONSHIP") 
+                                    {
+                                        var aRelatedInfo = itmSrc.getEntryRelatedItemInfo(aNodeValue[i].getEntryNodeValue());
+                                        if (aRelatedInfo != null) 
+                                        {
+	                                        var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                            itmDst.setEntryRelationshipAttrib(dst, getCtgByName(aRelatedInfo[0]), aRelatedInfo[1]);
+                                            asOutput.add(sPath + " - " + checkString(aRelatedInfo[1], "null"));
+                                        }
+                                    }
+                                    else
+                                    {    
+                                    	var dst=replaceString(aNodeValue[i].getEntryNodeExactPath(),sSpecSrc,sSpecDest);
+                                        itmDst.setCtgItemAttrib(dst, aNodeValue[i].getEntryNodeValue());
+                                        asOutput.add(dst + " - " + checkString(aNodeValue[i].getEntryNodeValue(), "null"));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if(!bMultiOcc)
+                    {
+                        //attribute is mono occurence
+                        // log.loggerDebug("------------------> attribute is mono-occurence");
+                        var sourceValue = itmSrc.getCtgItemAttrib(sPath);
+                        // log.loggerDebug("-----> sourceValue : " + checkString(sourceValue, "null"));
+                        if (sourceValue != null) 
+                        {
+                            if(spec.getNodeByPath(sPath).getNodeAttributeValue("TYPE") == "RELATIONSHIP") 
+                            {
+                                var aRelatedInfo = itmSrc.getEntryRelatedItemInfo(sourceValue);
+                                if (aRelatedInfo != null) 
+                                {
+                                	var dst=replaceString(sPath,sSpecSrc,sSpecDest);
+                                    itmDst.setEntryRelationshipAttrib(dst, getCtgByName(aRelatedInfo[0]), aRelatedInfo[1]);
+                                    asOutput.add(dst + " - " + checkString(aRelatedInfo[1], "null"));
+                                }
+                            }
+                            else
+                            {    
+                                var dst=replaceString(sPath,sSpecSrc,sSpecDest);
+                                itmDst.setCtgItemAttrib(dst, sourceValue);
+                                asOutput.add(dst + " - " + checkString(sourceValue, "null"));
+                            }
+                        }
+                        
+                    }
+                }
+            }
+            else 
+            {
+                // log.loggerDebug("Node is not a valid attribute !");
+            }
+        }
+    } 
+    else 
+    {
+        // log.loggerDebug("Wrong arguments. Next 2 lines are output of args :");
+    }
+    // log.loggerInfo("END OF itemCloner");
+    return asOutput;
+}
+
+// cloneEntrySet -- DUPLICATION
+// Duplication.
+// @param catalog catalog
+// @param entrySet entrySet
+// @return hashmap with ready-to-display results
+function cloneEntrySet(catalog,entrySet,context){
+	var hmGlobals=initGlobals();
+	var hmLabels=[];
+	hmLabels["USERSTATUS"]="Création Copie Réussie";
+	hmLabels["ERROR"]="Problème lors de la copie de l'item";
+	
+	var log = hmGlobals["LOGGER"];
+
+	var hmResults=[];
+	var oItem;
+
+	forEachItemSetElement(entrySet, oItem) {
+		log.loggerDebug("CLONING " + oItem.getPrimaryKey());
+		var err;
+		var ca=null;
+		var type=null;
+		var initialStep="";
+		var linkStep="";
+		var oClone;
+		catchError(err) 
+    	{
+		    var type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oItem);
+	
+		    var cat = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]).getCategoryByPath(type, "/");
+			var sName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(oItem.getCtgItemPrimaryKey());
+
+		  	sName = sName.substring((sName.startsWith("CA") ? 2 : 1 ),sName.length());
+			if (context=="MKT") {
+				ca = getColAreaByName("CA010-WFL010-Product Creation-v1");
+				initialStep = "INITIAL";
+				linkStep = "10-Initiate-Product Manager";
+			}else{
+				ca = getColAreaByName("CA" + sName);
+				initialStep = type;
+				linkStep = type;
+			}
+	
+		    var desc = oItem.getEntryAttrib("/SC000-GlobPrim/01AC0012-LongName"); 
+		    oClone = new CtgItem(ca.getColAreaContainer(), false, false, false);
+		    var sERPCode = allocateERPCode(sName.substring(0,3), type);
+		    oClone.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCode);
+	   		oClone.mapCtgItemToCategory(cat);
+		
+		    itemCloner(hmGlobals,oItem, oClone, getAttrsToClone(hmGlobals,oItem));
+		
+		    oClone.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - Copie à compléter");
+		    oClone.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[DUPLICATING] - Duplication");
+		    var rsParentItem = oItem.getEntryRelationshipAttrib("/SC000-GlobPrim/99CTL100-ParentItem");
+		    if(rsParentItem!=null) {
+		    	oClone.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", catalog.getEntryByPrimaryKey(rsParentItem[1]));
+		    }
+		    oClone.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+		    initializeTargetSystemGroup(oClone);
+		    hmResults.add(putInCollabArea(ca,initialStep,oClone,hmLabels,linkStep));
+		    log.loggerDebug("CLONING DONE");
+		}
+		if (err!=null){
+			hmLabels["USERSTATUS"]=hmLabels["ERROR"] + err;
+			oClone=null;
+			hmResults.add(putInCollabArea(ca,type,oClone,hmLabels,linkStep));
+		}
+	   
+	}
+	return hmResults;
+}
+
+// createProduct -- PRODUCT CREATION
+// Product Creation
+// @param catalog catalog
+// @param entrySet entrySet
+// @return hashmap with ready-to-display results
+//
+// Sandbox test code:
+// var ctg=getCtgByName("C010-Plaques de plâtre - Gypsum plasterBoards");
+// var lib=getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+// var a=[];
+// a[0]="K010P01621";
+// var entryset=getItemSetForPrimaryKeys(ctg,a,true);
+// var hmResults=lib.getFunctionByName("createProduct").invoke(ctg,entryset,"");
+// out.writeln(hmResults);
+
+function createProduct(catalog,entrySet,context){
+	var hmGlobals=initGlobals();
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("CREATE_PRODUCT: BEGIN");	
+	var hmLabels=[];
+	hmLabels["USERSTATUS"]="Création produit réussie";
+	hmLabels["ERROR"]="Problème lors de la création du produit";
+	// initialize 
+	var hmResults = [];
+	var type="Prod";
+	var linkStep="";
+	var oItem;
+	forEachItemSetElement(entrySet, oItem) 
+	{
+		var err;
+		var ca=null;
+		var oProd=null;
+		var initialStep="";
+		
+		catchError(err) 
+	   	{
+			var cat = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]).getCategoryByPath(type, "/");			
+			var sName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getCtgNameFromErpCode").invoke(oItem.getCtgItemPrimaryKey());
+			sName = sName.substring((sName.startsWith("CA") ? 2 : 1 ),sName.length());
+			
+			// if called from Marketing, then initiate proper workflow
+			if (context=="MKT") {
+				ca = getColAreaByName("CA010-WFL010-Product Creation-v1");
+				initialStep = "INITIAL";
+				linkStep = "10-Initiate-Product Manager";
+			}else{
+				ca = getColAreaByName("CA" + sName);
+				initialStep = "Prod";
+				linkStep = "Prod";
+			}
+
+			var desc = sName.parseDelim(" - ")[0]; 
+			var containerCode = sName.substring(0,3);
+			oProd = new CtgItem(ca.getColAreaContainer(), false, false, false);
+			var sERPCode = allocateERPCode(containerCode,type);
+			oProd.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode", sERPCode);
+			oProd.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", desc + " - A compléter");
+		    oProd.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[CREATION] - En cours de création");
+		    oProd.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);
+		    initializeTargetSystemGroup(oProd);
+			oProd.mapCtgItemToCategory(cat);
+			hmResults.add(putInCollabArea(ca,initialStep,oProd,hmLabels,linkStep));
+			log.loggerDebug("CREATE_PRODUCT: DONE");	
+		}
+		if (err!=null){
+			hmLabels["USERSTATUS"]=hmLabels["ERROR"] + err;
+			oProd=null;
+			// TODO : check why we are resubmitting in case of error (???)
+			hmResults.add(putInCollabArea(ca,initialStep,oProd,hmLabels,linkStep));
+		}
+	}	
+	return  hmResults;
+}
+
+// createChildren -- CHILD CREATION
+// Child Creation
+// @param catalog catalog
+// @param entrySet entrySet
+// @return hashmap with ready-to-display results
+function createChildren(catalog,entrySet){
+	var hmGlobals=initGlobals();
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("CREATE_CHILDREN: BEGIN");
+	
+	var hmLabels=[];
+	hmLabels["USERSTATUS"]="Création Enfant Réussie";
+	hmLabels["ERROR"]="Problème lors de la création de l'enfant";
+	
+	var hmResults = [];
+	var ctr = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]);
+	var sName = catalog.getCtgName();
+
+	if (sName.startsWith("CA")) 
+	{
+		out.writeln("<br>Impossible d'ajouter un enfant à une fiche encore dans le workflow.<br>");
+	}
+	else 
+	{
+	    var oItem;
+	    forEachItemSetElement(entrySet, oItem) 
+	    {
+			var err;
+			var ca=null;
+	    	var oChild = null;
+	    	var type = null;
+	    	var linkStep="";
+	    	catchError(err) 
+    		{
+    			log.loggerDebug("CREATE_CHILDREN: creating child of " + oItem.getCtgItemPrimaryKey());
+		        var paths = oItem.getCtgItemCategoryPaths("/", false, ctr);
+		        var parentType = checkString(paths[0], "Prod");
+		        type = (parentType == "Prod" ? "BUnit" : "PItem" );
+		        linkStep=type;
+		        var cat = ctr.getCategoryByPath(type, "/");
+		        ca = getColAreaByName("CA" + sName.substring(1,sName.length()));
+		        var containerCode = sName.substring(1,4);
+				// Creating Child		        
+		        oChild = new CtgItem(ca.getColAreaContainer(), false, false, false);
+		        // mapping it to the correct category.
+				oChild.mapCtgItemToCategory(cat);
+						    	
+				// doing initialisation.
+		        var sERPCode = allocateERPCode(containerCode, type);
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode",sERPCode);
+		        oChild.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oItem);
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[CREATION] - En cours de création");
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", oItem.getDisplayValue() + " - A Compléter");
+				oChild.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);		        
+				initializeTargetSystemGroup(oChild);
+				initializeSalesOrgaGroup(oChild);
+
+				var attrsToClone=getAttrsToInherit(hmGlobals,oItem);
+				// Copying attributes from parent
+				log.loggerDebug("CREATE_CHILDREN: Copying " + attrsToClone.size() + " attributes from parent.");
+			    itemCloner(hmGlobals,oItem, oChild, attrsToClone);
+
+			    // Running initial rules on attributes we could not inherit from parent.
+			    var attrsShouldClone=getAttrsToInherit(hmGlobals,oChild);
+				var aAttribToRunInitialRulesOn=[];
+				// var sSrcAttribs=oItem.getEntryAttribsList();
+				var sSrcAttribs=oChild.getEntryAttribsList();
+				var oKey;
+				var oValue;
+				forEachHmElement(sSrcAttribs,oKey,oValue){
+					// sSrcAttribs[oKey]=getRidOfRootName(oValue);
+					sSrcAttribs[oKey]=oValue;
+				}
+
+				var sSrcParentAttribs=oItem.getEntryAttribsList();
+				var sSrcParentRidOfRootNameAttribs=[];
+				var oKeyParent;
+				var oValueParent;
+				forEachHmElement(sSrcParentAttribs,oKeyParent,oValueParent){
+					sSrcParentRidOfRootNameAttribs.add(getRidOfRootName(oValueParent));
+				}
+				
+				// forEachHmElement(attrsShouldClone,oKey,oValue){
+				// 	if (!sSrcAttribs.containsValue(getRidOfRootName(oValue))){
+				// 		aAttribToRunInitialRulesOn.add(oValue);
+				// 	}
+				// }
+
+				// log.loggerDebug("CREATE_CHILDREN: attrsShouldClone " + attrsShouldClone);
+				
+				forEachHmElement(sSrcAttribs,oKey,oValue){
+					
+					// log.loggerDebug("------------------------------------");
+					// log.loggerDebug("CREATE_CHILDREN: Init Rule for attr " + oValue);
+					// log.loggerDebug("CREATE_CHILDREN: attrsShouldClone.containsValue(oValue)= " + attrsShouldClone.containsValue(oValue));
+					// log.loggerDebug("CREATE_CHILDREN: sSrcParentRidOfRootNameAttribs.containsValue(getRidOfRootName(oValue))= " + sSrcParentRidOfRootNameAttribs.containsValue(getRidOfRootName(oValue)));
+					
+					if (!attrsShouldClone.containsValue(oValue) || (attrsShouldClone.containsValue(oValue) && !sSrcParentRidOfRootNameAttribs.containsValue(getRidOfRootName(oValue)))){
+						// log.loggerDebug("CREATE_CHILDREN: Init Rule for attr OK");
+						if(getRidOfRootName(oValue)!="01AC0044-ERPCode" && getRidOfRootName(oValue)!="99CTL100-ParentItem" && getRidOfRootName(oValue)!="01AC0548-Status" && getRidOfRootName(oValue)!="01AC0012-LongName" && getRidOfRootName(oValue)!="99CTL010-RevNum") {
+							aAttribToRunInitialRulesOn.add(oValue);
+						}
+					}
+				}	
+
+				log.loggerDebug("CREATE_CHILDREN: Running Initial Rules on " + aAttribToRunInitialRulesOn.size() + " attributes we could not copy from parent.");
+				getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oChild,aAttribToRunInitialRulesOn);
+
+		        hmResults.add(putInCollabArea(ca,type,oChild,hmLabels,linkStep));
+		        log.loggerDebug("CREATE_CHILDREN: DONE - created child " + oChild.getCtgItemPrimaryKey());
+		    }
+		    if (err!=null){
+   		        log.loggerDebug("CREATE_CHILDREN: ERROR - " + err);
+				hmLabels["USERSTATUS"]=hmLabels["ERROR"] + err;
+				oChild=null;
+				hmResults.add(putInCollabArea(ca,type,oChild,hmLabels,linkStep));
+			}   
+	    }
+	}
+	return hmResults;
+}
+
+function getEntryPKFromId(strLkpName,strLkpId) {
+	var strLkpPK="";
+	if(strLkpName!=null && strLkpName!="") {
+		var octg = getCtgByName(strLkpName);
+		var oitemset = octg.getItemSetForCatalog();
+		forEachItemSetElement(oitemset,oitem) {
+			var iItemId = oitem.getCtgItemId();
+			if (iItemId==strLkpId) {
+				var strItemPK = oitem.getPrimaryKey();
+				return strItemPK;
+			}
+		}
+	}
+	return "";
+}
+
+function getItemHistory(catalog,entrySet){
+	var hmGlobals=initGlobals();
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("GET ITEM HISTORY");
+	
+	var hmLabels=[];
+	hmLabels["USERSTATUS"]="Récupération de l'historique réussie.";
+	hmLabels["ERROR"]="Problème lors de la récupération de l'historique";
+	
+	var hmResults = [];
+	var ctr = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]);
+	var sName = catalog.getCtgName();
+
+	if (!sName.startsWith("CA")) {
+		sName = concat("CA",substring(sName,1));
+	}
+	
+	var oItem;
+	forEachItemSetElement(entrySet, oItem) 
+	{
+		var err;
+		
+		catchError(err) 
+		{
+			var strStepTemp = "";
+			var historyList = getColAreaEntryHistory(sName, "Authoring Workflow", oItem.getCtgItemPrimaryKey());
+			for(var i=0;i<historyList.size();i++) {
+				var oItemHistory = historyList[i];
+				if(oItemHistory!=null) {
+					var strItemHistoryStepPath = oItemHistory.getColAreaHistoryStepPath();
+					var strItemHistoryDifferences = oItemHistory.getColAreaHistoryEventAttribute("ENTRY_DIFFERENCES");
+					if((strItemHistoryStepPath!=strStepTemp) || (strItemHistoryStepPath==strStepTemp && strItemHistoryDifferences!=null && strItemHistoryDifferences!="")){
+						if(strItemHistoryStepPath!="Dispatch") {
+							if(strItemHistoryStepPath=="PItem") {
+								strItemHistoryStepPathDisplay = "Modification PItem";
+							}
+							else if(strItemHistoryStepPath=="BUnit") {
+								strItemHistoryStepPathDisplay = "Modification BUnit";
+							}
+							else if(strItemHistoryStepPath=="Prod") {
+								strItemHistoryStepPathDisplay = "Modification Prod";
+							}
+							else if(strItemHistoryStepPath=="SUCCESS") {
+								strItemHistoryStepPathDisplay = "Publication";
+							}
+							var strItemHistoryDate = oItemHistory.getColAreaHistoryDate().formatDate("dd/MM/yyyy hh:mm:ss");
+							var strItemHistoryUsername = oItemHistory.getColAreaHistoryUser();
+							var strItemHistory="";
+							//
+							if(strItemHistoryDifferences!=null && strItemHistoryDifferences!="") {
+								var xmltemp = strItemHistoryDifferences;
+								
+								var oNodes = xmltemp.parseDelim("<Node>");
+								for(var j=1;j<oNodes.size();j++) {
+									var strItemHistoryDetail = "";
+									var strNode = oNodes[j];
+									var oattrList = strNode.parseDelim("</");
+									var strNodeDisplayName="";
+									var strNodeLkpTableName = "";
+									var strNodeType = "";
+									// Attr Path
+									var strAttrPath = oattrList[0];
+									strAttrPath = replaceString(strAttrPath,"<Node>","");
+									strAttrPath = replaceString(strAttrPath,"<Path>","");
+									strAttrPath = replaceString(strAttrPath,"Path>","");	
+									strAttrPath = trim(strAttrPath);
+									if(strAttrPath!=null && strAttrPath!="") {
+										var strSpecName = substring(strAttrPath,1,substring(strAttrPath,1,strAttrPath.length()).indexOf("/")+1);
+										if(strSpecName!=null && strSpecName!="") {
+											var oAttrSpec = getSpecByName(strSpecName);
+											if(oAttrSpec!=null) {
+												var aAttrPath = strAttrPath.parseDelim("#");
+												var strAttrSimplePath = "";
+												for(var k=0;k<aAttrPath.size();k++) {
+													var strSubPath = aAttrPath[k];
+													strSubPath = substring(strSubPath,strSubPath.indexOf("/"),strSubPath.length());
+													strAttrSimplePath = strAttrSimplePath+strSubPath;
+												}
+												strAttrSimplePath = substring(strAttrSimplePath,1,strAttrSimplePath.length());
+												var oAttrNode = oAttrSpec.getNodeByPath(strAttrSimplePath);
+												if(oAttrNode!=null) {
+													strNodeDisplayName = oAttrNode.getNodeDisplayName(getUserLocale());
+													strNodeLkpTableName = oAttrNode.getNodeLookupTableName();
+													strNodeType = oAttrNode.getNodeAttributeValue("TYPE");
+												}
+											}
+										}
+									}
+									// Attr old Value
+									var strAttrOldValue = oattrList[1];
+									strAttrOldValue = replaceString(strAttrOldValue,"Path>","");
+									strAttrOldValue = replaceString(strAttrOldValue,"<OldValue>","");
+									strAttrOldValue = trim(strAttrOldValue);
+									
+									if(strAttrOldValue!=null && strAttrOldValue!="" && strNodeType=="LOOKUP_TABLE") {
+										strAttrOldValue=getEntryPKFromId(strNodeLkpTableName,strAttrOldValue);
+									}
+									
+									// Attr new Value
+									var strAttrNewValue = oattrList[2];
+									strAttrNewValue = replaceString(strAttrNewValue,"OldValue>","");
+									strAttrNewValue = replaceString(strAttrNewValue,"<NewValue>","");
+									strAttrNewValue = trim(strAttrNewValue);	
+
+									if(strAttrNewValue!=null && strAttrNewValue!="" && strNodeType=="LOOKUP_TABLE") {
+										strAttrNewValue=getEntryPKFromId(strNodeLkpTableName,strAttrNewValue);
+									}
+									
+									//
+									strItemHistoryDetail = concat("Attribut (Libellé) : ",strNodeDisplayName,"<br />Attribut (Path) : ",strAttrPath,"<br />Ancienne valeur : ",strAttrOldValue,"<br />Nouvelle valeur : ",strAttrNewValue);
+									strItemHistory=strItemHistoryDetail+"<br />"+strItemHistory;
+									//
+									var hmResult = [];
+									hmResult["pk"] = oItem.getPrimaryKey();
+									hmResult["desc"] = oItem.getDisplayValue();
+									hmResult["username"] = strItemHistoryUsername;
+									hmResult["datemodif"] = strItemHistoryDate;
+									hmResult["wflstep"] = strItemHistoryStepPathDisplay;
+									hmResult["attrchanges"] = strItemHistoryDetail;
+									//
+									hmResults.add(hmResult);
+								}
+							}
+							else {
+								var hmResult = [];
+								hmResult["pk"] = oItem.getPrimaryKey();
+								hmResult["desc"] = oItem.getDisplayValue();
+								hmResult["username"] = strItemHistoryUsername;
+								hmResult["datemodif"] = strItemHistoryDate;
+								hmResult["wflstep"] = strItemHistoryStepPathDisplay;
+								hmResult["attrchanges"] = "";
+								//
+								hmResults.add(hmResult);
+							}
+						}
+						strStepTemp=strItemHistoryStepPath;
+					}
+				}
+			}
+		}
+	}
+	return hmResults;
+}
+
+// createChildren Reprise pour AS400 -- CHILD CREATION
+// Child Creation
+// @param catalog catalog
+// @param entrySet entrySet
+// @return hashmap with ready-to-display results
+function createChildrenRepriseAS400(catalog,entrySet){
+	var hmGlobals=initGlobals();
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("CREATE_CHILDREN: BEGIN");
+	
+	var hmLabels=[];
+	hmLabels["USERSTATUS"]="Création Enfant Réussie";
+	hmLabels["ERROR"]="Problème lors de la création de l'enfant";
+	
+	var hmResults = [];
+	var ctr = getCategoryTreeByName(hmGlobals["HIERARCHY_TREE"]);
+	var sName = catalog.getCtgName();
+
+	if (sName.startsWith("CA")) 
+	{
+		out.writeln("<br>Impossible d'ajouter un enfant à une fiche encore dans le workflow.<br>");
+	}
+	else 
+	{
+	    var oItem;
+	    forEachItemSetElement(entrySet, oItem) 
+	    {
+			var err;
+			var ca=null;
+	    	var oChild = null;
+	    	var type = null;
+	    	var linkStep="";
+	    	catchError(err) 
+    		{
+    			log.loggerDebug("CREATE_CHILDREN: creating child of " + oItem.getCtgItemPrimaryKey());
+		        var paths = oItem.getCtgItemCategoryPaths("/", false, ctr);
+		        var parentType = checkString(paths[0], "Prod");
+		        type = (parentType == "Prod" ? "BUnit" : "PItem" );
+		        linkStep = type;
+		        var cat = ctr.getCategoryByPath(type, "/");
+		        ca = getColAreaByName("CA" + sName.substring(1,sName.length()));
+		        var containerCode = sName.substring(1,4);
+				// Creating Child		        
+		        oChild = new CtgItem(ca.getColAreaContainer(), false, false, false);
+		        // mapping it to the correct category.
+				oChild.mapCtgItemToCategory(cat);
+						    	
+				// doing initialisation.
+		        var sERPCode = allocateERPCode(containerCode, type);
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0044-ERPCode",sERPCode);
+		        oChild.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oItem);
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[CREATION] - En cours de création");
+		        oChild.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName", oItem.getDisplayValue() + " - A Compléter");
+				oChild.setEntryAttrib("/SC000-GlobPrim/99CTL010-RevNum", 0);		        
+				initializeTargetSystemGroup(oChild);
+
+				var attrsToClone=getAttrsToInherit(hmGlobals,oItem);
+				// Copying attributes from parent
+				log.loggerDebug("CREATE_CHILDREN: Copying " + attrsToClone.size() + " attributes from parent.");
+			    itemCloner(hmGlobals,oItem, oChild, attrsToClone);
+
+			    // Running initial rules on attributes we could not inherit from parent.
+			    var attrsShouldClone=getAttrsToInherit(hmGlobals,oChild);
+				var aAttribToRunInitialRulesOn=[];
+				var sSrcAttribs=oItem.getEntryAttribsList();
+				var oKey;
+				var oValue;
+				forEachHmElement(sSrcAttribs,oKey,oValue){
+					sSrcAttribs[oKey]=getRidOfRootName(oValue);
+				}
+			
+				forEachHmElement(attrsShouldClone,oKey,oValue){
+					if (!sSrcAttribs.containsValue(getRidOfRootName(oValue))){
+						aAttribToRunInitialRulesOn.add(oValue);
+					}
+				}
+				log.loggerDebug("CREATE_CHILDREN: Running Initial Rules on " + aAttribToRunInitialRulesOn.size() + " attributes we could not copy from parent.");
+				getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules").invoke(hmGlobals,oChild,aAttribToRunInitialRulesOn);
+
+		        hmResults.add(putInCollabArea(ca,type,oChild,hmLabels,linkStep));
+		        log.loggerDebug("CREATE_CHILDREN: DONE - created child " + oChild.getCtgItemPrimaryKey());
+		    }
+		    if (err!=null){
+   		        log.loggerDebug("CREATE_CHILDREN: ERROR - " + err);
+				hmLabels["USERSTATUS"]=hmLabels["ERROR"] + err;
+				oChild=null;
+				// Mise en commentaire de cette ligne pour ne pas générer automatiquement le calcul de la date de creation + item number + effective date
+				// pb à régler : génération de la valeur de l'attribut 01AC0002-Row
+				hmResults.add(putInCollabArea(ca,type,oChild,hmLabels,linkStep));
+			}   
+	    }
+	}
+	return hmResults;
+}
+
+function isItemAnAncestor(hmGlobals,oItem1,oItem2) {
+	if(oItem2==null || oItem1==null) {
+		return false;
+	}
+
+	if(oItem1.getPrimaryKey()==oItem2.getPrimaryKey()) {
+		return true;
+	}
+
+	var parentItem = hmGlobals["FN_GET_PARENT_ITEM"].invoke(hmGlobals["FN_GET_CONST"].invoke(),oItem2);
+	return isItemAnAncestor(hmGlobals,oItem1,parentItem);
+}
+
+function isItemCanBeCheckedOut(hmGlobals,oItem,sColAreaName) {
+	var oEntry;
+	var res1;
+	var res2;
+	forEachCtgItem(sColAreaName,oEntry) {
+		var res1 = isItemAnAncestor(hmGlobals,oEntry,oItem);
+		var res2 = isItemAnAncestor(hmGlobals,oItem,oEntry);
+		if(res1==true || res2==true) {
+			return ("Impossible de modifier cet item,un item de niveau inférieur ou supérieur est déjà en modification");
+		}
+	}
+	return("");
+}
+function modifyItem(catalog,oEntrySet){
+	var hmGlobals=initGlobals();
+	var hmResults = [];
+	var oItem;
+	var hmItemsToCheckOutPks = [];
+	var sCtgName = catalog.getCtgName();
+	var sColAreaName = "CA"+substring(sCtgName,1);
+	var colArea = getColAreaByName(sColAreaName);
+	var type;
+	forEachItemSetElement(oEntrySet, oItem) {
+		var hmResult = [];
+		hmResult["status"] = "OK";
+		hmResult["pk"] = oItem.getPrimaryKey();
+		hmResult["desc"] = oItem.getDisplayValue();
+		//
+		var strMaterialNumber="";
+		var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oItem,"01AC0664-MaterialNumber");
+		if(oItemMaterialNumberEn!=null) {
+			strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+		}
+		//
+		var strPublishedIntoSAP="";
+		var oItemPublishedIntoSAPEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oItem,"01AC0775-PublishedIntoSAP");
+		if(oItemPublishedIntoSAPEn!=null) {
+			strPublishedIntoSAP = checkString(oItemPublishedIntoSAPEn[0].getEntryNodeValue(),"");
+		}
+		//
+		var strSAPTechnicalStatus="";
+		var oItemTargetSystemGroupEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oItem,"99CTL200-TargetSystemGroup");
+		if(oItemTargetSystemGroupEn!=null) {
+			for(var i=0;i<oItemTargetSystemGroupEn.size();i++) {
+				var oItemTargetSystemIdEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oItem,"99CTL200-TargetSystemGroup#"+i+"/99CTL210-TargetSystemId");
+				if(oItemTargetSystemIdEn!=null) {
+					var strTargetSystemId = checkString(oItemTargetSystemIdEn.getEntryNodeValue(),"");
+					if(strTargetSystemId=="SP1CLNT100") {
+						var oItemSAPTargetStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oItem,"99CTL200-TargetSystemGroup#"+i+"/99CTL230-TechnicalStatus");
+						if(oItemSAPTargetStatusEn!=null) {
+							strSAPTechnicalStatus = checkString(oItemSAPTargetStatusEn.getEntryNodeValue(),"");
+						}
+					}
+				}
+			}
+		}		
+		//
+		if(checkString(hmGlobals["FN_GET_STATUS"].invoke(oItem),"")=="INACTIVE") {
+			hmResult["status"] = "Impossible de modifier une fiche inactive";
+			var aObjects = [];
+			aObjects.add(catalog);	  
+	    	aObjects.add(hmResult["pk"]);
+	        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		}
+		else if(checkString(hmGlobals["FN_GET_STATUS"].invoke(oItem),"")=="ACTIVE" && strMaterialNumber=="" && strPublishedIntoSAP=="true" && !strSAPTechnicalStatus.contains("51")) {
+		 	hmResult["status"] = "Impossible de modifier une fiche active dont le Material Number n'est pas encore synchronisé avec SAP";
+		 	var aObjects = [];
+		 	aObjects.add(catalog);	  
+	     	aObjects.add(hmResult["pk"]);
+	        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		}
+		else {
+			type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oItem);
+			var res = isItemCanBeCheckedOut(hmGlobals,oItem,sColAreaName);
+			
+			if(res == "") {
+				var hmCheckOutRes = colArea.checkOutEntry(oItem,"Dispatch",true);
+				hmGlobals["FN_SET_STATUS"].invoke(oItem,"MODIFYING");
+				hmResult["status"] = hmCheckOutRes[hmResult["pk"]];
+				var aObjects = [];
+				aObjects.add(colArea);	  
+				aObjects.add(type);
+		    	aObjects.add(hmResult["pk"]);
+		        hmResult["url"] = getPageURL("COLAREA_ENTRY", aObjects);    
+			}
+			else {
+				hmResult["status"]=res;
+				var aObjects = [];
+				aObjects.add(catalog);	  
+		    	aObjects.add(hmResult["pk"]);
+		        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		    }
+		}
+		hmResults.add(hmResult);
+	}
+	return hmResults;
+}	
+
+function reactiveItem(catalog,oEntrySet){
+	var hmGlobals=initGlobals();
+	var hmResults = [];
+	var oItem;
+	var hmItemsToCheckOutPks = [];
+	var sCtgName = catalog.getCtgName();
+	var sColAreaName = "CA"+substring(sCtgName,1);
+	var colArea = getColAreaByName(sColAreaName);
+	var type;
+	forEachItemSetElement(oEntrySet, oItem) {
+		var hmResult = [];
+		hmResult["status"] = "ERREUR";
+		hmResult["pk"] = oItem.getPrimaryKey();
+		hmResult["desc"] = oItem.getDisplayValue();
+		
+		if(checkString(hmGlobals["FN_GET_STATUS"].invoke(oItem),"")!="INACTIVE") {
+			hmResult["status"] = "La fiche doit être inactive";
+			var aObjects = [];
+			aObjects.add(catalog);	  
+	    	aObjects.add(hmResult["pk"]);
+	        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		}
+		else {
+			var parentItem = hmGlobals["FN_GET_PARENT_ITEM"].invoke(hmGlobals["FN_GET_CONST"].invoke(),oItem);
+			if(parentItem!=null) {
+				if(hmGlobals["FN_GET_STATUS"].invoke(parentItem)=="INACTIVE") {
+					hmResult["status"] = "Impossible de réactiver la fiche car son parent est inactif";
+					var aObjects = [];
+					aObjects.add(catalog);	  
+				   	aObjects.add(hmResult["pk"]);
+			       	hmResult["url"] = getPageURL("ITEM", aObjects); 
+			    }
+				else {
+					type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oItem);
+					var res = isItemCanBeCheckedOut(hmGlobals,oItem,sColAreaName);
+					if(res == "") {
+						var hmCheckOutRes = colArea.checkOutEntry(oItem,"Dispatch",true);
+						hmResult["status"] = hmCheckOutRes[hmResult["pk"]];
+						var aObjects = [];
+						aObjects.add(colArea);	  
+						aObjects.add(type);
+				    	aObjects.add(hmResult["pk"]);
+				        hmResult["url"] = getPageURL("COLAREA_ENTRY", aObjects);    
+					}
+					else {
+						hmResult["status"]=res;
+						var aObjects = [];
+						aObjects.add(catalog);	  
+				    	aObjects.add(hmResult["pk"]);
+				        hmResult["url"] = getPageURL("ITEM", aObjects); 
+				    }
+				}
+			}
+			else {
+				type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oItem);
+				var res = isItemCanBeCheckedOut(hmGlobals,oItem,sColAreaName);
+				if(res == "") {
+					var hmCheckOutRes = colArea.checkOutEntry(oItem,"Dispatch",true);
+					hmResult["status"] = hmCheckOutRes[hmResult["pk"]];
+					var aObjects = [];
+					aObjects.add(colArea);	  
+					aObjects.add(type);
+			    	aObjects.add(hmResult["pk"]);
+			        hmResult["url"] = getPageURL("COLAREA_ENTRY", aObjects);    
+				}
+				else {
+					hmResult["status"]=res;
+					var aObjects = [];
+					aObjects.add(catalog);	  
+			    	aObjects.add(hmResult["pk"]);
+			        hmResult["url"] = getPageURL("ITEM", aObjects); 
+			    }
+			}
+		}
+		hmResults.add(hmResult);
+	}
+	return hmResults;
+}
+// removeItemsFromColabArea
+// @desc should remove entry from colaboration area. mimic FIXIT=>REMOVE
+// @param catalog the colab area
+// @param oEntrySet entry set
+// @returns array hmResults to be displayed
+function removeItemsFromColabArea(catalog,oEntrySet){
+	var hmResults = [];
+	var hmGlobals=initGlobals();
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("CANCEL MODIF: BEGIN");	
+	var sCtgName = catalog.getCtgName();
+	if (!sCtgName.startsWith("CA")){
+		// we're being called from catalog !!!
+		var hmResult=[];
+		hmResult["pk"] = "ALL";
+		hmResult["desc"] = "NA";
+		hmResult["status"] = "ERREUR - Cette fonction ne doit être appelée qu'à partir de l'item de la CollaborationArea !";
+		hmResults.add(hmResult);
+		return hmResults;
+	}
+	
+	var colArea = getColAreaByName(sCtgName);
+	var oItem;
+	forEachEntrySetElement(oEntrySet,oItem) {
+		var hmResult=[];
+		hmResult["pk"] = oItem.getPrimaryKey();
+		hmResult["desc"] = oItem.getDisplayValue();
+
+		var aSteps=colArea.getStepsForEntry(oItem);
+		var i;
+		for (i=0;i<aSteps.size();i++)
+		{
+			var e;
+			catchError(e)
+			{
+				var b=true;
+				if (colArea.isEntryReservedInStep(oItem,aSteps[i]))
+				{
+					b=colArea.releaseEntryInStep(oItem,aSteps[i]);
+				}
+			
+				if (b)
+				{
+					colArea.dropEntry(oItem); 
+					// oItem.deleteCtgItem(); 
+					// oItem.saveCtgItem(); 			
+					hmResult["status"] = "Successfully removed entry from step " + aSteps[i];
+				}
+				else
+				{
+					hmResult["status"] = "Could not release entry from step " + aSteps[i];
+				}
+			}
+			if (e!=null)
+			{
+				log.loggerDebug(" Action res e :"+e);
+				//getLogger(".loggerDebug()
+				hmResult["status"] = "ERROR :" + e;
+			}
+			hmResults.add(hmResult);
+		}
+	}
+	log.loggerDebug("CANCEL MODIF: END");
+	return hmResults;
+}
+
+function deactivateItemAllSites(catalog,oEntrySet){
+	var hmGlobals=initGlobals();
+	var hmResults = [];
+	var oItem;
+	var hmItemsToCheckOutPks = [];
+	var sCtgName = catalog.getCtgName();
+	var sColAreaName = "CA"+substring(sCtgName,1);
+	var colArea = getColAreaByName(sColAreaName);
+	var type;
+	
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("DEACTIVATE-ACTION-"+sCtgName);	
+	
+	if (sCtgName.startsWith("CA")){
+		// we're being called from coll area !!!
+		var hmResult=[];
+		hmResult["pk"] = "ALL";
+		hmResult["desc"] = "NA";
+		hmResult["status"] = "ERREUR - Cette fonction ne doit être appelée qu'à partir de l'item du catalogue !";
+		hmResults.add(hmResult);
+		return hmResults;
+	}
+	
+	forEachItemSetElement(oEntrySet, oItem) {
+		var hmResult = [];
+		hmResult["status"] = "ERREUR";
+		hmResult["pk"] = oItem.getPrimaryKey();
+		hmResult["desc"] = oItem.getDisplayValue();
+
+		// Les items déjà désactivés ne doivent pas être désactivés à nouveau (test 01AC0670-XPlantMatlStatus != YD)
+		// Fonction limitée aux BUnit et PItem
+		
+		var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType").invoke(oItem);
+
+		if(checkString(hmGlobals["FN_GET_STATUS"].invoke(oItem),"")=="INACTIVE") {
+			hmResult["status"] = "L'item posséde déjà le statut Désactivé";
+			var aObjects = [];
+			aObjects.add(catalog);	  
+	    	aObjects.add(hmResult["pk"]);
+	        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		}
+		else if(strItemType=="Prod") {
+			hmResult["status"] = "La désactivation des sites est possible uniquement pour les BUnit et PItem";
+			var aObjects = [];
+			aObjects.add(catalog);	  
+	    	aObjects.add(hmResult["pk"]);
+	        hmResult["url"] = getPageURL("ITEM", aObjects); 
+		}
+		else {
+			oItem.setEntryAttrib("/SC000-GlobPrim/AttTechDeactivateAllSites", "true");
+			var test = oItem.saveCtgItem(); 
+			
+			log.loggerDebug("IN WFL Savetest=" + test);
+			
+			var testDeactivateSites = oItem.getEntryAttrib("SC000-GlobPrim/AttTechDeactivateAllSites");
+			log.loggerDebug("IN WFL DeactivateSites=" + testDeactivateSites);
+			
+			//
+			type = hmGlobals["FN_GET_ITEM_TYPE"].invoke(oItem);
+			var res = isItemCanBeCheckedOut(hmGlobals,oItem,sColAreaName);
+			
+			log.loggerDebug("IN WFL res=" + res);
+			
+			if(res == "") {
+				var hmCheckOutRes = colArea.checkOutEntry(oItem,"Dispatch",true);
+				hmResult["status"] = hmCheckOutRes[hmResult["pk"]];
+				var aObjects = [];
+				aObjects.add(colArea);	  
+				aObjects.add(type);
+				aObjects.add(hmResult["pk"]);
+				hmResult["url"] = getPageURL("COLAREA_ENTRY", aObjects);    
+			}
+			else {
+				hmResult["status"]=res;
+				var aObjects = [];
+				aObjects.add(catalog);	  
+				aObjects.add(hmResult["pk"]);
+				hmResult["url"] = getPageURL("ITEM", aObjects); 
+			}
+		}
+		hmResults.add(hmResult);
+	}
+	return hmResults;
+}

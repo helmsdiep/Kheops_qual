@@ -1,0 +1,982 @@
+<% 
+//script_execution_mode=not_compiled
+var hmGlobal = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+var log = getLogger("Lafarge.DataEntry");
+var e;
+catchError(e){
+
+//var userName = getCurrentUserName();
+var company_code=company_code;
+//var user = getUserByUsername(userName, company_code);
+//var userLoc = getUserLocale().getLocaleCode();
+
+
+var CatalogSpecName = hmGlobal["PRIMARY_SPEC"];
+var sRelationField = hmGlobal["DE_RELATIONSHIP_FIELD"];
+var sDsiplayField = hmGlobal["DE_DISPLAY_FIELD"];
+var sHierarchy = hmGlobal["HIERARCHY_TREE"];
+
+
+var phBaseSpecPath = CatalogSpecName ;
+var BaseNodeAttribPath_Description = CatalogSpecName +"/"+ sDsiplayField;
+var TriggerScriptName = "LG.Util.ProductHierarchy.Browser";
+
+
+
+
+var conversions = [];
+conversions["Prod"] = "Prod";
+conversions["PItem1"] = "PItem1";
+conversions["PItem2"] = "PItem2";
+conversions["PItem3"] = "PItem3";
+conversions["PItem4"] = "PItem4";
+conversions["PItem5"] = "PItem5";
+conversions["PItem6"] = "PItem5";
+conversions["BUnit"] = "BUnit";
+
+
+// message display in the box
+var conversions3 = [];
+conversions3["Prod"] = "Prod";
+conversions3["BUnit"] = "BUnit";
+conversions3["PItem"] = "PItem";
+conversions3["PItem1"] = "PItem Level 1";
+conversions3["PItem2"] = "PItem Level 2";
+conversions3["PItem3"] = "PItem Level 3";
+conversions3["PItem4"] = "PItem Level 4";
+conversions3["PItem5"] = "PItem Level 5";
+
+// allow to know if we look for child or parents 
+var ptValueConv = [];
+ptValueConv["Prod"] = 0;
+ptValueConv["BUnit"] = 1;
+ptValueConv["PItem1"] = 2;
+ptValueConv["PItem2"] = 3;
+ptValueConv["PItem3"] = 4;
+ptValueConv["PItem4"] = 5;
+ptValueConv["PItem5"] = 6;
+
+
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+// ================================================================================
+//
+// @brief getItemType return in which category the item belong to
+// @param item curent item process
+// @return an arry of items
+function getItemType(item)
+{
+	var a=substring(item.getPrimaryKey(),4,5);
+	if (a=="B") {
+		return "BUnit";
+	}else
+	{
+		if (a=="P") 
+		{
+			return "Prod";
+		}
+		else
+		{
+			if (a=="I")
+			{
+				return "PItem";
+			}
+			else
+			{
+				return null;
+			}
+		}
+	}
+}
+
+// ================================================================================
+//
+// @brief sortArrayMultiDim sort a multi dimension array
+// @param parray array to sort
+// @param pfieldname field name
+// @return the same array sorted
+function sortArrayMultiDim(parray,pfieldname) {
+	var nbEnregistrement = parray.size();
+	for (var bubble = 1; bubble<nbEnregistrement;  bubble++){
+		for (var position = nbEnregistrement-1; position >0; position--){
+			if (parray[position][pfieldname]<parray[position-1][pfieldname]){
+				var temp = parray[position];
+				parray[position] = parray[position-1];
+				parray[position-1] = temp;
+			}
+		}
+	}
+return parray;
+}
+
+// ================================================================================
+//
+// @brief getURL Compliant with the Data Entry Properties.xml
+// @param entry url
+// @return an arry of items
+function getURL(entry)
+{
+	var TriggerScriptName = "LG.Util.DataEntry.ProductHierarchy.Browser";
+
+	var containerType;
+	var containerName;
+	if (entry.isEntryAnItem())
+	{
+		containerType = "CATALOG";
+		containerName = entry.getCatalog().getCtgName();
+		
+	}
+	else
+	{
+		containerType = "CATEGORY_TREE";
+		containerName = entry.getCategoryTree().getCategoryTreeName();
+	}
+	///@CHANGED hvdheuvel 10-10-12
+	///invoker.jsp now also requires an invoking_user	
+	var returnURL = "/utils/invoker.jsp?script=" + TriggerScriptName + "&action=displayHierarchy&bUserOutput=false&company_code=" + getCompanyCode() + "&invoking_user=" + getCurrentUserName() + "/"  + getCompanyCode() + "&itemCtgName=" + urlEncode(containerName) +"&itemPrimaryKey=" + entry.getPrimaryKey();
+	return returnURL;
+}
+
+var finalItems = [];
+var uniqItemChk = [];
+
+
+
+
+
+// ================================================================================
+//
+// @brief addToFinalItemsList Filters Items for Uniqueness
+// @param itemsArray input of items
+// @return an arry of items
+function addToFinalItemsList(itemsArray)
+{
+	
+    var uniqueItemSet = [];
+    var uniqueKeys = [];
+    
+    var startIndex = finalItems.size();
+    var setIndex = 0;
+    
+    if (itemsArray != null)
+    {
+    	var a;
+    	 
+        for (a=0; a<itemsArray.size(); a++)
+        {
+            var currentItem = itemsArray[a];
+            var primaryKey = currentItem["itemPrimaryKey"];
+            log.loggerDebug(" values "+currentItem["itemPrimaryKey"]);
+            
+            if (uniqueKeys[primaryKey] == null)
+            { 
+                uniqueItemSet[setIndex] = currentItem;
+                setIndex++;
+                uniqueKeys[primaryKey] = primaryKey;
+            }
+            
+            if (uniqItemChk[primaryKey] == null)
+            {
+                finalItems[startIndex] = currentItem;
+                startIndex++;
+                uniqItemChk[primaryKey] = primaryKey;
+            }
+        }    
+    }
+    
+    return uniqueItemSet;
+}
+
+
+
+
+
+
+// ================================================================================
+//
+// @brief getParentItem return the parent item of the above level
+// @param item item to process 
+// @return the above item
+function getParentItem(item)
+{
+	var rootNode;
+	var relationshipAttrib = [];
+	var itemFamily = [];
+	
+	rootNode = item.getRootEntryNode();
+    var enNode;
+	var i;
+	
+	var nodes = rootNode.getEntryNodes( phBaseSpecPath+"/" + sRelationField);
+
+	if (nodes != null){	
+		forEachHmElement(nodes,i,enNode) {
+			var oId=rootNode.getEntryNode(enNode.getEntryNodeExactPath()).getEntryNodeValue();
+			if (oId != null ){						
+	      		relationshipAttrib = item.getEntryRelatedItemInfo (oId);	        
+	           	if (relationshipAttrib != null){
+	      	 		var tempHM = [];
+	    	    	tempHM["itemCatalog"] = relationshipAttrib[0];
+	        		tempHM["itemPrimaryKey"] = relationshipAttrib[1];
+	  	 	
+	        		itemFamily.add(tempHM);
+	    		}
+	       	}
+		}
+	}
+	return itemFamily;
+}
+
+
+// ================================================================================
+//
+// @brief getChildItems return the parent item of the above level
+// @param item item to process 
+// @return the items below
+function getChildItems(item) 
+{
+	var itemFamily = [];
+	var ctgName = item.getCatalog().getCtgName();
+	
+	var queryString = "select item.pk from catalog('" + ctgName 
+    			+ "') where item['" 
+        		+  hmGlobal["PRIMARY_SPEC"] + "/" 
+        		+ hmGlobal["DE_RELATIONSHIP_FIELD"] 
+        		+"'].pk = '" 
+        		+ item.getPrimaryKey() +"' order by item['SC000-GlobPrim/01AC0012-LongName'],item.pk";
+        		
+	var query = new SearchQuery(queryString);
+	var resultset = query.execute();
+        
+	while (resultset.next())
+	{
+		log.loggerDebug("relat-ctg "+ctgName);
+		log.loggerDebug("relat-pk "+resultset.getString(1));
+		var tempHM = [];
+		tempHM["itemCatalog"] = ctgName;
+		tempHM["itemPrimaryKey"] = resultset.getString(1);
+		itemFamily.add(tempHM);
+	} 
+	return itemFamily;
+}
+
+
+
+
+
+
+
+// ================================================================================
+//		getLevelPitem
+//
+// @brief getLevelPitem Allow to know the level of the Item in the Hierarchy
+// @param item item to process 
+// @param i to avoid an infinite loop 
+// @return the level of the item
+function getLevelPitem(item,i)
+{
+
+	var iIter = i;
+	var j;
+	var itemChild;
+	var iIterFinal;
+	if ( getItemType(item) != "PItem" || iIter > 10 ) {
+		iIterFinal=iIter;
+	   	return iIterFinal;
+	}
+		
+	var aPitemChild = getParentItem(item);
+
+	for (j=0; j<aPitemChild.size();j++) {
+		var aTempoPitemChild = aPitemChild[j];
+		itemChild=getCtgByName(aTempoPitemChild["itemCatalog"]).getEntryByPrimaryKey(aTempoPitemChild["itemPrimaryKey"]);
+	}	
+	iIterFinal = getLevelPitem(itemChild,++iIter);
+	return iIterFinal;
+}
+
+
+
+	
+// ================================================================================
+// @brief buildParentHM takes in all targeted items and preps them for display
+// @param resultItems  product we wish to display
+// @return the parent item at a given level in the product hierarchy of the item 
+function buildOutputHM(resultItems)
+{
+    var productLinks = [];
+    var urlObject = [];
+    var actualParents = 0;
+    var parentCount;
+ 
+ 
+    for (parentCount = 0; parentCount < resultItems.size(); parentCount++)
+    {
+   	    var tempHM = [];
+        var currentParent = resultItems[parentCount];
+        
+//        log.loggerDebug(currentParent["itemCatalog"]+"  <-> " +currentParent["itemPrimaryKey"]);
+        var tempCtg = getCtgByName(currentParent["itemCatalog"]);					
+        var tempItem = tempCtg.getCtgItemByPrimaryKey(currentParent["itemPrimaryKey"]);
+        urlObject[0] = tempCtg;						
+        urlObject[1] = currentParent["itemPrimaryKey"];
+        var sURL = checkString(getPageURL("ITEM", urlObject), "#");
+        
+        var sLongName = checkString(tempItem.getCtgItemAttrib(BaseNodeAttribPath_Description),"N/A");
+        tempHM["itemPrimaryKey"] =  currentParent["itemPrimaryKey"];
+        if(getItemType(tempItem)=="PItem") {
+        	tempHM["itemDescription"] = checkString(getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(tempItem,"01AC0741-PackagingItemDescription")[0].getEntryNodeValue(),sLongName);    
+       	}
+       	else {
+        	tempHM["itemDescription"] = sLongName;
+  		}
+        if (tempHM["itemDescription"].length() > 80){
+            tempHM["itemDescription"] = substring(tempHM["itemDescription"],0,20);
+       	}
+        
+ 		tempHM["itemURL"] = sURL;
+ 		tempHM["itemGTIN"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(tempItem,"01AC0042-GTIN")[0].getEntryNodeValue(); 
+ 		var StatutsTable = getLkpByName("L220-Statuts - Status");
+		var lkpStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(tempItem,"01AC0548-Status")[0].getEntryNodeValue(); 
+		var StatutsTableValues = lookupValues(StatutsTable,lkpStatus);
+ 		tempHM["itemStatus"] = substring(StatutsTableValues[0],0,3);
+ 		tempHM["colourStatus"] = checkString(StatutsTableValues[2],"FFFFFF");
+		tempHM["itemOldNumber"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(tempItem,"01AC0740-OldMaterialNumber")[0].getEntryNodeValue(); 
+ 		var strMaterialNumber = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(tempItem,"01AC0664-MaterialNumber")[0].getEntryNodeValue(); 
+		if(strMaterialNumber!=null && strMaterialNumber!=""){
+			var iMaterialNumber = strMaterialNumber.length();
+			for(var k=0;k<iMaterialNumber;k++) {
+				var testzero=strMaterialNumber.startsWith("0");
+				if(testzero==true) {
+					strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+				}
+			}
+		}
+		tempHM["itemNumber"] =strMaterialNumber;
+		
+//		log.loggerDebug(actualParents+" : "+ tempHM["itemPrimaryKey"] +" desc "+ tempHM["itemDescription"]+" ur "+ tempHM["itemURL"]);
+        productLinks[actualParents] = tempHM;
+        actualParents++;
+    }
+    return productLinks;	
+}
+ 
+ 
+ 
+ 
+// ================================================================================ 
+// @brief getChildAtLevel get the child of the item in the given item's product hierarchy
+// @param item item to process 
+// @param sTarget which level product we wish to display
+// @return the parent item at a given level in the product hierarchy of the item 
+ function getChildAtLevel(item, sTarget) {
+ 	var aChildArray = [];
+
+	var sCateg = getItemType(item);
+	if ( sCateg == "PItem" ) {
+		var iLevel = getLevelPitem(item,0);
+		if ( iLevel > 5 ) { iLevel = 5; }
+		sCateg = sCateg + iLevel;
+	}
+	
+
+	if 	( ptValueConv[sTarget] <= ptValueConv[sCateg] ) {
+		var aTempoPitemLevels = [];
+		aTempoPitemLevels["itemPrimaryKey"] = item.getPrimaryKey();
+		aTempoPitemLevels["itemCatalog"] = item.getCatalog().getCtgName();
+				
+		aChildArray.add(aTempoPitemLevels);
+		return aChildArray;
+	} else {		
+		//var aChildren = getItemFamily(item,"parent");
+		var aChildren = getChildItems(item);
+		var j;
+		for (j=0;j<aChildren.size();j++){
+			var child = item.getCatalog().getCtgItemByPrimaryKey(aChildren[j]["itemPrimaryKey"]);
+				
+			var aResult = getChildAtLevel(child, sTarget);
+			var k;
+			for (k=0; k<aResult.size(); k++) {
+				aChildArray.add(aResult[k]);
+			}
+		}	
+		return aChildArray;
+	}	
+ }
+ 
+ 
+ 
+ 
+ 
+// ================================================================================  
+// @brief getParentAtLevel get the parent of the item in the given item's product hierarchy
+// @param item item to process 
+// @param aPitemLevels array of all item who match the level
+// @param i to avoid an infinite loop 
+// @param sTarget which level product we wish to display
+// @return the parent item at a given level in the product hierarchy of the item
+	function getParentAtLevel (item,i,aPitemLevels,sTarget) {	
+		var iIter=i;
+		var j;
+		var aTempoPitemLevels = [];
+
+
+		var sCategCurrent = getItemType(item);
+		if ( sCategCurrent == "PItem" ) {
+			var iLevel = getLevelPitem(item,0);
+			if ( iLevel > 5 ) { iLevel = 5; }
+			sCategCurrent = sCategCurrent + iLevel;
+		}
+		
+	    if ( ( sCategCurrent == sTarget ) || iIter > 10 ) {
+	    	if (iIter < 10 ) {
+	    		
+				aTempoPitemLevels["itemPrimaryKey"] = item.getPrimaryKey();
+				aTempoPitemLevels["itemCatalog"] = item.getCatalog().getCtgName();
+
+				aPitemLevels.add(aTempoPitemLevels);
+			}
+	    	return aPitemLevels;
+	    }
+		
+		
+		var aPitemChild = getParentItem(item);
+		for (j=0;j<aPitemChild.size();j++){
+			var aTempoPitemChild = aPitemChild[j];
+				
+			var itemChild=getCtgByName(aTempoPitemChild["itemCatalog"]).getEntryByPrimaryKey(aTempoPitemChild["itemPrimaryKey"]);
+			getParentAtLevel(itemChild,++iIter,aPitemLevels,sTarget);
+		}	
+		return aPitemLevels;
+	}
+
+
+
+
+
+
+
+
+
+// ================================================================================ 
+// @brief getProductAncestry Master fucntion takes an item and the target
+// @param item item to process 
+// @param targetType Wich level do you wish to display
+// @return the parent item at a given level in the product hierarchy of the item
+function getProductAncestry(item, targetType)
+{
+
+	log.loggerDebug( " in getProductAncestry " );
+	
+	var iTempProductType = checkString( getItemType(item), "Prod");
+
+	if ( iTempProductType == "PItem" ) {
+		var iLevel = getLevelPitem(item,0);
+		if (iLevel > 5 ) { iLevel = 5; }
+		iTempProductType = iTempProductType +  iLevel;
+	}
+    var productType = conversions[iTempProductType];
+
+    var alstProdLinks = [];
+    var productLinks = [];
+
+    if (ptValueConv[productType] > ptValueConv[targetType])
+    {
+    	log.loggerDebug("call getParentAtLevel");
+        alstProdLinks=getParentAtLevel(item,0,alstProdLinks,targetType);
+    }
+    else if (ptValueConv[productType] < ptValueConv[targetType])
+    {
+    	log.loggerDebug("call getChildAtLevel");
+		alstProdLinks=getChildAtLevel(item, targetType);
+     }
+        
+    productLinks = buildOutputHM(alstProdLinks);
+    
+	log.loggerDebug( " out of getProductAncestry" );
+
+    return productLinks;
+}
+
+
+
+
+
+
+
+
+
+var familyProductLinks = [];
+var iLevelPitem;
+var productType;
+var aPitem = [];
+if (action == "displayHierarchy")
+{
+    var ctg = getCtgByName(itemCtgName);
+    if ( itemPrimaryKey != null ) {
+    	item = ctg.getCtgItemByPrimaryKey(itemPrimaryKey);
+    	if (item != null && item != "null") {
+       		 productType = getItemType(item);
+			if ( productType == "PItem" ) {
+				productType = productType + getLevelPitem(item,0);
+			}
+		}
+    }
+    
+
+%>
+<html>
+  <head>
+    <title>Product Packaging Browser</title>
+    <style>
+	body
+	{
+	   font-family: verdana, sans-serif; font-size:11px
+	}
+	td
+	{
+	   font-family: verdana, sans-serif; font-size:11px
+	}
+	a
+	{
+	   text-decoration:none; color:222222
+	}
+	a:hover,a:active
+	{
+	   text-decoration:underline; color:CC0000
+	}
+	.uomimg
+	{
+	   border-style:solid;
+	   border-width:2;
+	   border-color:ffffff;
+	}
+	.uomimgcurrent
+	{
+	   border-style:solid;
+	   border-width:3;
+	   border-color:#003366;
+	}
+	.uomimgselect
+	{
+	   border-style:solid;
+	   border-width:2;
+	   border-color:cc0000;
+	}
+    </style>
+  </head>
+<body bgcolor='#ffffff' marginwidth=0 marginheight=0 topmargin=0 leftmargin=0 rightmargin=0 bottommargin=0 scrolling="no">
+<table border="0" cellspacing="0" cellpadding="0" height="100%" width="100%">
+  <tr>
+    <td colspan="2">
+	<% if (item != null && item != "null")
+    {
+        var strERPCode = checkString(item.getPrimaryKey(),"");
+		var strSAPCode = "";
+		var oSAPCodeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"01AC0664-MaterialNumber");
+		if(oSAPCodeEn!=null) {
+			strSAPCode = checkString(oSAPCodeEn.getEntryNodeValue(),"");
+			if(strSAPCode!=""){
+				var iSAPCode = strSAPCode.length();
+				for(var k=0;k<iSAPCode;k++) {
+					var testzero=strSAPCode.startsWith("0");
+					if(testzero==true) {
+						strSAPCode=substring(strSAPCode,1,strSAPCode.length());
+					}
+				}
+			}
+		}
+		%>
+		<div style="padding-left:10px; padding-top:7px;">
+		<b>Code ERP</b> : <%=strERPCode%> - <b>Code SAP</b> : <%=strSAPCode%>
+		</div>
+		<%
+	}
+	%>
+	</td>
+  </tr>
+  
+  <%
+	if (item != null && item != "null") {
+		var strERPCode = checkString(item.getPrimaryKey(),"");
+		var strStatus = getStatus(item);
+		var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType").invoke(item);
+		//
+		if((strStatus=="ACTIVE" || strStatus=="MODIFYING") && strItemType!="PItem") {
+			var strCtgName = "";
+			if(substring(item.getCatalog().getCtgName(),0,2)=="CA") {
+				strCtgName = getColAreaByName(item.getCatalog().getCtgName()).getColAreaSrcContainer().getCtgName();
+			}
+			else {
+				strCtgName = item.getCatalog().getCtgName();
+			}
+			
+			var itemcatalog = getCtgByName(strCtgName).getEntryByPrimaryKey(strERPCode);
+			
+			var strProductHierarchy = "";
+			var oProductHierarchyEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"12BI0666-ProductHierarchy");
+			if(oProductHierarchyEn!=null) {
+				strProductHierarchy = checkString(oProductHierarchyEn.getEntryNodeValue(),"");
+			}
+			
+			var strProductHierarchyOld = "";
+			var oProductHierarchyOldEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itemcatalog,"12BI0666-ProductHierarchy");
+			if(oProductHierarchyOldEn!=null) {
+				strProductHierarchyOld = checkString(oProductHierarchyOldEn.getEntryNodeValue(),"");
+			}
+
+			if(strProductHierarchy!=strProductHierarchyOld) {%>
+	  <tr>
+		<td colspan="2">
+		<div style="padding-left:10px; padding-top:4px; padding-bottom:7px; color:red;">
+		La Hi&eacute;rarchie produit a &eacute;t&eacute; modifi&eacute;e lors du dernier enregistrement. En cas de changement de hi&eacute;rarchie produit, informer <a href="mailto:prix@siniat.com" style="color:red; text-decoration: underline;">prix@siniat.com</a>.
+		</div>
+		</td>
+	  </tr>
+			<%
+			}
+		}
+
+		if((strStatus=="ACTIVE" || strStatus=="MODIFYING") && strItemType!="Prod") {
+			var strCtgName = "";
+			if(substring(item.getCatalog().getCtgName(),0,2)=="CA") {
+				strCtgName = getColAreaByName(item.getCatalog().getCtgName()).getColAreaSrcContainer().getCtgName();
+			}
+			else {
+				strCtgName = item.getCatalog().getCtgName();
+			}
+			
+			var itemcatalog = getCtgByName(strCtgName).getEntryByPrimaryKey(strERPCode);
+			
+			var strTradeItemOrderable="";
+			var oTradeItemOrderableEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0347-TradeItemOrderable");
+			if(oTradeItemOrderableEn!=null) {
+				strTradeItemOrderable = checkString(oTradeItemOrderableEn.getEntryNodeValue(),"");
+			}
+
+			if(strTradeItemOrderable=="true") {
+				var testNegoceAndIsInCatalog=false;
+				var boolIsInCatalog;
+				var boolIsInCatalogOld;
+				//
+				var oDistributionGroupOld = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(itemcatalog,"ChannelOfDistributionGroup");
+				if(oDistributionGroupOld!=null) {
+					for(var p=0;p<oDistributionGroupOld.size();p++) {
+						var oChannelOfDistributionEnOld = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itemcatalog,"ChannelOfDistributionGroup#" + p + "/06DN0422-ChannelOfDistribution");
+						var strChannelOfDistributionOld = checkString(oChannelOfDistributionEnOld.getEntryNodeValue(),"");
+						if(strChannelOfDistributionOld=="[01] - Negoce") {
+							var boolIsInCatalogEnOld = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itemcatalog,"ChannelOfDistributionGroup#" + p + "/06DN0346-IsInCatalog");
+							boolIsInCatalogOld = checkString(boolIsInCatalogEnOld.getEntryNodeValue(),"");
+						}
+					}
+				}
+				//
+				var oDistributionGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,"ChannelOfDistributionGroup");
+				if(oDistributionGroup!=null) {
+					for(var p=0;p<oDistributionGroup.size();p++) {
+						var oChannelOfDistributionEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"ChannelOfDistributionGroup#" + p + "/06DN0422-ChannelOfDistribution");
+						var strChannelOfDistribution = checkString(oChannelOfDistributionEn.getEntryNodeValue(),"");
+						if(strChannelOfDistribution=="[01] - Negoce") {
+							var boolIsInCatalogEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"ChannelOfDistributionGroup#" + p + "/06DN0346-IsInCatalog");
+							boolIsInCatalog = checkString(boolIsInCatalogEn.getEntryNodeValue(),"");
+						}
+					}
+				}
+				//
+				if(boolIsInCatalogOld=="false" && boolIsInCatalog=="true") {
+				%>
+				<tr>
+					<td colspan="2">
+					<div style="padding-left:10px; padding-top:4px; padding-bottom:7px; color:red;">
+					Le champ Article au catalogue du canal de distribution N&eacute;goce a &eacute;t&eacute; modifi&eacute; &agrave; Vrai. Informer <a href="mailto:prix@siniat.com" style="color:red; text-decoration: underline;">prix@siniat.com</a>.
+					</div>
+					</td>
+				</tr>
+				<%
+				}
+		  }
+		}
+  }
+  %>
+
+  <tr>
+	<td  align='center'>
+      <table border="5" cellspacing="0" cellpadding="0" width="100" bordercolor="white">
+<%
+    if (item != null && item != "null")
+    {
+        var ctg = item.getCatalog();
+        var ctgName = ctg.getCtgName();
+        var tempCA = getColAreaByName(ctgName);
+        if (tempCA != null)
+        {
+            ctg = tempCA.getColAreaSrcContainer();
+            ctgName = ctg.getCtgName();
+        }
+       
+%>
+        <tr valign="center">
+<%
+	var tab = [];
+	tab[0] = "Prod";
+	tab[1] = "BUnit";
+	tab[2] = "PItem1";
+	tab[3] = "PItem2";
+	tab[4] = "PItem3";
+	tab[5] = "PItem4";
+	tab[6] = "PItem5";
+	var i=0;
+	var l=hmGlobal["DE_UOM_LEFT_PART_MAX_LEVELS"];
+	for (i=0;i<l;i++)
+	{
+		var sImgURL="/suppliers/"+getCompanyCode()+"/images/uom_"+toLowerCase(substring(tab[i],0,5))+".gif";
+		///@CHANGED hvdheuvel 10-10-12
+		///invoker.jsp now also requires an invoking_user
+%>
+          <td height="35" width="35"><a href="/utils/invoker.jsp?script=<%=TriggerScriptName%>&company_code=<%=getCompanyCode()%>&invoking_user=<%=getCurrentUserName()%>/<%=getCompanyCode()%>&bUserOutput=false&itemPrimaryKey=<%=checkString(item.getCtgItemPrimaryKey(), "")%>&itemCtgName=<%=urlEncode(ctgName)%>&action=displayHierarchyDetails&selectedUnit=<%=tab[i]%>" target="uomDetailFrame"><img class='<%if(productType == tab[i]){out.writeln("uomimgcurrent");}else{out.writeln("uomimg");}%>' src="<%=sImgURL%>" width="35" height="35" alt="<%=conversions[tab[i]]%>"></a></td>         
+<% 	
+		if (i<l-1) 
+		{
+%>
+          <td height="35" width="25" valign='bottom'><img src="/suppliers/<%=getCompanyCode()%>/images/uom_arrow.gif" width="25" height="35"></td>
+<%
+		} // end if
+	} // end for
+%>
+        </tr>
+      </table>
+    </td>
+	<!-- Append
+	-->
+    <td align="right" style="padding-right:7px;">
+      <table border="0" cellspacing="0" cellpadding="0" height="100%" width='800'>
+        <tr valign="middle">
+          <td valign="middle" align="right">
+            <IFRAME id='uomDetailFrame' name='uomDetailFrame' frameborder=1 height='80' width='800' scrolling='yes' style='visibility: visible'></IFRAME>
+              <script>uomDetailFrame.document.write(""
++ "<html>\n"
++ "<head>\n"
++ "<title>WPC Product Hierarchy Details</title>\n"
++ "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n"
++ "<style>\n"
++ "body{font-family: verdana, sans-serif; font-size:10px}\n"
++ "td{font-family: verdana, sans-serif; font-size:10px}\n"
++ "a{text-decoration:none; color:222222}\n"
++ "a:hover,a:active{text-decoration:underline; color:CC0000}\n"
++ ".form {\n"
++ "  color: #111111;\n"
++ "  font-family: Verdana, Arial, Helvetica, sans-serif;\n"
++ "  font-size: 10px;\n"
++ "  }\n"
++ "</style>\n"
++ "</head>\n"
++ "<body bgcolor='#ffffff' marginwidth=0 marginheight=0 topmargin=0 leftmargin=0 rightmargin=0 bottommargin=0>\n"
++ "	<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"3\" style='border:solid 0px #003366' height=\"100%\">\n"        
++ "		<tr>\n"
++ "		<td bgcolor=\"dddddd\">\n"
++ "			<font size=\"2\"><b><center>Choisir un type de produit</center></b></font><br>\n"
++ "			<font size=\"1\"><b><center>pour acc&eacute;der au d&eacute;tail du produit</center></b></font>\n"
++ "		</td>\n"
++ "		</tr>\n"
++ "	\n"
++ "      </table>\n"
++ "	</body>\n"
++ "	</html>\n"
++ ""); uomDetailFrame.document.close();</script>
+          </td>
+        </tr>
+      </table>
+	</td>
+	<td style="padding: 5px; text-align: right">
+		<% 
+		var lib=getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+		var hmGlobals=lib.getFunctionByName("initGlobals").invoke();
+		var productPhotoUrl=lib.getFunctionByName("tech").invoke(hmGlobals, item, "03FN0074-ProductPhoto", null, "", "", "", 1)[0];
+		%>
+		<img style="height:110px" src="<%=productPhotoUrl%>"/>
+	</td>
+  </tr>
+</table>
+<%
+    }
+    if (item != null && item != "null") {
+%>
+
+	</table>
+	</td>
+	</tr>
+	</table>
+
+	</body>
+	</html>
+ 
+<%	
+	}
+	else
+	{
+%>
+	</table>
+	</td>
+	<td valign="middle" align="right">
+        <table border="1" cellspacing="0" cellpadding="0" height="100%" width='800'>
+			<tr valign="middle">
+        	<td bgcolor="dddddd">
+        		<font size="2"><b><center> </center></b></font><br>
+				<font size="2"><b><center>Ajout d'un nouveau produit </center></b></font><br>
+				<font size="2"><b><center>Aucune association existante </center></b></font><br>				
+			</td>
+			</tr>
+		</table>
+
+	</body>
+	</html>
+		
+<%
+	}
+}
+
+if (action == "displayHierarchyDetails")
+{
+log.loggerDebug("Action is displayHierarchyDetails");
+    itemPrimaryKey = checkString(itemPrimaryKey,"");
+log.loggerDebug("request == " +request);
+
+%>
+<html>
+<head>
+<title>WPC Product Hierarchy Details</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style>
+body{font-family: verdana, sans-serif; font-size:10px}
+td{font-family: verdana, sans-serif; font-size:10px}
+a{text-decoration:none; color:222222}
+a:hover,a:active{text-decoration:underline; color:CC0000}
+.form {
+  color: #111111;
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  }
+</style>
+</head>
+<body bgcolor='#ffffff' marginwidth=0 marginheight=0 topmargin=0 leftmargin=0 rightmargin=0 bottommargin=0>
+   <%
+	if (itemSelected == "none")
+	{
+	%>
+		<table width="100%" border="0" cellspacing="0" cellpadding="2" style='border:solid 0px #003366' height="100%">
+			<tr>
+				<td bgcolor="dddddd">
+					<font size="2"><b><center>Choisir un type de produit</center></b></font><br>
+					<font size="1"><b><center>pour acc&eacute;der au d&eacute;tail du produit</center></b></font>
+				</td>
+			</tr>
+		</table>
+	<%
+	}
+	else if (itemPrimaryKey != "")
+	{
+		ctg = getCtgByName(itemCtgName);
+		item = ctg.getCtgItemByPrimaryKey(itemPrimaryKey);
+		//productType = checkString(getItemType(item), "PItem");
+		
+		familyProductLinks = getProductAncestry(item, selectedUnit);
+
+		familyProductLinks=sortArrayMultiDim(familyProductLinks,"itemDescription");
+
+		%>
+		<table width="100%" border="0" cellspacing="0" cellpadding="2" style='border:solid 0px #003366' height="100%">
+		<tr>
+<!--        	<td><img src="/suppliers/<%=getCompanyCode()%>/data_repository/WPC.ProductHierarchy/uom_<%=selectedUnit%>_small.gif" border="0"></td>
+-->
+			
+          	<td bgcolor="99FF99" colspan="6" width="77%"><font size="1"><center><%=conversions3[selectedUnit]%></center></font></td>
+        	</tr>
+		<%
+			if (familyProductLinks == []){
+			%>
+			<tr>
+			<td bgcolor="CCFFCC" colspan="2">
+				<font size="1"><b><center>Aucune information de hi&eacute;rarchie disponible</center></b></font><br>
+			</td>
+			</tr>
+			<%} else {
+			log.loggerDebug(" else");
+		
+	%>
+	<tr>
+          <td bgcolor="dddddd" width="80"><b>Code Produit</b></td>
+          <td bgcolor="dddddd" width="320"><b>Libell&eacute; Long</b></td> 
+          <td bgcolor="dddddd" width="60"><b>GTIN</b></td> 
+          <td bgcolor="dddddd" width="80"><b>Code SAP</b></td>         
+		  <td bgcolor="dddddd" width="130"><b>Ancienne r&eacute;f. Article</b></td>   
+          <td bgcolor="dddddd" width="50"><b>Statut</b></td>
+    </tr>
+        <%
+        			if (familyProductLinks != null){
+        				oddRow = false;
+        				color = "";
+        				var i;
+        			var currentProductLink;
+					for (i = 0; i < familyProductLinks.size(); i++){
+       					currentProductLink = familyProductLinks[i];
+       					//log.loggerDebug("currentProd" + currentProductLink);
+        					if (oddRow == false){
+      						color = "#ffffff";
+						}
+     		%>
+	        
+	        <tr>
+	          <td bgcolor="<%=color%>"><span style='background-color:"<%=currentProductLink["colourStatus"]%>";'><A HREF="<%=checkString(currentProductLink["itemURL"],"#")%>" target="rightframe"><%=checkString(currentProductLink["itemPrimaryKey"],"N/A")%></A></span></td>
+	          <td bgcolor="<%=color%>"><%=checkString(currentProductLink["itemDescription"],"N/A")%></td>
+	          <td bgcolor="<%=color%>"><%=checkString(currentProductLink["itemGTIN"],"N/A")%></td>
+	          <td bgcolor="<%=color%>"><%=checkString(currentProductLink["itemNumber"],"N/A")%></td>
+			  <td bgcolor="<%=color%>"><%=checkString(currentProductLink["itemOldNumber"],"N/A")%></td>
+	          <td bgcolor="<%=color%>"><%=checkString(currentProductLink["itemStatus"],"N/A")%></td>
+	        </tr>
+	        <%
+	        				if (oddRow == false){
+        					color = "dddddd";
+	        					oddRow = true;
+	        				}
+	       				else if (oddRow == true){
+	        					oddRow = false;
+	        				}
+					}
+				} else{
+			%>
+			<tr> 
+	          <td colspan="3"><center><b>Aucun produit associ&eacute;</b></center></td>
+	        </tr>
+	<%
+				}
+	
+			}
+ 
+       if (itemSelected != "none")
+	{
+		log.loggerDebug(" intemselected none");
+	%> 
+        <tr>
+        <td height="100%"></td>
+        </tr>
+
+    <%
+        } %>
+		</table>
+		<%
+}
+	%>
+      
+	</body>
+	</html>
+<%
+}
+}
+if (e!=null){
+	log.loggerDebug("Error:"+e);
+}
+
+%>

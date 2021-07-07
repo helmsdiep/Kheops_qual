@@ -1,0 +1,304 @@
+//
+// Interfacage avec la base etiquettes
+// export XML ou fichier plat / catalogue "C800-Dalles plafond - Ceiling tiles"
+//
+
+//
+// technical utils functions
+//
+
+function addMapElement(mapEl, key, val) {
+    getScriptByPath("/scripts/triggers/LG.Library.Utils")
+          .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+   return getScriptByPath("/scripts/triggers/LG.Library.Utils") .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey){
+    return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getBoolValue(oitem, nodeName){
+    var ovalue = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+	if(ovalue!=null && ovalue=="true") {
+		return "Oui";
+	}
+	else if(ovalue!=null && ovalue=="false") {
+		return "Non";
+	}
+	else {
+		return "";
+	}
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getDateValue").invoke(oitem, nodeName, "yyyyMMdd HH:mm:ss");
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpMultiValues").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getMultiValues(oItem,nodeName) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getMultiValues").invoke(oItem,nodeName);
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+function getItemLevel(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,nodeName);
+}
+
+//
+//
+//
+
+// findSitePath
+// @desc return the attribute path of a production site from its code
+// @param oitem the item
+// @param siteCode the site code in 02FR0063-ProductionSite
+// @return the attribute path eg "ProductionSiteGroup#3"
+function findSitePath(oitem, siteCode){
+  var productionSiteGroup = getEn(oitem,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return null; }
+  for(var i=0; i<productionSiteGroup.size(); i++) {
+    var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+    if (fProductionSite.contains(siteCode)){
+      return "ProductionSiteGroup#"+i;
+    }
+  }
+  return null; 
+}
+
+// Concatenates all the elements of a string array, using the specified separator between each element. 
+function arrayJoin(array, separator){
+  var str = "";
+  for (var i=0; i<array.size(); i++){
+     str = str + ((i==0) ? "" : separator ) + array[i];
+  }
+  return str;
+}
+
+// filtre des décimaux finissant par '.0'  
+function filterDecimalZero(str){
+    if(str!=null && str!="") {
+		if(str.endsWith(".0")) {
+		   return  replace(str, ".0","");
+		}
+	}
+    return str;
+}
+
+// 06DN0436-handlingInstructions
+// Col 3 de L048-Conditions stockage - Handling instructions
+// max 7 occurrences stockées dans le même attribut avec le séparateur suivant @#@
+function getHandlingInstructions(oitem){
+  var s = "";
+  var lkp = getLkpByName("L048-Conditions stockage - Handling instructions");
+  var handlingInstructions = getEn(oitem,"06DN0436-handlingInstructions");
+  if (handlingInstructions!=null && handlingInstructions.size()>0) {
+    for(var i=0;i<handlingInstructions.size();i++) {
+      if (i==7) {break;}
+      var en = handlingInstructions[i].getEntryNodeValue();
+      if (en!=null){
+        s = s + lookupValues(lkp,en)[1];
+        if(i < handlingInstructions.size()-1) {
+          s = s +"@#@";
+        }
+      }
+    }
+  }
+  return s;
+}
+
+function getDataSite(oitem, productionSiteGroupID){
+	var parentBUnit = getPublishingItemAtLevel(oitem,"BUnit");
+	var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+	var DATA = [];
+	var siteCode= getLkpValue(parentProd ,"ProductionSiteGroup#"+productionSiteGroupID+"/02FR0063-ProductionSite" , "C01-Code");
+	var prodSitePath = findSitePath(parentProd, siteCode);
+	var siteSAPCode= getLkpValue(parentProd ,"ProductionSiteGroup#"+productionSiteGroupID+"/02FR0063-ProductionSite" , "C07-SAP PlantCode"); 
+	var siteName= getLkpValue(parentProd ,"ProductionSiteGroup#"+productionSiteGroupID+"/02FR0063-ProductionSite" , "C02-Libellé");
+	//
+	var strMaterialNumber18 = "";
+	var strMaterialNumber = getSimpleValue(oitem, "01AC0664-MaterialNumber");
+	if(strMaterialNumber!=null && strMaterialNumber!=""){
+		strMaterialNumber18 = strMaterialNumber;
+		var iMaterialNumber = strMaterialNumber.length();
+		for(var k=0;k<iMaterialNumber;k++) {
+			var testzero=strMaterialNumber.startsWith("0");
+			if(testzero==true) {
+				strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+			}
+		}
+	}
+	//
+	addMapElement(DATA, "PROD_ID", getSimpleValue( oitem ,"01AC0044-ERPCode"));
+	addMapElement(DATA, "ItemNumber", strMaterialNumber);
+	addMapElement(DATA, "PackagingItemDescription", getSimpleValue(oitem, "01AC0741-PackagingItemDescription"));
+	addMapElement(DATA, "LabelName1", getSimpleValue( parentProd ,"01AC0017-LabelName1"));
+	addMapElement(DATA, "GTIN", getSimpleValue(parentBUnit, "01AC0042-GTIN"));
+	addMapElement(DATA, "brandName", getLkpValue( parentProd ,"01AC0036-brandName","C07-Logo"));
+	addMapElement(DATA, "CommercialThickness", filterDecimalZero(getSimpleValue( parentProd ,"04CP0080-CommercialThickness")));
+	addMapElement(DATA, "ProductionSite", siteSAPCode);
+	addMapElement(DATA, "ProductionSiteName", siteName);
+	addMapElement(DATA, "Width", filterDecimalZero(getSimpleValue(parentProd ,"04CP0095-Width")));
+	addMapElement(DATA, "WidthUnit", getLkpValue(parentProd, "04CP0097-WidthUnit", "C03-Code unité non standard"));
+	addMapElement(DATA, "Length", filterDecimalZero(getSimpleValue(parentBUnit ,"04CP0103-Length"))) ;
+	addMapElement(DATA, "LengthUnits", getLkpValue(parentBUnit, "04CP0104-LengthUnits", "C03-Code unité non standard"));
+	addMapElement(DATA, "LongitudinalEdgeType", getLkpValue( parentProd ,"04CP0160-LongitudinalEdgeType","C02-Libellé court"));
+	addMapElement(DATA, "EuroclasseClassification", getLkpValue( parentProd ,"05PC0305-EuroclasseClassification","C02-Libellé"));
+	addMapElement(DATA, "YearOfFirstCEMarking", getSimpleValue(parentProd, "05PG0795-YearOfFirstCEMarking")); 
+	addMapElement(DATA, "ENReference", getLkpValue( parentProd ,"05PG0245-ENReference","C01-N° de norme"));
+	addMapElement(DATA, "CECertified", getSimpleValue( parentProd ,"05PG0249-CECertified"));
+	addMapElement(DATA, "DOPNumber", getSimpleValue(parentProd, "05PG0767-DOPNumber"));
+	addMapElement(DATA, "ProductTypeID", getSimpleValue(parentProd, "05PG0768-ProductTypeID"));
+	addMapElement(DATA, "ProductUsage", getSimpleValue(parentProd, "05PG0770-ProductUsage"));
+	addMapElement(DATA, "OrganismNotified", getSimpleValue(parentProd, "05PG0773-OrganismNotified"));
+	var strTotalQuantityOfNextLowerLevel=checkString(getSimpleValue( oitem ,"06DN0407-TotalQuantityOfNextLowerLevel"),"1");
+	addMapElement(DATA, "TotalQuantityOfNextLowerLevel",strTotalQuantityOfNextLowerLevel) ;
+	addMapElement(DATA, "Support",  getLkpValue(oitem, "06DN0413-Support",  "C01-Code"));
+	addMapElement(DATA, "Stacking", getLkpValue(oitem, "06DN0412-Stacking", "C01-Code"));
+	addMapElement(DATA, "Covering", getLkpValue( oitem ,"06DN0414-Covering","C01-Code")) ;
+	addMapElement(DATA, "Hooping",  getLkpValue(oitem, "06DN0415-Hooping",  "C01-Code"));
+	addMapElement(DATA, "handlingInstructions", getHandlingInstructions(oitem)); 
+	addMapElement(DATA, "LabelingHealth", getLkpValue(parentProd,"08IE0653-LabelingHealth","C01-Classement"));
+	addMapElement(DATA, "ThermalResistanceDeclared", filterDecimalZero(getSimpleValue(parentProd ,"05PC0824-ThermalResistanceDeclared")));
+	addMapElement(DATA, "ThermalConductivityDeclaredLambda", filterDecimalZero(getSimpleValue(parentProd ,"05PC0825-ThermalConductivityDeclaredLambda")));
+	addMapElement(DATA, "RealThickness", filterDecimalZero(getSimpleValue( parentProd ,"04CP0082-RealThickness")));
+	addMapElement(DATA, "RealThicknessUnits", getLkpValue(parentProd, "04CP0084-RealThicknessUnits", "C03-Code unité non standard"));
+	addMapElement(DATA, "Formaldehyde", getSimpleValue(parentProd, "05PC0827-Formaldehyde"));
+	addMapElement(DATA, "AcousticAbsorptionCoef", filterDecimalZero(getSimpleValue( parentProd ,"05PC0312-AcousticAbsorptionCoef")));
+	addMapElement(DATA, "MechanicalResistanceToInflection", getLkpValue( parentProd ,"05PC0285-MechanicalResistanceToInflection" ,"C00-DisplayName"));
+	var strFrontFacingColour = checkString(getLkpValue(parentProd, "04CP0163-FrontFacingColour", "C02-Libellé"),"");
+	if(strFrontFacingColour!="") {
+		var iFrontFacingColour = strFrontFacingColour.indexOf("-");
+		if(iFrontFacingColour>-1) {
+			strFrontFacingColour = substring(strFrontFacingColour,0,iFrontFacingColour);
+			trim(strFrontFacingColour);
+		}
+	}
+	addMapElement(DATA, "FrontFacingColour", strFrontFacingColour);
+	addMapElement(DATA, "ACERMICertified", getSimpleValue( parentProd ,prodSitePath+"/02FR0657-ACERMICertified"));
+	addMapElement(DATA, "ACERMICertificateReference", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#0" ,"C01-N° de certificat ACERMI isolant"));
+	// addMapElement(DATA, "ACERMICertificateReference_2", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#1" ,"C01-N° de certificat ACERMI isolant"));
+	// addMapElement(DATA, "ACERMICertificateReference_site_1", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#0" ,"C04-sites d origine de fabrication couverts par le certificat ACERMI"));
+	// addMapElement(DATA, "ACERMICertificateReference_site_2", getLkpValue( parentProd ,prodSitePath+"/02FR0658-ACERMICertificateReference#1" ,"C04-sites d origine de fabrication couverts par le certificat ACERMI"));  
+
+	var iTotalQuantityOfNextLowerLevel = strTotalQuantityOfNextLowerLevel.length();
+	if(iTotalQuantityOfNextLowerLevel!=null && iTotalQuantityOfNextLowerLevel<18) {
+		for(var j=iTotalQuantityOfNextLowerLevel;j<5;j++) {
+			strTotalQuantityOfNextLowerLevel = concat("0",strTotalQuantityOfNextLowerLevel);
+		}
+	}
+	var strDataMatrix = "";
+	if(strMaterialNumber18!="" && strTotalQuantityOfNextLowerLevel!="") {
+		strDataMatrix=concat("QD",strTotalQuantityOfNextLowerLevel,"000",strMaterialNumber18);
+	}
+	addMapElement(DATA, "PEFCCertified", getSimpleValue( parentProd ,prodSitePath+"/02FR0833-PEFCCertified"));
+	addMapElement(DATA, "NaturePlusCertified", getSimpleValue( parentProd ,prodSitePath+"/02FR0837-NaturePlusCertified"));
+	
+	addMapElement(DATA, "grossWeight", filterDecimalZero(getSimpleValue(oitem ,"04CP0215-grossWeight")));
+	addMapElement(DATA, "grossWeightUnit", getLkpValue(oitem, "04CP0216-grossWeightUnit", "C03-Code unité non standard"));
+	
+	addMapElement(DATA, "DataMatrix", strDataMatrix);
+	
+	return DATA;
+}
+
+function getData(oitem){
+  var dataGrp = [];
+  var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+  var productionSiteGroup = getEn(parentProd,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return dataGrp; }
+  var e;
+  catchError(e) {
+    for(var i=0; i<productionSiteGroup.size(); i++) {
+      // var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+	  dataGrp.add(getDataSite(oitem, i));
+    }
+  }
+  if (e!=null){
+    err.writeln("Error on "+oitem.getPrimaryKey()+", "+e); 
+  }
+  return dataGrp;
+}
+
+function canExport(oitem){
+    // Catalogue 
+    if (!oitem.getPrimaryKey().substring(1,4).contains("800")) {
+      return false;
+    }
+
+    // Que le PItem (?)
+    if (!oitem.getPrimaryKey().contains("I")) {
+      return false;
+    }
+
+    // Les items ayant le statut 01AC0548-Status = ACTIF 
+    if (!getSimpleValue(oitem,"01AC0548-Status").contains("[ACTIVE] - Actif")) {
+      return false;
+    }
+
+    return true;
+}
+
+///////
+///////
+
+function getFullCSV(){
+    var oitem;
+    var csv = "";
+    var headerDone = false;
+    forEachCtgItem("C800-Dalles plafond - Ceiling tiles",oitem) {
+		var e;
+		catchError(e) {
+			if(!canExport(oitem)) {
+				continue;
+			}
+			logDebug("Export "+oitem.getPrimaryKey());
+			var dataGrp = getData(oitem);
+			for(var i=0; i<dataGrp.size(); i++) {
+				if (!headerDone){
+					csv = csv + buildMapElementCSV(dataGrp[i], true);
+					headerDone = true;
+				}
+				csv = csv + buildMapElementCSV(dataGrp[i], false);
+			}
+		} 
+		if (e!=null) { 
+			// out.writeln(oitem.getPrimaryKey()+" "+e);
+			// e=null;
+		}
+	}
+    return csv;
+}

@@ -1,0 +1,190 @@
+//
+// Export tous catalogues, selection d'attributs, statut actif + material number renseigné uniquement 
+//
+
+
+//
+// technical utils functions
+//
+
+function addMapElement(mapEl, key, val) {
+    getScriptByPath("/scripts/triggers/LG.Library.Utils")
+          .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+  return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey){
+    return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getDateValue").invoke(oitem, nodeName, "dd/MM/yyyy HH:mm:ss");
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpMultiValues").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getMultiValues(oItem,nodeName) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getMultiValues").invoke(oItem,nodeName);
+}
+
+function getItemLevel(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,nodeName);
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+// filtre des décimaux finissant par '.0' demandé par mail Roland Dominici 25/01/11
+function filterDecimalZero(str){
+     if(str.endsWith(".0")) {
+       return  replace(str, ".0","");
+     }
+    return str;
+}
+
+// Concatenates all the elements of a string array, using the specified separator between each element. 
+function arrayJoin(array, separator){
+  var str = "";
+  for (var i=0; i<array.size(); i++){
+     str = str + ((i==0) ? "" : separator ) + array[i];
+  }
+  return str;
+}
+
+//
+
+function getDataSite(oitem){
+	// var parent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+	// var parentBUnit = getPublishingItemAtLevel(oitem,"BUnit");
+	// var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+	
+	var ctgName = oitem.getCatalog().getCtgName();
+	var ctgCode = substring(ctgName,1,4);
+	ctgName = substring(ctgName,5,ctgName.length());
+	
+	var DATA = [];
+	//
+	var strMaterialNumber = getSimpleValue(oitem, "01AC0664-MaterialNumber");
+	if(strMaterialNumber!=null && strMaterialNumber!=""){
+		var iMaterialNumber = strMaterialNumber.length();
+		for(var k=0;k<iMaterialNumber;k++) {
+			var testzero=strMaterialNumber.startsWith("0");
+			if(testzero==true) {
+				strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+			}
+		}
+	}
+	//
+	addMapElement(DATA, "Code catalogue", ctgCode);
+	addMapElement(DATA, "Libellé catalogue", ctgName);
+	addMapElement(DATA, "MaterialNumber", strMaterialNumber);
+	addMapElement(DATA, "Statut", "[ACTIVE] - Actif");
+	addMapElement(DATA, "Libellé facture", getSimpleValue(oitem,"01AC0014-invoiceName"));
+	
+	return DATA;
+}
+
+function canExport(oitem){
+	// Que les items éligibles à la publication dans SAP et possédant le material number
+	var strMaterialNumber="";
+	var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+	if(oItemMaterialNumberEn!=null) {
+		strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+	}
+
+	if(strMaterialNumber=="") {
+      return false;
+	}
+	
+    // Les items ayant le statut 01AC0548-Status = ACTIF 
+    if (!getSimpleValue(oitem,"01AC0548-Status").contains("[ACTIVE] - Actif")) {
+      return false;
+    }
+
+    return true;
+}
+
+///////
+///////
+
+function getData(oitem){
+	var dataGrp = [];
+	var e;
+	catchError(e) {
+	    dataGrp.add(getDataSite(oitem));
+	}
+	if (e!=null){
+	    err.writeln("Error on "+oitem.getPrimaryKey()+", "+e); 
+	}
+	return dataGrp;
+}
+
+function getFullCSV(){
+	var oitem;
+    var csv = "";
+    var headerDone = false;
+
+	var ctgs = getCatalogNamesList();
+
+	var oKey;//Clef de la hash map
+	var ctg;//Catalogue utilisé
+
+
+	forEachHmElement(ctgs,oKey,ctg) {
+		forEachCtgItem(ctg,oitem) {
+		   var e;
+			catchError(e) {
+				if(!canExport(oitem)) {
+					continue;
+				}
+				//
+				logDebug("Export "+oitem.getPrimaryKey());
+				var dataGrp = getData(oitem);
+				for(var i=0; i<dataGrp.size(); i++) {
+					if (!headerDone){
+						csv = csv + buildMapElementCSV(dataGrp[i], true);
+						headerDone = true;
+					}
+					csv = csv + buildMapElementCSV(dataGrp[i], false);
+				}
+			}
+			if (e!=null) { 
+				// out.writeln(oitem.getPrimaryKey()+" "+e);
+				// e=null;
+			}
+		}
+    }
+    return csv;
+}

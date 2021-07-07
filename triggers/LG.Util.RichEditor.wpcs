@@ -1,0 +1,700 @@
+//----------------------------------------------------
+// File : LG.Util.RichEditor
+// Author : Ronan Guével
+// Creation date : 2008-04-04
+// Functionalities : Editeur de contenu éditorial
+// Script compatible avec la version 5.3 de WPC
+// Copyright © 2008 RGLIS - Lafarge
+//------------------------------------------------------
+
+function _getScriptName()
+{
+    return "LG.Util.RichEditor";
+}
+
+function _getTinyMceJs()
+{
+    return concat("/suppliers/",getCompanyCode(),"/tiny_mce/js/tiny_mce.js");
+}
+
+function _getScriptAction_MultiView()
+{
+    return "Multi_RichAttrib_View";
+}
+
+function _getScriptAction_SingleView()
+{
+    return "Single_RichAttrib_View";
+}
+
+function _getScriptAction_MultiEdit()
+{
+    return "Multi_RichAttrib_Edit";
+}
+
+function _getScriptAction_SingleEdit()
+{
+    return "Single_RichAttrib_Edit";
+}
+
+function _getScriptAction_MultiSave()
+{
+    return "Multi_RichAttrib_Save";
+}
+
+function _getScriptAction_SingleSave()
+{
+    return "Single_RichAttrib_Save";
+}
+
+
+function _formatPath(strPath)
+{
+    strPath = replace(strPath,"/","slash");
+    strPath = replace(strPath," ","space");
+    return strPath;
+}
+
+function _extractRichAttribName(strPath)
+{
+    var arrStr = strPath.parseDelim("/");
+    var strRecomposed = "";
+    if(strPath.startsWith("/"))
+    {
+        for(var i = 2 ; i < arrStr.size() ; i ++)
+        {
+            strRecomposed = strRecomposed +"/"+arrStr[i];
+        }
+    }
+    else
+    {
+        for(var i = 1 ; i < arrStr.size() ; i ++)
+        {
+            strRecomposed = strRecomposed +"/"+arrStr[i];
+        }   
+    }
+    return  strRecomposed;
+}
+
+function _getAttCollSpecNodes(objAttColl)
+{
+    var attPaths = objAttColl.getAllAttributePathsFromAttrGroup();
+    var arrNodes = [];
+
+    for(var i=0; i<attPaths.size(); i++)
+    {
+        var strAttPath = attPaths[i];
+        
+        var arrPathElement = strAttPath.parseDelim("/");
+        var objCurrentSpec = null;
+        if(arrPathElement.size() < 2)
+        {
+            continue;
+        }
+        else
+        {
+            objCurrentSpec = getSpecByName(arrPathElement[0]);
+            var oNode = objCurrentSpec.getNodeByPath(strAttPath);   
+            
+            if(oNode == null || oNode.getNodeAttributeValue("TYPE")=="GROUPING")
+            {
+                continue;           
+            }
+            else
+            {
+                arrNodes.add(oNode);        
+            }
+        }
+    }
+    return arrNodes;
+}
+
+function _getRichEditorAttCollName(strContainerName,strContainerType)
+{
+    var arrNameElement = strContainerName.parseDelim("_");
+    var strContainerTypePrefix = (strContainerType=="CATALOG"?"LAF_Cat_":"LAF_Hier_");
+    var str2Element ="";
+    if (strContainerName.startsWith("CA")) {
+        str2Element = concat("C",substring(strContainerName,2,5));
+    }
+    else {
+        str2Element = substring(strContainerName,0,4);
+    }
+    return strContainerTypePrefix + str2Element + "RE";
+}
+
+function getURL(entry)
+{
+    var objContainer     = entry.getEntryContainer();
+    var strEntryPk       = entry.getPrimaryKey();
+    var strContainerType = objContainer.getContainerType();
+    var strContainerName = (entry.isEntryAnItem()?objContainer.getCtgName():objContainer.getCategoryTreeName());
+    var username = getCurrentUserName();
+    
+    var strUrl = "/utils/invoker.jsp?company_code=" + getCompanyCode() + 
+                    "&script=" + _getScriptName() + 
+                    "&bUserOutput=" + false +
+                    "&entry_pk=" + urlEncode(strEntryPk) +
+                    "&container_type=" + urlEncode(strContainerType) +
+                    "&container_name=" + urlEncode(strContainerName) + 
+                    "&script_action=" + urlEncode(_getScriptAction_SingleView()) +
+                    "&re_att_coll_name=" + _getRichEditorAttCollName(strContainerName, strContainerType) +
+                    "&username="+username;
+
+    return strUrl;
+}
+
+//HTML offering button to launch the pop where to change the value of the Editorial Content.
+function getMultiRichAttribViewHTML()
+{
+    var strRichEditorAction = _getScriptAction_MultiEdit();
+    var strUrl = "/utils/invoker.jsp?company_code=" + getCompanyCode() + 
+                    "&script=" + request["script"] + 
+                    "&bUserOutput=" + false +
+                    "&entry_pk=" + request["entry_pk"] +
+                    "&container_type=" + request["container_type"] +
+                    "&container_name=" + request["container_name"] + 
+                    "&script_action=" + urlEncode(strRichEditorAction) +
+                    "&username=" + request["username"];
+    %>
+
+    <h3>Editer le contenu éditorial de l'entry</h3>
+    <script>
+        //help at http://www.pageresource.com/jscript/jwinopen.htm      
+        function doOpen(){
+            window.open('<%=strUrl%>','mywindow','width=800,height=600,scrollbars=yes,resizable=yes');
+        }
+    </script>
+    <INPUT type="button" value="Rich Editor" onClick="doOpen();" class="btntxt"> 
+    
+    <%
+}
+
+function getSingleRichAttribViewHTML()
+{
+    //1. Retrieve all Editorial Attributes
+    var strEntryPk       = request["entry_pk"];
+    var strContainerName = request["container_name"];
+    var strContainerType = request["container_type"];
+    var re_att_coll_name = request["re_att_coll_name"];
+    var username = request["username"];
+    
+    var companyCode=getCompanyCode();
+    var user=getUserByUsername(username,companyCode);
+    var userRoles=user.getUserRoles();
+    var userRolesLen=userRoles.size();
+
+    var bManagerTest=false;
+    for (var j=0; j<userRolesLen; j++) {
+        if (userRoles[j]=="RL800-Wysiwyg") {
+            bManagerTest=true;
+        }
+    }
+    //get node path in the coll att
+    var objAttColl    = getAttrGroupByName(re_att_coll_name);
+    if (objAttColl!=null) {
+        var arrSpecNodes  = _getAttCollSpecNodes(objAttColl);
+        var hashSpecNodes = [];
+        if (bManagerTest==true) {
+            for(var i =0 ; i < arrSpecNodes.size() ; i ++)
+            {
+                hashSpecNodes.add(arrSpecNodes[i].getNodePath());
+            }
+        }
+        //Get the Entrynode exact paths
+        var objContainer = (toUpperCase(strContainerType)=="CATALOG"?getCtgByName(strContainerName):getCategoryTreeByName(strContainerName));
+        var strCatalogName=concat("C",substring(strContainerName,2,strContainerName.length()));
+        var objCatalog = getCtgByName(strCatalogName);
+        var objEntry     = objContainer.getEntryByPrimaryKey(strEntryPk);
+        var arrFlatEntryNodes = objEntry.getFlatEntryNodes() ;
+        var arrREAttPath = [];
+        var arrREAttName = [];
+        var userLocaleCode="fr_FR";
+        
+        // A cause de la migration en 5.3, le curseur de la boucle for suivante commence à 2 (afin d'éviter de récupérer les noeuds primaires)
+        for(var i = 2 ; i < arrFlatEntryNodes.size() ; i++)
+        {
+            if(hashSpecNodes.containsValue(arrFlatEntryNodes[i].getNodeFromEntryNode().getNodePath()))
+            {
+                arrREAttPath.add(arrFlatEntryNodes[i].getEntryNodeExactPath());
+                arrREAttName.add(checkString(arrFlatEntryNodes[i].getNodeFromEntryNode().getNodeAttributeValue(userLocaleCode+"_display_name"),arrFlatEntryNodes[i].getNodeFromEntryNode().getNodeName()));
+            }   
+        }
+        
+        %>
+        <script>
+            //help at http://www.pageresource.com/jscript/jwinopen.htm      
+            function doOpen(url){
+                window.open(url,'mywindow','width=800,height=600,scrollbars=yes,resizable=yes');
+            }
+        </script>
+        
+        <table border="0" cellspacing="3" cellpadding="0">
+            <%
+            for(var i =0 ; i < arrREAttPath.size() ; i ++)
+            {
+                var strPath = arrREAttPath[i];
+                var strTabName = "";
+                var strAttrName = arrREAttName[i];
+                var strUrl = "/utils/invoker.jsp?company_code=" + getCompanyCode() + 
+                            "&script=" + request["script"] + 
+                            "&bUserOutput=" + false +
+                            "&entry_pk=" + request["entry_pk"] +
+                            "&container_type=" + request["container_type"] +
+                            "&container_name=" + request["container_name"] + 
+                            "&script_action=" + urlEncode(_getScriptAction_SingleEdit()) + 
+                            "&richattrib_path=" + urlEncode(strPath) +
+                            "&re_att_coll_name=" + urlEncode(re_att_coll_name) +
+                            "&username=" + request["username"];
+                
+                if (strPath.contains("01AC")) {
+                    strTabName="Appellation commerciale";
+                }
+                else if (strPath.contains("02FR")) {
+                    strTabName="Fournisseur";
+                }
+                else if (strPath.contains("03FN")) {
+                    strTabName="Fonction";
+                }
+                else if (strPath.contains("04CP")) {
+                    strTabName="Caract&eacute;ristiques physiques";
+                }
+                else if (strPath.contains("05PG")) {
+                    strTabName="Performances ";
+                }
+                else if (strPath.contains("06DN")) {
+                    strTabName="Distribution";
+                }
+                else if (strPath.contains("07MO")) {
+                  strTabName="Mise en oeuvre";
+                }
+                else if (strPath.contains("08IE")) {
+                    strTabName="Impact environnemental";
+                }
+                else if (strPath.contains("09CV")) {
+                    strTabName="Conditions générales de vente"; 
+                }
+                else if (strPath.contains("10GC")) {
+                    strTabName="Gestion commerciale";
+                }
+                else if (strPath.contains("11GP")) {
+                    strTabName="Gestion de production"; 
+                }
+                else if (strPath.contains("12BI")) {
+                    strTabName="Business Intelligence";
+                }
+                %>
+                <tr>
+                    <td><b><%=concat(strAttrName," ( ",strTabName," )")%></b></td>
+                    <td><INPUT type="button" value="Editer" onClick="doOpen('<%=strUrl%>');" class="btntxt"></td>
+                <tr/>
+                <%
+            }%>
+        </table><%
+    }
+}
+
+function getMultiRichAttribEditHTML()
+{
+    var strEntryPk       = request["entry_pk"];
+    var strContainerName = request["container_name"];
+    var strContainerType = request["container_type"];
+    var re_att_coll_name = request["re_att_coll_name"];
+    var username = request["username"];
+    
+    var objContainer = (toUpperCase(strContainerType)=="CATALOG"?getCtgByName(strContainerName):getCategoryTreeByName(strContainerName));
+    var objEntry     = objContainer.getEntryByPrimaryKey(strEntryPk);
+    
+    %>
+    <form method="post" action="/utils/invoker.jsp">
+    
+        <input type="hidden" name="script" value="<%=_getScriptName()%>">
+        <input type="hidden" name="bUserOutput" value="false">
+        <input type="hidden" name="company_code" value="<%=getCompanyCode()%>">
+        <input type="hidden" name="entry_pk" value="<%=strEntryPk%>">
+        <input type="hidden" name="container_name" value="<%=strContainerName%>">
+        <input type="hidden" name="container_type" value="<%=strContainerType%>">
+        <input type="hidden" name="script_action" value="<%=_getScriptAction_MultiSave()%>">
+        <input type="hidden" name="re_att_coll_name" value="<%= re_att_coll_name %>">
+        <input type="hidden" name="username" value="<%=username %>">
+        
+        <%
+        var objAttColl = getAttrGroupByName(re_att_coll_name);
+        var arrSpecNodes = _getAttCollSpecNodes(objAttColl);    
+        var strElements = "";
+        // A cause de la migration en 5.3, le curseur de la boucle for suivante commence à 2 (afin d'éviter de récupérer les noeuds primaires)
+        for(var i =2 ; i < arrSpecNodes.size() ; i ++)
+        {
+            var objSpecNode = arrSpecNodes[i];
+            var strPath = objSpecNode.getNodePath();
+            if(i == 0)
+            {
+                strElements = _formatPath(strPath);
+            }
+            else
+            {
+                strElements = strElements + ","+ _formatPath(strPath);
+            }
+            %>
+            <textarea name="<%=_formatPath(strPath)%>" cols="60" rows="20"><%=objEntry.getEntryAttrib(strPath)%></textarea>
+            <%
+        }
+        %>
+        
+<div align="right">
+        <input type="submit" value="Sauver" class="btntxt">
+        <input type="button" value="Fermer" onClick="window.close()" class="btntxt">
+        </div>
+    </form>
+    
+    <script language="javascript" type="text/javascript">
+    tinyMCE.init({
+        mode : "exact",
+            elements : "<%=strElements%>",
+            theme : "advanced",
+            plugins : "table,advhr,advlink,searchreplace,print,contextmenu,paste,directionality,noneditable",
+            theme_advanced_buttons1_add_before : "newdocument,separator",
+            theme_advanced_buttons2_add : "separator,forecolor,backcolor",
+            theme_advanced_buttons2_add_before: "cut,copy,paste,pastetext,pasteword,separator,search,replace",
+            theme_advanced_buttons3_add_before : "tablecontrols,separator",
+            theme_advanced_buttons3_add : "advhr,separator,print,separator,ltr,rtl",
+            theme_advanced_toolbar_location : "bottom",
+            theme_advanced_toolbar_align : "left",  
+            extended_valid_elements : "hr[class|width|size|noshade],span[class|align|style]",
+            theme_advanced_resize_horizontal : false,
+            theme_advanced_resizing : false,
+            
+            relative_urls : true,
+            document_base_url : "",
+            cleanup : true,
+            verify_html : true,
+            convert_urls:false
+    });
+    </script>
+    <%
+}
+
+function getSingleRichAttribEditHTML()
+{
+    var strEntryPk       = request["entry_pk"];
+    var strContainerName = request["container_name"];
+    var strContainerType = request["container_type"];
+    var strPath = request["richattrib_path"];
+    var username = request["username"];
+    var objContainer = (toUpperCase(strContainerType)=="CATALOG"?getCtgByName(strContainerName):getCategoryTreeByName(strContainerName));
+    var objEntry     = objContainer.getEntryByPrimaryKey(strEntryPk);
+    var strEntryId = checkString(objEntry.getEntryId(),"");
+    var strCollAreaId = checkString(getColAreaByName(strContainerName).getColAreaId(),"");
+    %>
+    
+    <form method="post" name="wysiwygform" action="/utils/invoker.jsp">
+    
+        <input type="hidden" name="script" value="<%=_getScriptName()%>">
+        <input type="hidden" name="bUserOutput" value="false">
+      <input type="hidden" name="company_code" value="<%=getCompanyCode()%>">
+      <input type="hidden" name="entry_pk" value="<%=strEntryPk%>">
+      <input type="hidden" name="entry_id" value="<%=strEntryId%>">
+      <input type="hidden" name="container_name" value="<%=strContainerName%>">
+      <input type="hidden" name="coll_area_id" value="<%=strCollAreaId%>">
+      <input type="hidden" name="wfl_step_id" value="">
+      <input type="hidden" name="container_type" value="<%=strContainerType%>">
+        <input type="hidden" name="script_action" value="<%=_getScriptAction_SingleSave()%>">
+        <input type="hidden" name="richattrib_path" value="<%=strPath%>">
+        <input type="hidden" name="username" value="<%=username %>">
+        
+        <table width="90%" border="0">
+            <tr>
+                <td class="titrepopup">Edition de l'attribut : <%=_extractRichAttribName(strPath)%><br><br></td>
+            </tr>
+            <tr>
+                <td align="center">
+                    <textarea name="richattrib_value" cols="120" rows="25"><%=checkString(objEntry.getEntryAttrib(strPath),"")%></textarea>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div align="right">
+                        <input type="submit" value="Sauver" class="btntxt">
+                        <input type="button" value="Fermer" onClick="window.close()" class="btntxt">
+                    </div>
+                </td>
+            </tr>
+        </table>        
+    </form>
+
+    <script language="javascript">
+    var openerURL2=window.parent.opener.parent.location.href;
+    var openerURL2=openerURL2.toString();
+    var collareastepstart=(openerURL2.indexOf("wfl_step_id")+12);
+    var collareastepend=openerURL2.indexOf("&ca_id");
+    var wfl_step_id_value=openerURL2.substring(collareastepstart,collareastepend);
+    document.wysiwygform.wfl_step_id.value=wfl_step_id_value;
+    </script>
+
+    <script language="javascript" type="text/javascript">
+    
+    var fields_to_edit = "richattrib_value";
+    var css_for_tiny_preview = "/css/tiny_mce/base.css";
+    var path_tiny_root = "/js/tiny_mce";//ref
+    
+    tinyMCE.init({
+        mode : "exact"
+        , elements : fields_to_edit
+        , theme : "advanced"
+        // width of the RichText panel in the WYSIWYG editor
+        , width : "750" 
+        // height of the RichText panel in the WYSIWYG editor
+        , height : "450"
+        // the language use in the RichText panel in the WYSIWYG editor (title of button ...)               
+        , language : "fr"
+        // list of the plugins which can be used    
+        , plugins : "table, xhtmlxtras, insertdatetime, template, fullscreen, paste, searchreplace, style, advimage"
+        , custom_shortcuts : "false"
+        // list the valid option of element, if the option name is structured with "=" sign, so this option will automatically appear in the generated html code even if its value is null or empty
+        , extended_valid_elements : "a[href|title|target|class|onclick]," + "img[src|alt=|title|class]," + "td[headers]," + "div[*]"
+        // list the buttons which appear in the tinyMCE editor in the first line
+        , theme_advanced_buttons1: " fullscreen, separator, search, replace, separator, cut, copy, paste, pastetext, separator, undo, redo, separator, bold, separator, bullist, numlist, separator, styleselect, formatselect" //     formatselect, cite"
+        // list the buttons which appear in the tinyMCE editor in the second line
+        , theme_advanced_buttons2: " link, unlink, anchor, image, separator, cite, abbr, acronym, separator, table,separator,  row_props, cell_props, separator, row_before,row_after,delete_row,separator,col_after,col_before,delete_col, separator, split_cells, merge_cells, separator, insertdate, inserttime, separator, template"//  fullscreen,  spellchecker,  spellchecker, help"
+        // list the buttons which appear in the tinyMCE editor in the third line
+        , theme_advanced_buttons3: " code"
+        // list the blockformat can be generated
+        , theme_advanced_blockformats : "p,h1,h2,h3,h4,h5,h6"
+        // list the style of paragraph, tag <p>, structure : "name of style which appears in the select box"="its value in select box", sperator ";"
+        , theme_advanced_styles : "Paragraphe important=important;Paragraphe introduction=intro;Paragraphe chapo=chapo;Paragraphe citation=citation;Paragraphe definition=definition;Paragraphe legende=legende;Paragraphe copyright=copyright;Paragraphe source auteur=src"
+        // list the style of link, tag <a>, structure : "name of style which appears in the select box"="its value in select box", sperator ";"
+        , theme_advanced_link_styles : "Lien important=important;Lien edito=lien_edito"
+        // list the style of picture, tag <img>, structure : "name of style which appears in the select box"="its value in select box", sperator ";"
+        , theme_advanced_img_styles : "Image a gauche du texte=image_a_gauche;Image a droite du texte=image_a_droite"
+        // the url of the css use in the richtext editor
+        , content_css : path_tiny_root+"/base.css" /* contains style to be displayed in dropdown*/
+        // the location of the toolbar in the RichText panel in the WYSIWYG editor
+        , theme_advanced_toolbar_location : "top"
+        // the alignement of the toolbar in the RichText panel in the WYSIWYG editor
+        , theme_advanced_toolbar_align : "left"
+        , theme_advanced_resize_horizontal : false
+        , theme_advanced_resizing : false   
+        , apply_source_formatting : true
+        , relative_urls : false
+        //, document_base_url : "http://" + szServerName
+        , cleanup : true
+        , verify_html : true
+        , template_templates : [
+            {
+                title : "Le saviez vous?",
+                src : path_tiny_root+"/plugins/template/prww/saviezvous.htm",
+                description : "Formatte le texte sélectionné au format du bloc 'le saviez-vous?'"
+            },
+            {
+                title : "Tete à Tete avec un pro",
+                src : path_tiny_root+"/plugins/template/prww/teteatete.htm",
+                description : "Formatte le texte sélectionné au format du bloc 'Tete a tete avec un pro'"
+            },
+            {
+                title : "Le plus Batirenover",
+                src : path_tiny_root+"/plugins/template/prww/plusBR.htm",
+                description : "Formatte le texte sélectionné au format du bloc 'Le plus Batirenover'"
+            },
+            {
+                title : "A retenir!",
+                src : path_tiny_root+"/plugins/template/prww/aRetenir.htm",
+                description : "Formatte le texte sélectionné au format du bloc 'A retenir!'"
+            },
+            {
+                title : "A savoir!",
+                src : path_tiny_root+"/plugins/template/prww/aSavoir.htm",
+                description : "Formatte le texte sélectionné au format du bloc 'A savoir!'"
+            }
+        ]
+        , convert_urls : false
+        , filemanager_path : "/"
+        , file_browser_callback : 'myFileBrowser'
+    }); 
+    </script>
+    
+    <%
+}
+
+function getMultiRichAttribSaveHTML()
+{
+    var strEntryPk = request["entry_pk"];
+    var strContainerName = request["container_name"];
+    var strContainerType = request["container_type"];
+    var re_att_coll_name = request["re_att_coll_name"];
+    var username = request["username"];
+    
+    var objEntry = null;
+    var objContainer = null;
+    if(toUpperCase(strContainerType)=="CATALOG")
+    {
+        objContainer = getCtgByName(strContainerName);
+    }
+    else
+    {
+        objContainer = getCategoryTreeByName(strContainerName);
+    }
+    
+    objEntry = objContainer.getEntryByPrimaryKey(strEntryPk);
+    var objAttColl = getAttrGroupByName(re_att_coll_name);
+    var arrSpecNodes = _getAttCollSpecNodes(objAttColl);    
+    for(var i =0 ; i < arrSpecNodes.size() ; i ++)
+    {
+        var objSpecNode = arrSpecNodes[i];
+        var strPath = objSpecNode.getNodePath();
+        %>  
+        <p>Path [<%=strPath%>] valeur : [<%=request[_formatPath(strPath)]%>]</p>
+        <%
+        objEntry.setEntryAttrib(strPath,request[_formatPath(strPath)]);
+    }
+    
+    // Test the type of the current object for perform the right save operation
+    if(toUpperCase(strContainerType)=="CATALOG")
+    {
+        useTransaction
+        {
+            objEntry.saveCtgItem();
+        }
+    }
+    else
+    {
+        useTransaction
+        {
+            objContainer.saveCategoryTree();
+        }
+    }
+
+%>
+ <p>L'entry [<%=strEntryPk%>] a été sauvegardé !<p>
+ 
+ <input type="button" value="fermer" onClick="window.close()">
+
+<%
+}
+
+function getSingleRichAttribSaveHTML()
+{
+    var strEntryPk = request["entry_pk"];
+    var strContainerName = request["container_name"];
+    var strContainerType = request["container_type"];
+    var re_att_coll_name = request["re_att_coll_name"];
+    var strEntryId = request["entry_id"];
+    var strCollAreaId = request["coll_area_id"];
+    var strWflStepId = request["wfl_step_id"];
+    var username = request["username"];
+    
+    var objEntry = null;
+    var objContainer = null;
+    if(toUpperCase(strContainerType)=="CATALOG")
+    {
+        objContainer = getCtgByName(strContainerName);
+    }
+    else
+    {
+        objContainer = getCategoryTreeByName(strContainerName);
+    }
+    
+    objEntry = objContainer.getEntryByPrimaryKey(strEntryPk);
+        %>
+            <table border="1"><tr><td><%=request["richattrib_value"]%></td></tr></table>
+        <%
+    objEntry.setEntryAttrib(request["richattrib_path"],request["richattrib_value"]);
+
+    // Test the type of the current object for perform the right save operation
+    if(toUpperCase(strContainerType)=="CATALOG")
+    {
+        useTransaction
+        {
+            objEntry.saveCtgItem();
+        }
+    }
+    else
+    {
+        useTransaction
+        {
+            objContainer.saveCategoryTree();
+        }
+    }
+
+%>
+<script language="JavaScript">
+function refreshAndClose(){ 
+        var openerRon = parent.opener.parent; 
+        openerRon.location="/ccd_content/item_workflow_step.jsp?doit=edit_col_area_item&wfl_step_id=<%=strWflStepId%>&ca_id=<%=strCollAreaId%>&entry_id=<%=strEntryId%>";
+        // var opener = parent.opener.parent; 
+        // evt = opener.document.createEventObject(); 
+        // evt.ctrlKey = true; 
+        // evt.altKey = true; 
+        // evt.keyCode = 85; // U 
+        // opener.document.fireEvent("onkeydown", evt);
+        
+        top.window.close();   
+}   
+</script> 
+
+ <p>La sauvegarde a été effectuée<p>
+ 
+ <input type="button" value="fermer" onClick="refreshAndClose();">
+
+<%
+}
+
+function getNoActionHTML()
+{
+    %>
+     <p>NO SCRIPT ACTION</p>
+    <%
+}
+
+///////////////  START HERE ///////////////////////
+%>
+    <html>
+    <header>
+        <title>Rich Editor</title>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/css/pa_prof.css' type='text/css'>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/css/base.css' type='text/css'>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/js/themes/advanced/css/colorpicker.css' type='text/css'>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/js/themes/advanced/css/editor_content.css' type='text/css'>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/js/themes/advanced/css/editor_popup.css' type='text/css'>
+        <link rel=stylesheet href='/suppliers/<%=getCompanyCode()%>/tiny_mce/js/themes/advanced/css/editor_ui.css' type='text/css'>     
+        <script language="javascript" type="text/javascript" src="<%=_getTinyMceJs()%>"></script>
+    </header>
+    <body>
+<%
+    if(request["script_action"]==_getScriptAction_MultiView())
+    {
+        getMultiRichAttribViewHTML();       
+    }
+    else
+        if (request["script_action"]==_getScriptAction_SingleView())
+        {
+            getSingleRichAttribViewHTML();
+        }
+        else
+            if(request["script_action"]==_getScriptAction_MultiEdit())
+            {
+                getMultiRichAttribEditHTML();
+            }
+            else
+                if(request["script_action"]==_getScriptAction_SingleEdit())
+                {
+                    getSingleRichAttribEditHTML();
+                }
+                else
+                    if(request["script_action"]==_getScriptAction_MultiSave())
+                    {
+                        getMultiRichAttribSaveHTML();   
+                    }
+                    else
+                        if(request["script_action"]==_getScriptAction_SingleSave())
+                        {
+                            getSingleRichAttribSaveHTML();
+                        }
+                        else
+                        //NO ACTION
+                        { 
+                            getNoActionHTML();
+                        }
+%>
+    </body>
+    </html>
+<%

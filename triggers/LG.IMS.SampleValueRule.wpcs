@@ -1,0 +1,80 @@
+function getSampleKey(item) {
+    var res = null;
+    res=item.getCtgItemAttrib("SC003-IMS_AttribsMap/sampleKey");
+    if (checkString(res,"")==""){
+        var cat = item.getCtgItemCategories("H010-FieldMapIMS")[0];
+        if (cat != null) {
+            res = cat.getCategoryAttrib("/SH010-IMSAttribsMapHierarchySpec/sampleKey");
+            if (checkString(res,"")==""){
+                res = cat.getCategoryParents()[0].getCategoryAttrib("/SH010-IMSAttribsMapHierarchySpec/sampleKey");
+            }
+        }
+    }
+    return res;
+}
+
+function generateExportScript(fieldmap) {
+    var writer = createOtherOut("testScript");
+    writer.writeln("function mapFields(hmGlobals, item, tech) {");
+    writer.writeln("var e;var res;catchError(e) {");
+
+    writer.writeln("var book = new ExcelBook(null,\"XLSX\");");
+    writer.writeln("var sheet = book.createExcelSheet();");
+    writer.writeln("var row = sheet.createRow(0);");
+    writer.writeln("var cell = row.createExcelCell(0);");
+    writer.writeln("var lib = getScriptByPath(\"/scripts/triggers/LG.Library.LGUtils\");");
+    writer.writeln("var convertL210NumberToUnit = lib.getFunctionByName(\"convertL210NumberToUnit\");");
+    writer.writeln("var getDedupCSV = lib.getFunctionByName(\"getDedupCSV\");");
+    writer.writeln(getScriptByPath("/scripts/reports/LG.IMS.Interface").getFunctionByName("getExportScriptForAttribute").invoke(fieldmap));
+    var cellType = checkString(fieldmap.getCtgItemAttrib("SC003-IMS_AttribsMap/excelCellType"), "");
+    writer.writeln("    if (null != res) {");
+    writer.writeln("        cell.setCellType(\"" + cellType + "\");");
+    if (cellType == "STRING") {
+        writer.writeln("        cell.setStringCellValue(res);");
+    }
+    if (cellType == "DATE") {
+        writer.writeln("        cell.setDateCellValue(res);");
+    }
+    if (cellType == "NUMERIC") {
+        writer.writeln("        cell.setNumericCellValue(toDouble(res));");
+    }
+
+    writer.writeln("}}");
+    writer.writeln("if (e!=null){res=checkString(res,\"\")+ \" - \" + e.substring(1,300);}");
+    writer.writeln("    return res;}");
+    writer.save("/scripts/triggers/LG.IMS.DynamicExportScriptSample");
+    writer.close();
+}
+
+function getSampleValue(item) {
+    catchError(e) {
+        var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+        var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+        hmGlobals["LOGGER"] = getLogger("default");
+        var techFunc = lib.getFunctionByName("tech");
+        var sampleKey = getSampleKey(item);
+        if (checkString(sampleKey, "") == "") {
+            res = "### NO SAMPLEKEY GIVEN ####";
+        } else {
+            var sampleItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemFromPKey").invoke(sampleKey);
+            if (sampleItem == null) {
+                res = "Could not find the item for sampleKey=" + sampleKey;
+            } else {
+                generateExportScript(item);
+                res = getScriptByPath("/scripts/triggers/LG.IMS.DynamicExportScriptSample").getFunctionByName("mapFields").invoke(hmGlobals, sampleItem, techFunc);
+            }
+        }
+    }
+    if (e != null) {
+        res = "## ERROR ##";
+    }
+    return res;
+}
+
+// var ctg=getCtgByName("IMSAttribsMap");
+// var item=ctg.getEntryByPrimaryKey("ALVEOLAR PARTITIONS:Product:ProductThermalResistance");
+// var item=ctg.getEntryByPrimaryKey("COMMON:Product:ProductFireReactionClass");
+// var res=getScriptByPath("/scripts/triggers/LG.IMS.SampleValueRule").getFunctionByName("getSampleValue").invoke(item);
+// out.writeln(res);
+
+

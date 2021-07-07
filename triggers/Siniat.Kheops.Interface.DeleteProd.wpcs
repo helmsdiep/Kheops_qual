@@ -1,0 +1,117 @@
+//
+// Delete Prod Items no child
+//	
+
+function initGlobals(){
+    var hmGlobalConst = [];
+    hmGlobalConst = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+    var hmGlobals = [];
+	hmGlobals["SCRIPT_INITIAL_RULES"]=getScriptByPath("/scripts/triggers/LG.Business.Initial.Rules");	
+    hmGlobals["LOGGER"]=getLogger("Lafarge.Cloner");
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ATTRS_TO_CLONE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToClone");
+    hmGlobals["FN_MERGE_HASHES"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("mergeHashes");
+    hmGlobals["FN_GET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+    hmGlobals["FN_SET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("setStatus");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+   	hmGlobals["FN_GET_ATTRS_TO_INHERIT"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToInherit");
+    
+    return hmGlobals["FN_MERGE_HASHES"].invoke(hmGlobals,hmGlobalConst);
+}
+
+function deleteProdNoChild() {	
+	var hmGlobals=initGlobals();
+
+	// (1) deactivate ctg rules
+	var optionstodesactivate=[];
+	optionstodesactivate[0]="ALL";
+	var scriptnameTemp=[];
+
+	var oKey;
+	var ctgName;
+	var ctgs = getCatalogNamesList();
+
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+	forEachHmElement(ctgs,oKey,ctgName) {
+		if(ctgName.startsWith("C")) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			
+			ctg.disableContainerProcessingOptions(optionstodesactivate);
+			
+			scriptnameTemp[0]="";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+			ctg.saveCatalog();
+		}
+	}	
+	
+	// Notification
+	var strKheopsURL = getProductCenterURL()+"/utils/enterLogin.jsp";
+	var strMailto = "polegestionproduits@etexgroup.com";
+	
+	var oCatalog = getCtgByName("C805-Produits hors Siniat - External Siniat products");
+	//
+
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+
+	var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+	var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+
+	var bProdNoChildItem=false;
+	var logPath = "";
+	var logOut;
+
+	var oProdItem;
+	forEachItemSetElement(oProdItemSet,oProdItem) {
+		var strProdItemPK = oProdItem.getPrimaryKey();
+		var strProdCurrentStatus = checkString(oProdItem.getEntryAttrib("/SC000-GlobPrim/01AC0548-Status"),"");
+		var strLibelleLong = checkString(oProdItem.getEntryAttrib("/SC000-GlobPrim/01AC0012-LongName"),"");
+		
+		var itemChildren = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,oProdItem);
+		var inbProdChildItems = itemChildren.size();
+		if (inbProdChildItems==0 && strProdCurrentStatus=="[ACTIVE] - Actif"){
+			if(bProdNoChildItem==false) {
+				logPath = "/744/deleteNoChildProdItem-"+today().formatDate("yyyyMMdd-HHmm")+".csv";
+				logOut = createOtherOut(logPath);
+				logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Desactivate process started");
+			}
+			logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Desactivate Prod Item "+strProdItemPK);
+			//
+			oProdItem.setEntryAttrib("/SC000-GlobPrim/01AC0548-Status", "[INACTIVE] - Inactif");
+			var dSaveDate = today();
+			//	
+			oProdItem.setEntryAttrib("SC000-GlobPrim/01AC0003-LastUpdateUser","Admin - SAP 2 Kheops Interface");
+			oProdItem.setEntryAttrib("SC000-GlobPrim/01AC0004-LastUpdate",dSaveDate);
+			var test = oProdItem.saveCtgItem();
+			
+			bProdNoChildItem=true;
+			sendEmail(strMailto,"Notification de désactivation du code Kheops "+strProdItemPK, "La référence "+strProdItemPK+" - " + strLibelleLong + " a été désactivée car elle ne possède plus de BUnit associée.\n\n"+strKheopsURL); 
+		}
+	}
+	//
+	if(bProdNoChildItem==true) {
+		logOut.writeln(today().formatDate("yyyy/MM/dd_HH:mm:ss")+" | Desactivate process finished");
+		logOut.save(logPath);
+	}
+	
+	// (3) reactivate ctg rules
+	var scriptnameTemp2=[];
+
+	forEachHmElement(ctgs,oKey,ctgName) {
+		if(ctgName.startsWith("C")) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			scriptnameTemp2[0]="LG.Catalog.PreProc";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+			ctg.saveCatalog();
+		}
+	}
+}
+

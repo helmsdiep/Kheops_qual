@@ -1,0 +1,266 @@
+/// output Debug msg 
+//:GLFUNCTION void outputError(sMsg) 
+function outputError(sType, sMsg) {
+//        out.writeln("<span class='error'>" + sType + "-" + sMsg + "</span>");
+        out.writeln(sType + " - " + sMsg);
+}
+
+function commitItemSave(listItem) {
+	useTransaction {
+		for(var i=0;i<listItem.size();i++){
+			var item = listItem[i];
+			if(item!=null){
+				item.saveCtgItem();
+			}
+		}
+	}
+	return [];
+}
+
+function loadLookUp(sLkpName, oParser, hmLanguageLookup) {
+	var moni = getLogger("Monitor");
+	
+	var ctgLkp = getCtgByName(sLkpName);
+	var lkp=getLkpByName(sLkpName);
+	
+	var listItem = [];
+
+	var iCreatedItems=0;
+	var iModifiedItems=0;
+	var iErrors=0;
+	var sResult=[];
+	sResult["detail"]=[];
+	sResult["summary"]=[];
+	if (ctgLkp==null)
+	{
+		var sMsg=[];
+		sMsg["key"]="";
+		sMsg["type"]="ERROR";
+		sMsg["info"]="Lookup '" + sLkpName +"' does not exist.";
+		sMsg["before"]=null;
+		sMsg["new"]=null;
+		sResult["detail"].add(sMsg);
+
+		var sInfo=[];
+		sInfo["created"]=0;
+		sInfo["modified"]=0;
+		sInfo["errors"]=1;
+		sResult["summary"].add(sInfo);
+		return sResult;
+	}
+	else
+	{
+	
+		var specLkp = ctgLkp.getCtgSpec(true);
+		var listSpecAttrPaths = specLkp.getSpecAttribPaths();		
+		var listAttrs = oParser.splitLine();	
+		//moni.loggerDebug("listAttrs " + listAttrs);
+		
+		var bDone = (listAttrs==null);
+
+		while(!bDone) {
+			var listAttrs2 =[];
+			var sMsg=[];
+			var bNeedSave = false;
+			var bError = false;
+			var itemLkp=null;
+			var strCode = "";
+
+			itemLkp = ctgLkp.getEntryByPrimaryKey(listAttrs[0]);
+			strCode = listAttrs[0];
+			
+			if(itemLkp==null){
+				itemLkp = new CtgItem(ctgLkp);
+				itemLkp.setCtgItemAttrib("LKP_SAP_LookupTable_spec/C00-Code",listAttrs[0]);
+				iCreatedItems++;
+				//sMsg["C00-Code"]=listAttrs[0];
+				//sMsg["type"]="CREATION";
+				//sResult["detail"].add(sMsg);
+				bNeedSave = true;
+			}
+			
+			itemLkp.setCtgItemAttrib("LKP_SAP_LookupTable_spec/C01-PrimaryCode",checkString(listAttrs[1], ""));
+			itemLkp.setCtgItemAttrib("LKP_SAP_LookupTable_spec/C02-SecondaryCode",checkString(listAttrs[2], ""));
+			itemLkp.setCtgItemAttrib("LKP_SAP_LookupTable_spec/C03-ThirdCode",checkString(listAttrs[3], ""));
+			var strEnglishDesciption = checkString(listAttrs[21], "");
+			var strFrenchDescription = checkString(listAttrs[22], "");
+			var strDutchDescription = checkString(listAttrs[30], "");
+			var strGermanDescription = checkString(listAttrs[20], "");
+			var strDefaultDescription = "";
+			if(strEnglishDesciption != ""){
+				strDefaultDescription = strEnglishDesciption;
+			}
+			else if(strFrenchDescription != ""){
+				strDefaultDescription = strFrenchDescription;
+			}
+			else if(strDutchDescription != ""){
+				strDefaultDescription = strDutchDescription;
+			}
+			else if(strGermanDescription != ""){
+				strDefaultDescription = strGermanDescription;
+			}
+			
+			//check if an attribute value has changed, if so then modify the item
+            for(var j=0;j<listSpecAttrPaths.size();j++){
+                var currentSpecPath = listSpecAttrPaths[j];
+                
+                if(currentSpecPath.contains("C04-Description") && hmLanguageLookup[getNameFromPath(currentSpecPath)] != null){
+	                //out.writeln(currentSpecPath + "    :   " + hmLanguageLookup[getNameFromPath(currentSpecPath)]);
+	             	//moni.loggerDebug(listAttrs[0]); 
+	                //Language specific description handling
+	                var oldval = checkString(itemLkp.getCtgItemAttrib(currentSpecPath),"");
+	                var newval = checkString(listAttrs[hmLanguageLookup[getNameFromPath(currentSpecPath)]],"");
+	                if(newval == ""){
+	                	newval = strDefaultDescription;
+	                }
+	                
+	                if (oldval != newval){
+                        //sMsg["C00-Code"]=listAttrs[0];
+                        //sMsg["type"]="MODIF";
+                        //sMsg["info"]=getRidOfRootName(currentSpecPath);
+                        //sMsg["before"]=oldval;
+                        //out.writeln("OLD   :   " + oldval);
+                        //sMsg["new"]=newval;
+                        //out.writeln("NEW   :   " + newval);
+                        //sResult["detail"].add(sMsg);
+
+	         	     	moni.loggerDebug("Id : " + strCode + " / Old New ==> " + oldval + " To " + newval);
+	            	  		                        
+	                    itemLkp.setCtgItemAttrib(currentSpecPath,newval);
+	                    iModifiedItems++;
+	                    bNeedSave=true;
+	                }
+                }
+            }
+
+			if (bNeedSave){	
+				listItem.add(itemLkp);
+			}
+			
+			if(listItem.size()>50) {
+				listItem = commitItemSave(listItem);
+			}
+			
+			listAttrs = oParser.splitLine();
+			bDone = (listAttrs==null);
+		}
+		
+		out.writeln("DONE");
+		
+		commitItemSave(listItem);
+	}
+	var sInfo=[];
+	sInfo["created"]=iCreatedItems;
+	out.writeln(iCreatedItems);
+	moni.loggerDebug("Created " + iCreatedItems);
+	sInfo["modified"]=iModifiedItems;
+	out.writeln(iModifiedItems);
+	moni.loggerDebug("Modified " + iModifiedItems);
+	sInfo["errors"]=iErrors;
+	moni.loggerDebug("Error " + iErrors);	
+	sResult["summary"].add(sInfo);
+	return sResult;
+}
+
+function getParser(sFilePath){
+	var moni = getLogger("Monitor");
+	
+	var result=[];
+	var oParser = null;
+	var err;
+	catchError(err) 
+	{
+		var oReader = new Reader(sFilePath,"UTF-8");
+		var lkpSAPTableMapping = getLkpByName("LKP_SAPTableMapping");
+		if(oReader!=null) 
+		{	
+			//First line is to get the name of the lookuptable						
+			oParser = newDelimParser(oReader, ";");
+			
+			var strLkpName=oParser.splitLine()[0];
+			if(indexOf(strLkpName.decodeUsingCharset("UTF-8"), "-") != -1){
+			
+				var strLkpcode = substring(strLkpName.decodeUsingCharset("UTF-8"), 0, indexOf(strLkpName.decodeUsingCharset("UTF-8"), "-"));
+				//moni.loggerDebug("strLkpcode " + strLkpcode);
+				result["lkpname"] = checkString(lookup(lkpSAPTableMapping, strLkpcode), "");
+			}
+			
+			//Second line is to get all the column-names (especially for the languages)
+			var hmColumns = oParser.splitLine();
+			//moni.loggerDebug("hmColumns " + hmColumns);
+			result["columns"] = hmColumns;
+			
+		} else {
+			outputError("MISSING",sFilePath);
+		}
+	}
+	if(err!=null){
+		outputError("ERROR Processing",sFilePath);
+		outputError("ERROR",err);
+	}
+	result["parser"]=oParser;
+	return result;
+}
+
+function createLanguageLookup(hmColumns){
+	var hmLanguageLookup = [];
+	var lkpLanguageLookup = getLkpByName("LKP_SAPLanguageMapping");
+	
+	var intKey = null;
+	var strSAPLanguageCode = "";
+	forEachHmElement(hmColumns, intKey, strSAPLanguageCode){
+		var strPIMLanguageCode = checkString(lookup(lkpLanguageLookup, strSAPLanguageCode), "");
+		if(strPIMLanguageCode != ""){
+			//out.writeln(strSAPLanguageCode + "  -->  " + intKey + " --> " + strPIMLanguageCode);
+			hmLanguageLookup[strPIMLanguageCode] = intKey;
+		}
+	}
+	
+	return hmLanguageLookup;
+}
+
+function processLookupImport(strPath, strLookup) {
+	var moni = getLogger("Monitor");
+	
+	out.writeln("Started the Lookuptable Synchronization from SAP");
+	logDebug("Started the Lookuptable Synchronization from SAP");
+	moni.loggerDebug("Started the Lookuptable Synchronization from SAP");
+	var glErr = null;
+	var hmPaths = getDocStoreFilesInDirectory(strPath);
+	moni.loggerDebug(strPath);
+	catchError(glErr) {
+		var intKey = null;
+		var strPathCSV = null;
+		forEachHmElement(hmPaths, intKey, strPathCSV){
+			out.writeln(strPathCSV);
+			var p=getParser(strPathCSV);		
+			var oParser = p["parser"];
+			var strLkpName = p["lkpname"];
+			var hmLanguageLookup = createLanguageLookup(p["columns"]);
+			out.writeln(strLkpName);
+			logDebug(strLkpName);		
+			var impErr = null;
+			var sReport=[];
+			if( (strLkpName != "" && strLookup != "" && strLkpName.contains(strLookup) ) || (strLkpName != "" && strLookup == "") ){
+				catchError(impErr) {
+					moni.loggerDebug(strLkpName);
+					
+					sReport=loadLookUp(strLkpName, oParser, hmLanguageLookup);
+				}
+				if(impErr!=null)
+				{			
+					outputError("ERROR :", impErr + "<br>");
+				}
+			}
+		}
+	}
+	if(glErr!=null){
+		outputError("ERROR", glErr);
+	}
+	out.writeln("Finished the Lookuptable Synchronization from SAP");
+	logDebug("Finished the Lookuptable Synchronization from SAP");
+	moni.loggerDebug("Finished the Lookuptable Synchronization from SAP");
+	return null;
+}
+var strPath = "/public_html/XFER/";
+processLookupImport(strPath);

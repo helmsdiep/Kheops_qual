@@ -1,0 +1,127 @@
+// ---------------------------------------------------------------------------
+//
+// Title:       Library Logger
+// Description: This is a Trigger Script to be used an a common library. The
+//				following objectives are being achieved:
+//				(a) Consistent logging format by all devlopers on the project
+//				(b) Ability to change logging levels without touching any scripts
+//				(c) Faclitate log rotation and log file size control
+//				(d) Minimized impact to scripts of a different logging utility
+//				    is incorporated in future.
+//				(e) Ease of use
+//
+//				Logs end up in the docstore location: ScriptLogs/[Scipt Type]/[Script Name]_[index].csv
+//
+//
+//
+//				PUBLIC log (_sSeverity,_sDescription,logger_name)
+//
+//
+//
+//
+// Usage:       For usage example scroll to the bottom of this script code.
+//
+// Audit:		07/28/2004, Zeb Mahmood
+//				Modified variable names to adhere to WPC's Best Practices naming convention
+//
+//				08/29/2005, Sadagopan Krishnamachari
+//				- Incorporated the logging infrastructure as per WPC standards.
+//
+//				11/25/2005, Sadagopan Krishnamachari
+//				- Reworked to include the logger_variable to be passed to the log function
+//
+// ---------------------------------------------------------------------------
+
+
+
+//Scope: Private function
+//Description: Retrieves script's properties
+//Possible return values: Hashmap of various log level properties
+function getScriptProperties()
+{
+
+    var hmProperties            = [];
+    hmProperties["LOGLEVEL"]    = "INFO"; //Default value set at Spec level
+    hmProperties["LOGSIZE"]     = 128.00; //Default value set at Spec level
+    hmProperties["LOGROTATION"] = 10.00; //Default value set at Spec level
+    hmProperties["CURRLOGINDEX"]= 1.00; //Default value set at Spec level
+    return hmProperties;
+}
+
+
+//
+//Scope: Public function
+//Description: Setup script name - DEPRECATED and not used now
+//Possible return values: -none-
+//
+function setContext (_sScriptname)
+{
+	var sSCRIPTNAME 	= checkString(_sScriptname,"UNKNOWN");
+	//hmProperties        = getScriptProperties(sSCRIPTNAME);
+
+} //setContext()
+
+
+//
+//Scope: Public function//Parameters: _severity: DEBUG, INFO, WARN, ERROR, FATAL
+//Description: Logging API. See main() for usage
+//Possible return values: -none-
+//
+//todo: Incorporate NONE level
+//
+function log (_sSeverity,_sDescription,logger_name)
+{
+    var sSeverity       = checkString(_sSeverity,"INFO"); //defaults to INFO
+    var sDescription    = checkString(_sDescription,"[No Description]");
+	var hmProperties	= getScriptProperties();
+	if(hmProperties["LOGLEVEL"] != "NONE")
+	{
+        // if the logger_name is not entered in the lookup, the logging will be in the /home/<instance>/austin_521/logs/appsvr_<>/default.log file
+        logger_name     = checkString(logger_name,"default");
+        var myLog = getLogger(logger_name);
+	    if (sSeverity == "FATAL")
+	    {
+	        myLog.loggerFatal(sDescription);
+	    }
+	    else if (sSeverity == "ERROR")
+	    {
+	        myLog.loggerError(sDescription);
+	    }
+	    else if (sSeverity == "WARN")
+	    {
+	        myLog.loggerWarn(sDescription);
+	    }
+	    else if (sSeverity == "DEBUG")
+	    {
+	        myLog.loggerDebug(sDescription);
+	    }
+	    else if (sSeverity == "INFO")
+	    {
+	        myLog.loggerInfo(sDescription);
+	    }
+	
+	}// ONLY WHEN THE LOGLEVEL IS NOT NONE
+
+} //log()
+
+
+
+// main () /////////////////////////////////////////////////////
+
+// ---> ---> --->  Testing code ---> ---> --->
+
+var DEBUG       = "DEBUG";
+var INFO        = "INFO";
+var WARN        = "WARN";
+var ERROR       = "ERROR";
+var FATAL       = "FATAL";
+var logger_name = "ldap";
+
+
+log(INFO,"My 1st test log statement",logger_name);
+log(DEBUG,"My 2nd test log statement",logger_name);
+log(WARN,"My 3rd test log statement",logger_name);
+log(ERROR,"My 4th test log statement",logger_name);
+log(FATAL,"My 5th test log statement",logger_name);
+
+// <--- <--- <--- <--- <--- <--- <--- <---

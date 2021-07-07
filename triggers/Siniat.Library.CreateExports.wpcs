@@ -1,0 +1,259 @@
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+//EntryNode getEn(hmGlobals,item,String)
+//Return the entry node 
+//Parameters
+//-hmGlobals : global variable to call the function getEntryNodeForAttributePath
+//-item : item (generic)
+//-String : name of the attribute
+//Returns EntryNode
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getFirstEn(hmGlobals, item, sNodeName){
+    var nodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+    if (nodes == null || nodes.size() < 1 ) {
+        return null;
+    }
+    return nodes[0];
+}
+
+function deletezero(strMaterialNumber) {
+	if(strMaterialNumber!=null && strMaterialNumber!=""){
+		var iMaterialNumber = strMaterialNumber.length();
+		for(var k=0;k<iMaterialNumber;k++) {
+			var testzero=strMaterialNumber.startsWith("0");
+			if(testzero==true) {
+				strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+			}
+		}
+	}
+	return strMaterialNumber;
+}
+
+function writeCell(row,cellIndex,attrString,oCellStyle)
+{
+    var cell = row.createExcelCell(cellIndex);
+    if (null != attrString)
+    {
+      cell.setCellType("STRING");
+      cell.setStringCellValue(attrString);
+	  cell.setExcelStyle(oCellStyle);
+    }
+}
+
+function createMarketingReport() {
+	var oMarketedRole = getRoleByName("RL800-Marketed products Manager Notif");
+	var oUsers = oMarketedRole.getUsersFromRole();
+	
+	// var strMailto = "ronan.guevel@etexgroup.com";
+	var strMailto = "";
+	//
+	var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("initGlobals").invoke();
+	hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+	var aTypes = [];
+	aTypes.add("BUnit");
+	aTypes.add("PItem");
+
+	var ExcelFilePath = "/export-marketing/export-marketing-"+today().formatDate("yyyyMMdd_HHmmss")+".xls";
+	var oExcelBook = new ExcelBook();
+	var oExcelCellStyleHeader = oExcelBook.createExcelCellStyle();
+	// var oExcelCellFontHeader = oExcelBook.createFont();
+
+	oExcelCellStyleHeader.setBorderLeft("BORDER_THIN");
+	oExcelCellStyleHeader.setBorderRight("BORDER_THIN");
+	oExcelCellStyleHeader.setBorderTop("BORDER_THIN");
+	oExcelCellStyleHeader.setBorderBottom("BORDER_THIN");
+
+	// oExcelCellStyleHeader.setFillBackgroundColor("DARK_BLUE");
+	// oExcelCellStyleHeader.setFillForegroundColor("DARK_BLUE");
+
+	// oExcelCellFontHeader.setBoldWeight("BOLDWEIGHT_NORMAL");
+	// oExcelCellStyleHeader.setFont(oExcelCellFontHeader);
+
+	var oExcelCellStyle = oExcelBook.createExcelCellStyle();
+
+	oExcelCellStyle.setBorderLeft("BORDER_THIN");
+	oExcelCellStyle.setBorderRight("BORDER_THIN");
+	oExcelCellStyle.setBorderTop("BORDER_THIN");
+	oExcelCellStyle.setBorderBottom("BORDER_THIN");
+
+	var oExcelSheet = oExcelBook.createExcelSheet("Export Marketing");
+	var iRowNum = 0;
+
+	var oExcelRowHeader = oExcelSheet.createRow(iRowNum); 
+	writeCell(oExcelRowHeader,0,"ERP Code",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,1,"Code SAP",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,2,"Libellé long",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,3,"Libellé facture",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,4,"Statut",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,5,"Date de création",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,6,"Jour",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,7,"Mois",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,8,"Année",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,9,"Organisation de vente",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,10,"Statut de l'organisation de vente",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,11,"Statut de l'organisation de vente - Date d'application",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,12,"Jour",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,13,"Mois",oExcelCellStyleHeader);
+	writeCell(oExcelRowHeader,14,"Année",oExcelCellStyleHeader);
+
+	iRowNum++;
+
+	for (m=0; m<aCatalogNames.size(); m++) {
+		if (aCatalogNames[m].startsWith("C999") || aCatalogNames[m].startsWith("C730")) {continue;}
+		
+		var ctg = getCtgByName(aCatalogNames[m]); 
+		
+		var filters = [];
+		filters["CONTAINER"] = ctg;
+		filters["SPECTYPE"] = "SECONDARY_SPEC";
+		var aSpecNames = getSpecNameList(filters);
+		var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+
+		var queryStringFrom = " from catalog('" + aCatalogNames[m] + "') ";
+
+		for (j=0; j<aTypes.size(); j++) {
+			var queryStringFin = "";
+			var queryString = "";
+			var queryStringWhere = queryString + "where  item['SC000-GlobPrim/01AC0548-Status'] = '[ACTIVE] - Actif' "; 
+			//
+			if(aTypes[j]=="BUnit") {
+				queryString = "select item.pk, item.category.pk, item['SC000-GlobPrim/01AC0012-LongName'], item['SC000-GlobPrim/01AC0548-Status'], item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] ";
+				queryStringWhere = queryStringWhere + "and  item['SC000-GlobPrim/01AC0044-ERPCode'] like '%B%' ";
+				// queryStringWhere = queryStringWhere + "and item['" + sSpecPrefix + "_" +  aTypes[j] + "/SalesOrganisationGroup/10GC0725-SalesOrganisation" + "'] in ('9501','9502','9503','9504','9505') ";
+				queryStringWhere = queryStringWhere + "and item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] != '' ";
+
+			}
+			else if (aTypes[j]=="PItem") {
+				queryString = "select item.pk, item.category.pk, item['SC000-GlobPrim/01AC0012-LongName'], item['SC000-GlobPrim/01AC0548-Status'], item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] ";
+				queryStringWhere = queryStringWhere + "and  item['SC000-GlobPrim/01AC0044-ERPCode'] like '%I%' ";
+				// queryStringWhere = queryStringWhere + "and item['" + sSpecPrefix + "_" +  aTypes[j] + "/SalesOrganisationGroup/10GC0725-SalesOrganisation" + "'] in ('9501','9502','9503','9504','9505') ";
+				queryStringWhere = queryStringWhere + "and item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] != '' ";
+			}
+		
+			queryStringFin = queryString+queryStringFrom+queryStringWhere;
+			
+			out.writeln("queryStringFin="+queryStringFin);
+		
+			var query = new SearchQuery(queryStringFin);
+			var resultset = query.execute();
+
+			while (resultset.next()) {
+				nbresult++;
+				bEmpty = false;
+				var strItemPK = checkString(resultset.getString(1),"");
+				var strItemLongName = checkString(resultset.getString(3),"");
+				var strItemStatus = checkString(resultset.getString(4),"");
+				var strItemMaterialNumber = checkString(resultset.getString(5),"");
+				
+				var strCatalogName = getCatalogNameFromCatalogCode(strItemPK);
+				if(strCatalogName!="") {
+					var oitem = getCtgByName(strCatalogName).getEntryByPrimaryKey(strItemPK);
+					var oCreationDate = getEn(hmGlobals,oitem,"01AC0006-CreationDate");
+					var dCreationDate = oCreationDate[0].getEntryNodeValue();
+					//
+					var strSalesOrganisation = "";
+					var SalesOrganisationGroup = getEn(hmGlobals,oitem,"SalesOrganisationGroup");
+					if(SalesOrganisationGroup!=null) {
+						for(i=0;i<SalesOrganisationGroup.size();i++) {
+							//On récupère la valeur de 02FR0063-ProductionSite de l'occurrence
+							var oSalesOrganisation = getEn(hmGlobals,oitem,"SalesOrganisationGroup#"+i+"/10GC0725-SalesOrganisation");
+							if(oSalesOrganisation!=null) {
+								var strSalesOrganisation = checkString(oSalesOrganisation[0].getEntryNodeValue(),"");
+								if(strSalesOrganisation=="9501" || strSalesOrganisation=="9502" || strSalesOrganisation=="9503" || strSalesOrganisation=="9504" || strSalesOrganisation=="9505") {
+									var oDistrChannelStatus = getEn(hmGlobals,oitem,"SalesOrganisationGroup#"+i+"/10GC0733-DistrChannelStatus");
+									if(oDistrChannelStatus!=null) {
+										var strDistrChannelStatus = checkString(oDistrChannelStatus[0].getEntryNodeValue(),"");
+										if(strDistrChannelStatus=="YU") {
+											var oInvoiceName = getEn(hmGlobals,oitem,"01AC0014-invoiceName");
+											var strInvoiceName = "";
+											if (oInvoiceName!=null){
+												strInvoiceName = checkString(oInvoiceName[0].getEntryNodeValue(),""); 
+											}
+											var strCreationDate = dCreationDate.formatDate("dd/MM/yyyy_HH:mm:ss");
+											var strCreationDateDay = dCreationDate.formatDate("dd");
+											var strCreationDateMonth = dCreationDate.formatDate("MM");
+											var strCreationDateYear = dCreationDate.formatDate("yyyy");
+											//
+											var oDistrChannelStatusValidFrom = getEn(hmGlobals,oitem,"SalesOrganisationGroup#"+i+"/10GC0734-DistrChannelStatusValidFrom");
+											if(oDistrChannelStatusValidFrom!=null) {
+												var dDistrChannelStatusValidFrom = oDistrChannelStatusValidFrom[0].getEntryNodeValue();
+												var strDistrChannelStatusValidFrom = dDistrChannelStatusValidFrom.formatDate("dd/MM/yyyy_HH:mm:ss");
+												var strDistrChannelStatusValidFromDay = dDistrChannelStatusValidFrom.formatDate("dd");
+												var strDistrChannelStatusValidFromMonth = dDistrChannelStatusValidFrom.formatDate("MM");
+												var strDistrChannelStatusValidFromYear = dDistrChannelStatusValidFrom.formatDate("yyyy");
+												//
+												var oExcelRow = oExcelSheet.createRow(iRowNum); 
+												//
+												out.writeln(strItemPK+"|"+deletezero(strItemMaterialNumber)+"|"+strItemLongName+"|"+strInvoiceName+"|"+strItemStatus+"|"+strCreationDate+"|"+strCreationDateDay+"|"+strCreationDateMonth+"|"+strCreationDateYear+"|"+strSalesOrganisation+"|"+strDistrChannelStatus+"|"+strDistrChannelStatusValidFrom+"|"+strDistrChannelStatusValidFromDay+"|"+strDistrChannelStatusValidFromMonth+"|"+strDistrChannelStatusValidFromYear);
+												//
+												writeCell(oExcelRow,0,strItemPK,oExcelCellStyle);
+												writeCell(oExcelRow,1,deletezero(strItemMaterialNumber),oExcelCellStyle);
+												writeCell(oExcelRow,2,strItemLongName,oExcelCellStyle);
+												writeCell(oExcelRow,3,strInvoiceName,oExcelCellStyle);
+												writeCell(oExcelRow,4,strItemStatus,oExcelCellStyle);
+												writeCell(oExcelRow,5,strCreationDate,oExcelCellStyle);
+												writeCell(oExcelRow,6,strCreationDateDay,oExcelCellStyle);
+												writeCell(oExcelRow,7,strCreationDateMonth,oExcelCellStyle);
+												writeCell(oExcelRow,8,strCreationDateYear,oExcelCellStyle);
+												writeCell(oExcelRow,9,strSalesOrganisation,oExcelCellStyle);
+												writeCell(oExcelRow,10,strDistrChannelStatus,oExcelCellStyle);
+												writeCell(oExcelRow,11,strDistrChannelStatusValidFrom,oExcelCellStyle);
+												writeCell(oExcelRow,12,strDistrChannelStatusValidFromDay,oExcelCellStyle);
+												writeCell(oExcelRow,13,strDistrChannelStatusValidFromMonth,oExcelCellStyle);
+												writeCell(oExcelRow,14,strDistrChannelStatusValidFromYear,oExcelCellStyle);
+												//
+												iRowNum++;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	oExcelBook.saveToDocStore(ExcelFilePath, true);
+	//
+	if(strMailto=="") {
+		for(var m=0;m<oUsers.size();m++) {
+			var oUser = oUsers[m];
+			var strUserEmail = oUser.getUserEmail();
+			//
+			var strKheopsURL = getProductCenterURL()+"/utils/enterLogin.jsp";
+			//
+			sendEmail(strUserEmail,"Kheops - Export des données Promat", "L'export des données Promat a bien été généré. Il est disponible en accédant à la rubrique Collaboration Manager / Document Store / export-manager.\n\n"+strKheopsURL); 
+		}
+	}
+	else {
+			var strKheopsURL = getProductCenterURL()+"/utils/enterLogin.jsp";
+			//
+			sendEmail(strMailto,"Kheops - Export des données Promat", "L'export des données Promat a bien été généré. Il est disponible en accédant à la rubrique Collaboration Manager / Document Store / export-manager.\n\n"+strKheopsURL); 
+	}
+}
+
+

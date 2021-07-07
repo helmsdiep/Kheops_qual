@@ -1,0 +1,40 @@
+<HTML>
+<%
+// Script that brings on the item edit page by passing the item_key only as a parameter.
+// Use the following url :
+//http://kuat.siniat/utils/invoker.jsp?company_code=siniat&bUserOutput=false&invoking_user=Admin&script=LG.Util.KheopsItemEdit&item_key=K010I01062
+// parameters :
+// item_key = Item PK,ex : K010I01062
+
+// get the Catalog using the Item Key
+function getCtgByItemKey(item_key) {
+  var catalogs = getCatalogNamesList();
+  var prefix = "C" + substring(item_key, 1, 4);
+  var result=null;
+  forEachHmElement(catalogs, oKey, ctg) {
+    if (ctg.startsWith(prefix)) {
+      result=ctg;
+      break;
+    }
+  }
+  return getCtgByName(result);
+}
+
+// construct the redirect url
+var item_key=request.item_key;
+var ctg=getCtgByItemKey(item_key);
+var ctg_id=ctg.getCatalogId();
+var item=ctg.getCtgItemByPrimaryKey(item_key);
+var item_id=item.getCtgItemId();
+var editurl="/utils/classicornew.wpc?doit=modify_item_in_data_entry&catalog_id="+ctg_id+"&item_id="+item_id+"&version_id=999999999&ctg_version_id=0";
+
+// javascript redirect will be used.
+  %>
+  <script language="javascript">
+    window.location.href = "<%=editurl%>";
+  </script>
+  <BODY>
+    <p>Please wait, redirecting you to the edit page for item <%=request.item_key%></p>
+  </BODY>
+</HTML>
+

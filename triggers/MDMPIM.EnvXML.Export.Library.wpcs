@@ -1,0 +1,1388 @@
+/// @file 
+/// $Title: MDMPIM.EnvXML.Export.Library.wpcs$ 
+/// @version $Revision: 1.7 $
+/// $Description: $
+/// @brief This library can be used to export WPC environment configurations in the CSV format used by the
+/// EnvXML deployment package.
+/// @author Robert Kende
+/// @date $Date: 2009/05/11 16:48:57 $
+///
+/// @name Private Functions
+/// @brief These functions should not be called from outside this file.
+/// @{
+
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// This method logs messages using the log function in the given log context. If no log context is given then the
+/// message is written to the default Log4J category with level 'DEBUG'. In addition, the messages is written to 
+/// the Writer object 'writer' of the given LogContext if available.
+/// @param sLevel - logging level: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+/// @param logContext - log context: HashMap containing for key 'log' a function pointer with the following 
+/// signature: void log(String sLevel, LogContext logContext, String sMsg).
+/// @param sMsg - logging message
+//:PRFUNCTION void log(String sLevel, LogContext logContext, String sMsg)
+function log(sLevel, logContext, sMsg) {
+	if (logContext == null || logContext.log == null) { 
+		getLogger("default").loggerDebug(sMsg); 
+	} else {
+    	logContext.log.invoke(sLevel, logContext, sMsg); 
+	}
+	if (logContext != null && logContext.writer != null) { 
+		logContext.writer.writeln(resizeString(sLevel, 7, " ", true) + " -- " + sMsg); 
+	}
+}
+
+/// @brief Helper functions for logging in the GUI only level 'INFO' or higher.
+/// @param sLevel - logging level: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+/// @param logContext - log context containing a writer object under the key 'MDMPIM.EnvXML.out'
+/// @param sMsg - logging message
+//:PRFUNCTION void log(String sLevel, LogContext logContext, String sMsg)
+function logGUI(sLevel, logContext, sMsg) {
+	if (sLevel != "DEBUG" && logContext != null) {
+		var myWriter = logContext["MDMPIM.EnvXML.out"];
+		if (myWriter != null) {
+			myWriter.writeln(resizeString(sLevel, 7, " ", true) + " -- " + escapeForHTML(sMsg) + "<br/>"); 
+		}
+	}
+}
+
+/// @brief Replaces quotes as MS Excel does for CSV files.
+/// @param sValueCSV - the value to be included in a CSV file row
+/// @return String - the replaced string
+//:PRFUNCTION String escapeForExcel(String sValueCSV)
+function escapeForExcel(sValueCSV) {
+	var sEscapedValue = replace(sValueCSV, "\"", "\"\"");
+	if (sEscapedValue.contains("\"")) { sEscapedValue = "\"" + sEscapedValue + "\""; }
+	return sEscapedValue;
+}
+
+/// @brief Helper function that defines the docstore folder for files used or produced by this module.
+//:PRFUNCTION String getFolderPath()
+function getFolderPath() {
+	return "public_html/EnvXML/";
+}
+
+/// @brief Helper function to retrieve a mapping of the defined companies to their internal WPC ID.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - mapping company code to internal company ID
+//:PRFUNCTION HashMap getCompanies(LogContext logContext)
+function getCompanies(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getCompanies"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+		context = getWPCDBContext();
+		connection = context.getWPCDBConnection();
+		var hmCmp = [];
+		var sSQL = "select CMP_COMPANY_ID, CMP_COMPANY_NAME from CMP";
+		var resultSet = connection.executeQuery(sSQL);
+		while (resultSet != null && resultSet.next()) {
+			var sCmpId = resultSet.getColumnAt(1);
+			var sCmpName = resultSet.getColumnAt(2);
+			if (sCmpId != null && sCmpName != null) {
+				hmCmp[sCmpName] = sCmpId;
+			}
+		}
+		context.releaseWPCDBConnection(connection);
+		return hmCmp;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Helper function to retrieve attribute group names.
+/// @param logContext - log context for logging and caching
+/// @param sCmpCode - (optional) company code
+/// @return String[] - array of attribute group names
+//:PRFUNCTION String[] getAttrGroups(LogContext logContext, String sCmpCode)
+function getAttrGroups(logContext, sCmpCode) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getAttrGroups"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+		context = getWPCDBContext();
+		connection = context.getWPCDBConnection();
+		var sCmpId = getCompanies(logContext)[checkString(sCmpCode, "", false)];
+		var aAttrGroups = [];
+		var sSQL = "select ATG_NAME from ATG";
+		if (sCmpId != null) { sSQL = sSQL + " where ATG_COMPANY_ID = " + sCmpId; }
+		var resultSet = connection.executeQuery(sSQL);
+		while (resultSet != null && resultSet.next()) {
+			var sAttrGroupName = resultSet.getColumnAt(1);
+			if (sAttrGroupName != null) {
+				aAttrGroups.add(sAttrGroupName);
+			}
+		}
+		context.releaseWPCDBConnection(connection);
+		return aAttrGroups;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL")
+			+ ", sCmpCode: " + checkString(sCmpCode, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Helper function to retrieve information about access control group names as array of HashMap.
+/// The returned array contains for each access control group a HashMap mapping the following keys to the
+/// corresponding value:
+/// - 'name' - name of the access control group
+/// - 'description' - description of the access control group
+/// @param logContext - log context for logging and caching
+/// @param sCmpCode - (optional) company code
+/// @return HashMap[] - HashMap of access control groups
+//:PRFUNCTION HashMap[] getAccessControlGroups(LogContext logContext, String sCmpCode)
+function getAccessControlGroups(logContext, sCmpCode) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getAccessControlGroups"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+		context = getWPCDBContext();
+		connection = context.getWPCDBConnection();
+		var sCmpId = getCompanies(logContext)[checkString(sCmpCode, "", false)];
+		var aACG = [];
+		var sSQL = "select OBG_NAME, OBG_DESCRIPTION from OBG";
+		if (sCmpId != null) { sSQL = sSQL + " where OBG_COMPANY_ID = " + sCmpId; }
+		var resultSet = connection.executeQuery(sSQL);
+		while (resultSet != null && resultSet.next()) {
+			var sACG	= resultSet.getColumnAt(1);
+			var sDesc	= resultSet.getColumnAt(2);
+			if (sACG != null) {
+				var hmACG = [];
+				hmACG.name = sACG;
+				hmACG.description = sDesc;
+				aACG.add(hmACG);
+			}
+		}
+		context.releaseWPCDBConnection(connection);
+		return aACG;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL")
+			+ ", sCmpCode: " + checkString(sCmpCode, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Helper function to retrieve information about catalog or hierarchy access privileges as HashMap of HashMap.
+/// The returned HashMap contains for the given role the corresponding access privileges in a HashMap with the 
+/// following structure:
+/// 
+/// {["CATALOG"|"CATEGORY_TREE"] --> {<containerName> --> {["VIEW"|"EDIT"] --> {<attribGroupName> --> <attribGroupName>}}}}
+/// 
+/// Examples for working with the retrieved HashMap hm:
+/// - hm["CATALOG"]["Test Catalog"]["VIEW"] points to a HashMap with all attribute collections for which the role has
+/// view privileges on the catalog "Test Catalog".
+/// - hm["CATEGORY_TREE"]["Test Hierarchy"]["EDIT"] points to a HashMap with all attribute collections for which the role
+/// has edit privileges on the hierarchy "Test Hierarchy".
+/// @param logContext - log context for logging and caching
+/// @param sCmpCode - company code
+/// @param sRoleName - name of the role
+/// @return HashMap[] - HashMap of access control groups
+//:PRFUNCTION HashMap[] getAccessControlGroups(LogContext logContext, String sCmpCode)
+function getAccessPrivs(logContext, sCmpCode, sRoleName) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getAccessPrivs"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+		context = getWPCDBContext();
+		connection = context.getWPCDBConnection();
+		var hmSQL = [];
+		hmSQL["CATALOG"] = "select CTG_NAME, CAP_VIEWABLE, ATG_NAME "
+			+ "from cmp, cma, rol, cap, ctg, atg "
+			+ "where CAP_CAP_ID = CMA_CAP_ID "
+			+ "and CMA_ROLE_ID = ROL_ROLE_ID "
+			+ "and CMA_COMPANY_ID = CMP_COMPANY_ID "
+			+ "and CMP_COMPANY_CODE = '" + sCmpCode + "' "
+			+ "and ROL_ROLE_NAME = '" + sRoleName + "' "
+			+ "and CMA_OBJECT_TYPE = 'CTG' "
+			+ "and CMA_OBJECT_ID = CTG_ID "
+			+ "and ATG_ID = CAP_ATTR_GROUP_ID";
+		
+		hmSQL["CATEGORY_TREE"] = "select CTR_NAME, CAP_VIEWABLE, ATG_NAME "
+			+ "from cmp, cma, rol, cap, ctr, atg "
+			+ "where CAP_CAP_ID = CMA_CAP_ID "
+			+ "and CMA_ROLE_ID = ROL_ROLE_ID "
+			+ "and CMA_COMPANY_ID = CMP_COMPANY_ID "
+			+ "and CMP_COMPANY_CODE = '" + sCmpCode + "' "
+			+ "and ROL_ROLE_NAME = '" + sRoleName + "' "
+			+ "and CMA_OBJECT_TYPE = 'CATTREE' "
+			+ "and CMA_OBJECT_ID = CTR_ID "
+			+ "and ATG_ID = CAP_ATTR_GROUP_ID";
+		
+		var hmPrivs = [];
+		var sContainerType = null;
+		var sSQL = null;
+		forEachHmElement(hmSQL, sContainerType, sSQL) {
+			hmPrivs[sContainerType] = [];
+			var resultSetCtg = connection.executeQuery(sSQL);
+			while (resultSetCtg != null && resultSetCtg.next()) {
+				var sContainerName	= resultSetCtg.getColumnAt(1);
+				var sAccessPriv		= (checkString(resultSetCtg.getColumnAt(2), "") == "E" ? "EDIT" : "VIEW");
+				var sAttribGroup	= resultSetCtg.getColumnAt(3);
+				var hmContainerPrivs = hmPrivs[sContainerType][sContainerName];
+				if (hmContainerPrivs == null) {
+					hmContainerPrivs = [];
+					hmContainerPrivs["VIEW"] = [];
+					hmContainerPrivs["EDIT"] = [];
+					hmPrivs[sContainerType][sContainerName] = hmContainerPrivs;
+				}
+				hmContainerPrivs[sAccessPriv][sAttribGroup] = sAttribGroup;
+			}
+		}
+		
+		context.releaseWPCDBConnection(connection);
+		return hmPrivs;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL")
+			+ ", sCmpCode: " + checkString(sCmpCode, "NULL")
+			+ ", sRoleName: " + checkString(sRoleName, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Retrieves a HashMap for all specs mapping the internal ID to the corresponding spec name.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - mapping internal ID to spec name
+//:PRFUNCTION HashMap getSpecs(LogContext logContext, String sSpecId)
+function getSpecs(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getSpecs";
+	
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		var hmSpec = logContext[sFctName + ".hmSpec"];
+		if (hmSpec == null) {
+			hmSpec = [];
+			logContext[sFctName + ".hmSpec"] = hmSpec;
+			var getSpecId = createJavaMethod("com.ibm.ccd.element.common.Spec", "getSpecId");
+	
+			var hmFilters = [];
+			hmFilters["PATTERN"] = "*";
+			var aSpecNames = getSpecNameList(hmFilters).sort();
+			for (var i = 0; i < aSpecNames.size(); i++) {
+				
+				var sSpecName = checkString(aSpecNames[i], "");
+				var spec = getSpecByName(aSpecNames[i], true);
+				if (spec == null) {
+					log("WARN", logContext, "Could not find spec: " + sSpecName);
+					continue;
+				}
+				var sSpecId = checkString(runJavaMethod(spec, getSpecId), "");
+				if (sSpecId == "") {
+					log("WARN", logContext, "Could not find id for spec: " + sSpecName);
+					continue;
+				}
+				hmSpec[sSpecId] = sSpecName;
+			}
+		}
+		return hmSpec;
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext    : " + checkString(logContext, "NULL"));
+	}
+	// always return something to make script compilable.
+	return null;
+}
+
+/// @brief Retrieves the full spec path for display attribute of the container.
+/// @param logContext - log context for logging and caching
+/// @param container - container object (either Catalog or CategoryTree)
+/// @return String - full spec path, e.g. 'Subscription_Spec/Subscription ID'
+//:PRFUNCTION String getDisplaySpecPath(LogContext logContext, container)
+function getDisplaySpecPath(logContext, container) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getDisplaySpecPath"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		
+		var getDisplayAttribute = createJavaMethod("com.ibm.ccd.element.interfaces.IContainer", "getDisplayAttribute"); // returns com.ibm.ccd.element.interfaces.INode
+		var getPath = createJavaMethod("com.ibm.ccd.element.interfaces.INode", "getPath"); // returns java.lang.String
+		var oINode = runJavaMethod(container, getDisplayAttribute);
+		var sPath = runJavaMethod(oINode, getPath);
+		return sPath;
+		
+	}
+	if (sErrMsg != null) {
+		throwError(sFctName
+			+ "\n - logContext: " + replace(checkString(logContext, "NULL"), "\n", " --- ")
+			+ "\n - container: " + replace(checkString(container, "NULL"), "\n", " --- ")
+			+ "\n - error: \n" + sErrMsg);
+	}
+	return null;
+}
+
+/// @brief Helper function to retrieve a HashMap of HashMaps with information about all containers currently deployed.
+/// The HashMap uses a key representing the container type:
+/// - CATALOG
+/// - CATEGORY_TREE
+/// - LOOKUP_TABLE
+/// - ORGANIZATION_TREE
+/// The values of the HashMap is again a HashMap mapping the internal ID to the corresponding container name.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - info about containers
+//:PRFUNCTION HashMap getContainers(LogContext logContext)
+function getContainers(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getContainers"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+	
+		// lazy caching
+		var hmContainers = logContext[sFctName + ".hmContainers"];
+		if (hmContainers == null) {
+			// HashMap for storing the information
+			hmContainers = [];
+			logContext[sFctName + ".hmContainers"] = hmContainers;
+			hmContainers["CATALOG"] = [];
+			hmContainers["CATALOG"]["-2"] = "$ALL";
+			hmContainers["COLLABORATION_AREA"] = [];
+			hmContainers["LOOKUP_TABLE"] = [];
+			hmContainers["ORGANIZATION"] = [];
+			hmContainers["CATEGORY_TREE"] = [];
+			hmContainers["CATEGORY_TREE"]["-2"] = "$ALL";
+			hmContainers["ORGANIZATION_TREE"] = [];
+			
+			// need internal company ID for SQL
+			var sCmpId = getCompanies(logContext)[checkString(getCompanyCode(), "")];
+			
+			// retrieve container info with SQL using UNION
+			context = getWPCDBContext();
+			connection = context.getWPCDBConnection();
+			var sSQL = "select ctr_id as ID, ctr_type as TYPE, ctr_name as NAME "
+				+ "from ctr where ctr_company_id = " + sCmpId + " union "
+				+ "select ctg_id as ID, ctg_type as TYPE, ctg_name as NAME "
+				+ "from ctg where ctg_company_id = " + sCmpId;
+			var resultSet = connection.executeQuery(sSQL);
+			while (resultSet != null && resultSet.next()) {
+				var sContainerId = resultSet.getColumnAt(1);
+				var sContainerType = resultSet.getColumnAt(2);
+				var sContainerName = resultSet.getColumnAt(3);
+				if (sContainerId != null && sContainerType != null && sContainerName != null) {
+					hmContainers[sContainerType][sContainerId] = sContainerName;
+				}
+			}
+			context.releaseWPCDBConnection(connection);
+		}
+		return hmContainers;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Returns a HashMap that maps the version of the standard project file structure to the list of the
+/// currently supported deployment CSV file names.
+/// @param logContext - log context
+/// @return HashMap - mapping a version string (e.g. "1.08") to the list of the supported CSV file names
+//:PRFUNCTION HashMap getDeploymentFileNames(LogContext logContext, String sVersion)
+function getDeploymentFileNames(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getDeploymentFileNames"; 
+	
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		var hmFileNames = [];
+		hmFileNames["1.00"] = [];
+		hmFileNames["1.00"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.01"] = [];
+		hmFileNames["1.01"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.02"] = [];
+		hmFileNames["1.02"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.03"] = [];
+		hmFileNames["1.03"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.04"] = [];
+		hmFileNames["1.04"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.05"] = [];
+		hmFileNames["1.05"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.06"] = [];
+		hmFileNames["1.06"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.07"] = [];
+		hmFileNames["1.07"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		hmFileNames["1.08"] = [];
+		hmFileNames["1.08"].add("AccessPrivs.csv", "ACGs.csv", "AttrCollections.csv", "RoleToACGs.csv", "Scripts.csv", "Specs.csv");
+		return hmFileNames;
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return null;
+}
+
+/// @brief Returns type of script as needed in the <code>Scripts.csv</code>.
+/// @param logContext - log context for logging and caching
+/// @param sFullScriptPath - full docstore path of the script
+/// @return String - type of the script, e.g. 'ENTRY_PREVIEW'
+//:PRFUNCTION String getScriptType(LogContext logContext, String sFullScriptPath)
+function getScriptType(logContext, sFullScriptPath) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getScriptType"; 
+	
+	var sDirectory = replace("/" + getParentPath(checkString(sFullScriptPath, "")), "//", "/");
+	var hmPathToScriptType = logContext[sFctName + ".hmPathToScriptType"];
+	if (hmPathToScriptType == null) {
+		hmPathToScriptType = [];
+		logContext[sFctName + ".hmPathToScriptType"] = hmPathToScriptType;
+		hmPathToScriptType["/scripts/aggregate_update"]		= "AGGREGATE_UPDATE";
+		hmPathToScriptType["/scripts/export/ctg_diff"]		= "CTG_DIFF_EXPORT";
+		hmPathToScriptType["/scripts/export/ctg"]			= "CTG_EXPORT";
+		hmPathToScriptType["/scripts/import/ctg"]			= "CTG_IMPORT";
+		hmPathToScriptType["/scripts/entry_macro"]			= "ENTRY_MACRO";
+		hmPathToScriptType["/scripts/catalog"]				= "CTG";
+		hmPathToScriptType["/scripts/entry_macro"]			= "CTG_MACRO";
+		hmPathToScriptType["/scripts/entry_preview"]		= "ENTRY_PREVIEW";
+		hmPathToScriptType["/scripts/catalog_preview"]		= "CATALOG_PREVIEW";
+		hmPathToScriptType["/scripts/category_preview"]		= "CATEGORY_PREVIEW";
+		hmPathToScriptType["/scripts/category_tree"]		= "CTR";
+		hmPathToScriptType["/scripts/category_tree"]		= "CATEGORY_TREE";
+		hmPathToScriptType["/scripts/export/ctg_to_ctg"]	= "CTLG_CTLG_EXPORT";
+		hmPathToScriptType["/scripts/import/ctr"]			= "CTR_IMPORT";
+		hmPathToScriptType["/scripts/distribution"]			= "DISTRIBUTION";
+		hmPathToScriptType["/scripts/entry_build"] 			= "ENTRY_BUILD";
+		hmPathToScriptType["/scripts/export/img_diff"] 		= "IMG_DIFF_EXPORT";
+		hmPathToScriptType["/scripts/export/img"] 			= "IMG_EXPORT";
+		hmPathToScriptType["/scripts/import/lkp"] 			= "LKP_IMPORT";
+		hmPathToScriptType["/scripts/export/po"] 			= "PO_EXPORT";
+		hmPathToScriptType["/scripts/import/po"] 			= "PO_IMPORT";
+		hmPathToScriptType["/scripts/import/po_status_request"] = "PO_STATUS_REQUEST";
+		hmPathToScriptType["/scripts/import/po_status_update"] = "PO_STATUS_UPDATE_IMPORT";
+		hmPathToScriptType["/scripts/reports"] 				= "REPORT";
+		hmPathToScriptType["/scripts/secure_triggers"] 		= "SECURE_TRIGGER";
+		hmPathToScriptType["/scripts/triggers"] 			= "TRIGGER";
+		hmPathToScriptType["/scripts/widgets"] 				= "WIDGETS";
+		hmPathToScriptType["/scripts/workflow"] 			= "WORKFLOW";
+		hmPathToScriptType["/scripts/trigo_app"] 			= "TRIGO_APP";
+		hmPathToScriptType["/scripts/qmsg_processor"] 		= "QMSG_PROCESSOR";
+		hmPathToScriptType["/scripts/entity_synchronization"] = "ENTITY_SYNCHRONIZATION";
+		hmPathToScriptType["/scripts/wbs"] 					= "WBS";
+		hmPathToScriptType["/scripts/login"] 				= "LOGIN";
+		hmPathToScriptType["/scripts/logout"] 				= "LOGOUT";
+		hmPathToScriptType["/scripts/ldap_usr_fetch"] 		= "LDAP_USR_FETCH";
+		hmPathToScriptType["/scripts/report"] 				= "SEARCH_RESULT_REPORT";
+		hmPathToScriptType["/params"] 						= "INPUT_PARAM";
+		hmPathToScriptType["/"] 							= "DOCUMENT";
+	}
+	var sScriptType = checkString(hmPathToScriptType[sDirectory], "");
+	
+	// successively try parent path if no type found (e.g. workflow scripts migth be in a deeper path)
+	var iMax = 5; var i = 0;
+	while (sScriptType == "" && sDirectory.length() > 1 && i < iMax) {
+		i++;
+		sDirectory = getParentPath(sDirectory);
+		sScriptType = checkString(hmPathToScriptType[sDirectory], "");
+	}
+	return sScriptType;
+}
+
+
+/// @brief Helper function for recursively writing spec nodes.
+/// @param logContext - log context for logging and caching
+/// @param node - spec node
+/// @param writer - writer object where to write information
+/// @param hmData - data for the spec node
+//:PRFUNCTION void writeSpecNode(LogContext logContext, Node node, Writer writer)
+function writeSpecNodeRecursively(logContext, node, writer, hmData) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.writeSpecNode"; 
+	
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+	
+		var sCS				= hmData["sCS"];
+		var sSpecName		= hmData["sSpecName"];
+		var sSpecType		= hmData["sSpecType"];
+		var sPrimaryKeyPath	= hmData["sPrimaryKeyPath"];
+		var aLocales		= hmData["aLocales"];
+		var sAttribPath		= "";
+		var sAttribType		= "";
+		var sPK				= "";
+		var sIdx			= "";
+		var sLcl			= "";
+		var sLnk			= "";
+		var sMin			= "";
+		var sMax			= "";
+		var sEdit			= "";
+		var sNP				= "";
+		var sDefault		= "";
+		var sLength			= "";
+		var sHidden			= "";
+		var sRule			= "";
+		var sDisplayNames	= "";
+		
+		// calculate attribute path to be processed
+		var sFullAttribPath = node.getNodePath();
+		sAttribPath	= replace(sFullAttribPath, sSpecName + "/", "");
+		if (trim(sAttribPath) == "") { return null; }
+		sAttribType = checkString(node.getNodeAttributeValue("TYPE"), "");
+		sPK = (sPrimaryKeyPath == sFullAttribPath ? "yes" : "no");
+		sIdx = (node.isNodeIndexed() ? "yes" : "no");
+		sLcl = checkString(node.getNodeAttributeValue("LOCALIZED"), "no");
+		sLnk = checkString(node.getNodeAttributeValue("LINK_TO_CATALOG"), checkString(node.getNodeLookupTableName(), "no"));
+		sMin = checkString(node.getNodeAttributeValue("MIN_OCCURRENCE"), "0");
+		sMax = checkString(node.getNodeAttributeValue("MAX_OCCURRENCE"), "1");
+		sEdit = (node.isNodeEditable() ? "yes" : "no");
+		sNP = (node.isNodeNonPersisted() ? "yes" : "no");
+		sDefault = checkString(node.getNodeAttributeValue("DEFAULT_VALUE"), "");
+		sLength = checkString(node.getNodeAttributeValue("MAXLENGTH"), "");
+		sHidden = checkString(node.getNodeAttributeValue("HIDDEN"), "");
+		
+		// TODO [2]: handle other rule types!
+		var hmEnumValues = node.getNodeAttributeValues("STRING_ENUMERATION");
+		var sStringEnumerationRule = checkString(node.getNodeAttributeValue("STRING_ENUMERATION_RULE"), "");
+		if (hmEnumValues.size() > 0) {
+			var sIndex = null; var sEnumValue = sIndex;
+			forEachHmElement(hmEnumValues, sIndex, sEnumValue) {
+				sRule = sRule + "," + sEnumValue;
+			}
+			// sRule potentially has a leading comma which has to be stripped off
+			if (sRule.startsWith(",")) { sRule = substring(sRule, 1); }
+			// put the comma-separated list between quotes
+			if (sRule != "") { sRule = "\"" + sRule + "\""; }
+		} else if (sStringEnumerationRule != "") {
+			sRule = "\"STRING_ENUMERATION_RULE|" + replace(sStringEnumerationRule, "\"", "\"\"") + "\"";
+		}
+		
+		// get display names
+		for (var i = 0; i < aLocales.size(); i++) {
+			var sLocaleCode = aLocales[i].getLocaleCode();
+			var sNodeDisplayAttrib = sLocaleCode + "_display_name";
+			var sDisplayName = checkString(node.getNodeAttributeValue(sNodeDisplayAttrib), "");
+			sDisplayNames = sDisplayNames + "," + sDisplayName;
+		}
+		
+		writer.writeln(sCS + "," + sSpecName + "," + sSpecType + "," + sAttribPath + ","
+			+ sAttribType + "," + sPK + "," + sIdx + "," + sLcl + "," + sLnk + ","
+			+ sMin + "," + sMax + "," + sEdit + "," + sNP + "," + sDefault + ","
+			+ sLength + "," + sHidden + "," + sRule + sDisplayNames);
+	
+		// now go into recursion if node has children (except for localized nodes)
+		var aNodes = node.getNodeChildren();
+		if (aNodes != null && aNodes.size() > 0 && sLcl == "no") {
+			for (var i = 0; i < aNodes.size(); i++) {
+				writeSpecNodeRecursively(logContext, aNodes[i], writer, hmData);
+			}
+		}
+	}
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n node: " + checkString(node, "NULL")
+			+ "\n writer: " + checkString(writer, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return null;
+}
+
+/// @}
+
+/// @name Public Functions
+/// @brief Call these functions externally by using <code>
+/// getScriptByPath(<i>nameOfThisScript</i>).getFunctionByName(<i>functionName</i>)
+/// </code>
+/// @{
+
+/// @brief Exports the file <code>AccessPrivs.csv</code> for the EnvXML deployment package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportAccessPrivs(LogContext logContext, Reader reader, Writer writer, String sVersion)
+function exportAccessPrivs(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportAccessPrivs"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header line
+		var sHeaderLine = "CS?,Container Name,Container Type,Roles (CSV),Attribute Collection,View-only";
+		writer.writeln(sHeaderLine);
+		log("DEBUG", logContext, sHeaderLine);
+		
+		// array for lines (so that we can sort later!)
+		var aLines = [];
+		
+		// variables for the columns
+		var sContainerName = "";
+		var sContainerType = "";
+		var sRole = "";
+		var sAttribGroup = "";
+		var sViewOnly = "";
+		
+		// loop through all roles
+		var sCmpCode = getCompanyCode();
+		var aRole = getRolesForCompany(sCmpCode);
+		for (var i = 0; i < aRole.size(); i++ ) {
+			sRole = aRole[i].getRoleName();
+			var hmPrivs = getAccessPrivs(logContext, sCmpCode, sRole);
+			var hmTypePrivs = null;
+			forEachHmElement(hmPrivs, sContainerType, hmTypePrivs) {
+				var hmContainerPrivs = null;
+				forEachHmElement(hmTypePrivs, sContainerName, hmContainerPrivs) {
+					var sAccessPriv = null;
+					var hmAttribGroups = null;
+					forEachHmElement(hmContainerPrivs, sAccessPriv, hmAttribGroups) {
+						forEachHmElement(hmAttribGroups, sAttribGroup, sAttribGroup) {
+							// write CSV line (with quote replacements as in MS Excel)
+							sViewOnly = (sAccessPriv == "EDIT" ? "" : "x");
+							var sLine = "," + escapeForExcel(sContainerName) + ","
+								+ sContainerType + "," + escapeForExcel(sRole) + ","
+								+ escapeForExcel(sAttribGroup) + ","
+								+ sViewOnly + ",";
+							aLines.add(sLine);
+						}
+					}
+				}
+			}
+		}
+		
+		aLines = aLines.sort();
+		for (var i = 0; i < aLines.size(); i++) {
+			writer.writeln(aLines[i]);
+			log("DEBUG", logContext, aLines[i]);
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader: " + checkString(reader, "NULL")
+			+ "\n writer: " + checkString(writer, "NULL")
+			+ "\n sVersion: " + checkString(sVersion, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>ACGs.csv</code> for the EnvXML deployment package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportACGs(LogContext logContext, Reader reader, Writer writer, String sVersion)
+function exportACGs(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportACGs"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header line
+		var sHeaderLine = "CS?,ACG Name,ACG Description";
+		writer.writeln(sHeaderLine);
+		log("DEBUG", logContext, sHeaderLine);
+		
+		// array for lines (so that we can sort later!)
+		var aLines = [];
+		
+		// variables for the columns
+		var sACG = "";
+		var sDesc = "";
+		
+		// get all attribute collection names (via DB query since there is no scripting method)
+		var aACG = getAccessControlGroups(logContext, getCompanyCode());
+		for (var i = 0; i < aACG.size(); i++) {
+		
+			var hmACG = aACG[i];
+			sACG = hmACG.name;
+			sDesc = hmACG.description;
+			
+			// write CSV line (with quote replacements as in MS Excel)
+			sACG = escapeForExcel(sACG);
+			sDesc = escapeForExcel(sDesc);
+			var sLine = "," + sACG + "," + sDesc + ",";
+			aLines.add(sLine);
+			log("DEBUG", logContext, sLine);
+		}
+		
+		aLines = aLines.sort();
+		for (var i = 0; i < aLines.size(); i++) {
+			writer.writeln(aLines[i]);
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader: " + checkString(reader, "NULL")
+			+ "\n writer: " + checkString(writer, "NULL")
+			+ "\n sVersion: " + checkString(sVersion, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>AttrCollections.csv</code> for the EnvXML deployment package.
+/// The file header is as follows:
+/// CS?,Attribute Collection Name,Type,Description,Spec Name,Attribute Path
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - (optional) reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportAttrCollections(LogContext logContext, Reader reader, Writer writer)
+function exportAttrCollections(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportAttrCollections"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header
+		writer.writeln("CS?,Attribute Collection Name,Type,Description,Spec Name,Attribute Path");
+		
+		// get all attribute collection names (via DB query since there is no scripting method)
+		var aAttrGroups = getAttrGroups(logContext, getCompanyCode());
+		var iSize = aAttrGroups.size();
+		log("INFO", logContext, "Exporting " + iSize + " attribute collections.");
+		for (var i = 0; i < iSize; i++) {
+			var sAttrGroupName = aAttrGroups[i];
+			if (sAttrGroupName.contains("Generated Default Core Collection")) { continue; }
+			var attrGroup = getAttrGroupByName(sAttrGroupName);
+			if (attrGroup == null) { continue; }
+			log("DEBUG", logContext, "Exporting attribute collection: " + sAttrGroupName);
+			var sType = attrGroup.getAttrGroupType();
+			var sDesc = "";
+			var aAttribPaths = attrGroup.getAllAttributePathsFromAttrGroup();
+			for (var j=0; j<aAttribPaths.size(); j++) {
+				var sPath = aAttribPaths[j];
+				var iIndex = sPath.indexOf("/");
+				if (iIndex == -1) { continue; }
+				var sSpecName = substring(sPath, 0, iIndex);
+				var sAttribPath = substring(sPath, iIndex + 1);
+				writer.writeln("," + sAttrGroupName + "," + sType + "," + sDesc + "," + sSpecName + "," + sAttribPath);
+			}
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader    : " + checkString(reader, "NULL")
+			+ "\n writer    : " + checkString(writer, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>Catalogs.csv</code> for the EnvXML deployment package.
+/// The file header is as follows:
+/// CS?,Catalog Name,Spec,Primary Hierarchy,Secondary Hierarchies,Inherit?,Display Attribute,ACG,Links,Locations,Scripts
+/// Note: 
+/// - Inheritance is not supported since release 5.3.0, therefore the column 'Inherit?' is set to 'no'.
+/// - The ACG 'Default' is replaced by the string '$DEFAULT' as used by the EnvXML package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - (optional) reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportCatalogs(LogContext logContext, Reader reader, Writer writer)
+function exportCatalogs(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportCatalogs"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header
+		writer.writeln("CS?,Catalog Name,Spec,Primary Hierarchy,Secondary Hierarchies,Inherit?,Display Attribute,ACG,Links,Locations,Scripts");
+		
+		var aCtgNames = getCatalogNamesList();
+		for (var i = 0; i < aCtgNames.size(); i++) {
+			var sCtgName = aCtgNames[i];
+			var ctg = getCtgByName(sCtgName);
+			if (ctg == null) { throwError("Could not find catalog: " + checkString(sCtgName, "NULL")); }
+			var spec = ctg.getCtgSpec(true);
+			var sSpec = spec.getSpecName();
+			
+			var aCtr = ctg.getCatalogCategoryTrees();
+			var sPrimaryCtr = checkString(aCtr[0].getCategoryTreeName(), "");
+			var sSecondaryCtr = ",";
+			for (var j = 1; j < aCtr.size(); j++) {
+				if (checkString(aCtr[j], "") != "") { sSecondaryCtr = sSecondaryCtr + aCtr[j].getCategoryTreeName() + ","; }
+			}
+			// now cut leading and trailing commas
+			if (sSecondaryCtr.startsWith(",")) { sSecondaryCtr = substring(sSecondaryCtr, 1); }
+			if (sSecondaryCtr.endsWith(",")) { sSecondaryCtr = substring(sSecondaryCtr, 0, sSecondaryCtr.length() - 1); }
+			
+			// inheritance is not supported since release 5.3.0
+			// (until 5.2.1 stored in the table CAA with column 'CAA_NAME' set to 'INHERITANCE_KEY_NODE_ID')
+			var sInherit = "no";
+			
+			// The display attribute is also stored among the catalog attributes with key 'DISPLAY_ATTRIBUTE',
+			// but unfortunately the value is the internal node ID which is not easily translated into a path.
+			// Therefore we use the underlying Java layer with a little Java reflection
+			var sDisplayAttr = checkString(getDisplaySpecPath(logContext, ctg), "");
+			
+			var sACG = checkString(ctg.getCatalogAccessControlGroupName(), "");
+			if (sACG == "Default") { sACG = "$DEFAULT"; }
+			
+			// Also for the linked catalogs there is no scripting method available; therefore using reflection
+			var getLinkedCatalogs = createJavaMethod("com.ibm.ccd.content.common.Catalog", "getLinkedCatalogsFromDb"); // returns java.util.HashMap mapping node id String to Catalog object
+			var getINode = createJavaMethod("com.ibm.ccd.element.interfaces.ISpec", "getINode", "java.lang.String"); // returns INode object
+			var getPath = createJavaMethod("com.ibm.ccd.element.interfaces.INode", "getPath"); // returns java.lang.String
+			var hmLinkedCtg = runJavaMethod(ctg, getLinkedCatalogs);
+			var aLinks = [];
+			var sNodeId = null; var oCtg = null;
+			forEachHmElement(hmLinkedCtg, sNodeId, oCtg) {
+				var oINode = runJavaMethod(spec, getINode, sNodeId);
+				var sPath = runJavaMethod(oINode, getPath);
+				if (sPath != null && oCtg != null) {
+					var sLink = sPath + "|" + oCtg.getCtgName();
+					aLinks.add(sLink);
+				}
+			}
+			aLinks = aLinks.sort();
+			var sLinks = ",";
+			for (var j = 0; j < aLinks.size(); j++) { sLinks = sLinks + aLinks[j] + ","; }
+			// now cut leading and trailing commas
+			if (sLinks.startsWith(",")) { sLinks = substring(sLinks, 1); }
+			if (sLinks.endsWith(",")) { sLinks = substring(sLinks, 0, sLinks.length() - 1); }
+			
+			// Location data is stored in different lines within the same cell when Excel is treating the CSV file.
+			// For the text file this translates into separating the definitions by newline ('\\n') and then
+			// wrapping this multi-line value with quotes.
+			// The format for one line is: HierarchyName=SecondarySpecName|InheritanceAttributeCollectionList
+			
+			
+			// Catalog::getCatalogAttributes() contains a list(!) for each of:
+			// until release 5.3.1:	ENTRY_BUILD_SCRIPT, PRE_SCRIPT_NAME, SCRIPT_NAME, POST_SAVE_SCRIPT_NAME
+			// from release 5.3.2:	ENTRY_BUILD_SCRIPT, PRE_SCRIPT_NAME, POST_SCRIPT_NAME, POST_SAVE_SCRIPT_NAME
+			var hmCtgAttribs = ctg.getCatalogAttributes(); 
+			var sScripts = ",";
+			var aScriptTyes = [];
+			aScriptTyes.add("ENTRY_BUILD_SCRIPT", "PRE_SCRIPT_NAME", "SCRIPT_NAME", "POST_SCRIPT_NAME", "POST_SAVE_SCRIPT_NAME");
+			for (var j = 0; j < aScriptTyes.size(); j++) {
+				var sScriptType = aScriptTyes[j];
+				var sScriptName = checkString(hmCtgAttribs[sScriptType][0], "");
+				if (sScriptName != "") { sScripts = sScripts + sScriptType + "|" + sScriptName + ","; }
+			}
+			// now cut leading and trailing commas
+			if (sScripts.startsWith(",")) { sScripts = substring(sScripts, 1); }
+			if (sScripts.endsWith(",")) { sScripts = substring(sScripts, 0, sScripts.length() - 1); }
+			
+			
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader    : " + checkString(reader, "NULL")
+			+ "\n writer    : " + checkString(writer, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>RoleToACGs.csv</code> for the EnvXML deployment package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportRoleToACGs(LogContext logContext, Reader reader, Writer writer)
+function exportRoleToACGs(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportRoleToACGs"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// check needed parameters
+		if (reader == null) { 
+			log("ERROR", logContext, "No master file template found!");
+			return false; 
+		}
+	
+		// HashMap of HashMaps to store the information with the following structure:
+		// ["<sRoleName>,<sACG>" --> [sPrivName --> sPrivName]]
+		var hmPrivs = [];
+		var aKeyList = [];
+	
+		// get all combinaions of roles and ACGs currently deployed (skipping the default roles)
+		var sCompanyCode = getCompanyCode();
+		var aRoles = getRolesForCompany(sCompanyCode);
+		var iSize = aRoles.size();
+		log("INFO", logContext, "Exporting privileges for " + iSize + " roles.");
+		for (var i = 0; i < iSize; i++) {
+			var role = aRoles[i];
+			var sRoleName = role.getRoleName();
+			if (sRoleName.startsWith(sCompanyCode)) {
+				// skipping default role
+				continue;
+			}
+			log("DEBUG", logContext, "Exporting privileges for role:" + sRoleName);
+			var aACG = role.getAccessControlGroupsForRole();
+			for (var j=0; j<aACG.size(); j++) {
+				var sACG = aACG[j];
+				log("DEBUG", logContext, "--- ACG '" + sACG + "'");
+				var aPrivs = role.getAccessControlGroupPrivsForRole(sACG);
+				
+				// fill hashmap with all privileges of the (role,ACG) combination
+				var hm = [];
+				for (var k=0; k<aPrivs.size(); k++) { 
+					var sPriv = aPrivs[k];
+					log("DEBUG", logContext, "--- --- Privilege '" + sPriv + "'");
+					hm[sPriv] = sPriv;
+				}
+				
+				// store hashmap with the correct key to be used in the deployment package
+				var sKey = sRoleName + "," + (sACG == "Default" ? "$DEFAULT" : sACG);
+				aKeyList.add(sKey);
+				hmPrivs[sKey] = hm;
+			}
+		}
+		
+		// process with the help of the master file template
+		var bFirstLine = true;
+		var sLine = null;
+		forEachLine(reader, sLine) {
+			
+			// the first line is the file header
+			if (bFirstLine) {
+				writer.write("\"Access Controls (Role,ACG)\"");
+				for (var i=0; i<aKeyList.size(); i++) { writer.write(",\"" + aKeyList[i] + "\""); }
+				writer.writeln("");
+				bFirstLine = false;
+				continue;
+			}
+			
+			// read the privilege
+			if (trim(checkString(sLine, "")) == "") { continue; } 
+			var iIndex = sLine.indexOf(",");
+			var sPriv = trim((iIndex == -1 ? sLine : substring(sLine, 0, iIndex)));
+			
+			// write line for the (Role,ACG) combinations
+			log("DEBUG", logContext, "Writing line for privilege '" + sPriv + "'");
+			writer.write(sPriv);
+			for (var i=0; i<aKeyList.size(); i++) { 
+				var sKey = aKeyList[i];
+				writer.write("," + (hmPrivs[sKey][sPriv] != null ? "x" : "")); 
+			}
+			writer.writeln("");
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader    : " + checkString(reader, "NULL")
+			+ "\n writer    : " + checkString(writer, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>Scripts.csv</code> for the EnvXML deployment package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportScripts(LogContext logContext, Reader reader, Writer writer, String sVersion)
+function exportScripts(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportScripts"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header line
+		var sHeaderLine = "\"Script path (relative to \"\"loadToEnv\"\")\",Script name," 
+			+ "Script type,File spec / Destination spec name (imports / exports)," 
+			+ "Input spec name (if any),Character set,ASP / JSP-like," 
+			+ "Container name (ctr / ctg scripts),Container type (entry build/preview/macro scripts)";
+		writer.writeln(sHeaderLine);
+		log("DEBUG", logContext, sHeaderLine);
+		
+		// variables for the columns
+		var sLocalPath = "";
+		var sScriptName = "";
+		var sType = "";
+		var sFileSpec = "";
+		var sInputSpec = "";
+		var sCharset = "";
+		var sJSP = "";
+		var sContainerName = "";
+		var sContainerType = "";
+		
+		// now iterate through the scripts in the docstore
+		var aScripts = getDocStoreSubtreeList("scripts");
+		var iSize = aScripts.size();
+		log("INFO", logContext, "Exporting " + iSize + " scripts.");
+		for (var i = 0; i < iSize; i++) {
+		
+			// basic script info
+			var sPath = aScripts[i];
+			log("DEBUG", logContext, "Exporting script: " + checkString(sPath, "NULL"));
+			var doc = getDocByPath(sPath);
+			if (doc == null) { continue; }
+			var hmAttribs = doc.getDocAttributes();
+			sJSP = toLowerCase(checkString(hmAttribs["ATTR_JSPLIKE"], "false"));
+			var sSuffix = (sJSP == "true" ? ".wsp" : ".wpcs");
+			sLocalPath = sPath + sSuffix;
+			if (sLocalPath.startsWith("/")) { sLocalPath = substring(sLocalPath, 1); }
+			log("DEBUG", logContext, "Corresponding local path: " + checkString(sLocalPath, "NULL"));
+			sScriptName = getNameFromPath(sPath, "/");
+			sType = getScriptType(logContext, sPath);
+			log("DEBUG", logContext, "Corresponding script type: " + checkString(sType, "NULL"));
+			
+			// finding spec info for script
+			sFileSpec = checkString(hmAttribs["ATTR_SPEC_NAME"], "");
+			if (sFileSpec == "") {
+				var sSpecId = checkString(hmAttribs["ATTR_SPEC_ID"], "");
+				if (sSpecId != "") { sFileSpec = checkString(getSpecs(logContext)[sSpecId], ""); }
+			}
+			sInputSpec = checkString(hmAttribs["ATTR_SCRIPT_INPUT_SPEC_NAME"], "");
+			if (sInputSpec == "") {
+				var sSpecId = checkString(hmAttribs["ATTR_SCRIPT_INPUT_SPEC_ID"], "");
+				if (sSpecId != "") { sInputSpec = checkString(getSpecs(logContext)[sSpecId], ""); }
+			}
+			sCharset = checkString(hmAttribs["CHARSET"], "");
+			
+			// finding container info for script
+			sContainerType		= checkString(hmAttribs["CONTAINER_TYPE"], "");
+			var sContainerId	= checkString(hmAttribs["CONTAINER_ID"], "");
+			var sCatalogId		= checkString(hmAttribs["CATALOG_ID"], "");
+			var sCategoryTreeId	= checkString(hmAttribs["CATEGORY_TREE_ID"], "");
+			if (sContainerType != "" && sContainerId != "") {
+				sContainerName = getContainers(logContext)[sContainerType][sContainerId];
+			} else if (sCatalogId != "") {
+				sContainerName = getContainers(logContext)["CATALOG"][sCatalogId];
+			} else if (sCategoryTreeId != "") {
+				sContainerName = getContainers(logContext)["CATEGORY_TREE"][sCategoryTreeId];
+			}
+			
+			// copy script
+			var docCopy = doc.copyDoc(getFolderPath() + "FILES/" + sLocalPath);
+			if (docCopy == null) {
+				log("WARN", logContext, "Could not copy script: " + checkString(sLocalPath, ""));
+				continue;
+			}
+			
+			// write CSV line
+			var sLine = sLocalPath + "," + sScriptName + "," + sType + "," + sFileSpec + ","
+				+ sInputSpec + "," + sCharset + "," + sJSP + "," + sContainerName + "," + sContainerType;
+			writer.writeln(sLine);
+			log("DEBUG", logContext, sLine);
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader: " + checkString(reader, "NULL")
+			+ "\n writer: " + checkString(writer, "NULL")
+			+ "\n sVersion: " + checkString(sVersion, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the file <code>Specs.csv</code> for the EnvXML deployment package.
+/// @param logContext - log context
+/// @param writer - writer object used to write the file to
+/// @param reader - reader object used to read the master file template
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @return boolean - true if export was successful, false otherwise
+//:GLFUNCTION boolean exportSpecs(LogContext logContext, Reader reader, Writer writer)
+function exportSpecs(logContext, writer, reader, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.exportSpecs"; 
+	
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		
+		// check version of the standard project file structure
+		var aSupportedVersions = [];
+		aSupportedVersions.add("1.00", "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07", "1.08");
+		if (!aSupportedVersions.containsValue(sVersion)) { 
+			throwError("Unsupported version of standard project file structure!"); 
+		}
+		
+		// write header line
+		var aLocales = getCompanyLocales();
+		var sHeaderLine = "CS?,Spec Name,Spec Type,Attribute Path,Attribute Type,PK?," 
+			+ "Idx?,Lcl?,Lnk?,Min,Max,Edit?,NP?,Default,Length,Hidden?,RULE";
+		for (var k = 0; k < aLocales.size(); k++) {
+			sHeaderLine = sHeaderLine + "," + aLocales[k].getLocaleCode() + " DisplayName";
+		}
+		writer.writeln(sHeaderLine);
+		
+		// get all specs in the system
+		var hmFilters = [];
+		hmFilters["PATTERN"] = "*";
+		var aSpecNames = getSpecNameList(hmFilters).sort();
+		var iSize = aSpecNames.size();
+		log("INFO", logContext, "Exporting " + iSize + " specs.");
+		for (var i = 0; i < iSize; i++) {
+			
+			var sSpecName = checkString(aSpecNames[i], "");
+			var spec = getSpecByName(sSpecName, true);
+			if (spec == null) {
+				log("WARN", logContext, "Could not find spec: " + sSpecName);
+				continue;
+			} else {
+				log("DEBUG", logContext, "Exporting spec: " + sSpecName);
+			}
+			
+			// prepare spec node data
+			var hmData = [];
+			hmData["sCS"] 				= "";
+			hmData["sSpecName"] 		= sSpecName;
+			hmData["sSpecType"] 		= spec.getSpecType();
+			hmData["sPrimaryKeyPath"]	= spec.getSpecPrimaryKeyAttributePath();
+			hmData["aLocales"]			= aLocales;
+			
+			// recursively loop through spec nodes
+			var nodeRoot = spec.getNodeByPath(sSpecName);
+			var aNodes = nodeRoot.getNodeChildren();
+			for (var j = 0; j < aNodes.size(); j++) {
+				var node = aNodes[j];
+				writeSpecNodeRecursively(logContext, node, writer, hmData);
+			}
+		}
+		
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext: " + checkString(logContext, "NULL")
+			+ "\n reader: " + checkString(reader, "NULL")
+			+ "\n writer: " + checkString(writer, "NULL")
+			+ "\n sVersion: " + checkString(sVersion, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return true;
+}
+
+/// @brief Exports the environment settings corresponding to the specified CSV file names to the specified path.
+/// This method dispatches the export methods used to produce the specified CSV files and creates the corresponding
+/// CSV files in the specified path. The export function used to produce the CSV file must be named
+/// <code>export<i>fileNameWithoutSuffix</i></code>, e.g. <code>exportRoleToACGs()</code> to produce the file 
+/// <code>RoleToACGs.csv</code> and must have the following signature:<br/><code>
+/// boolean export<i>FileNameWithoutSuffic</i>(LogContext logContext, Reader reader, Writer writer)
+/// </code><br/>
+/// The produced files are put into a ZIP archive if the boolean parameter is set to true.
+/// @param logContext - log context
+/// @param aFileNamesCSV - names of the CSV files to be produced
+/// @param sVersion - version of the StandardProjectFileStructure of the EnvXML package, e.g. '1.08'
+/// @param bZip - (optional) if set to true then the produced files are put into a ZIP archive
+/// @return void
+//:GLFUNCTION void export(LogContext logContext, Array aFileNamesCSV, String sPath, boolean bZip)
+function export(logContext, aFileNamesCSV, bZip, sVersion) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.export"; 
+
+	var sErrMsg;
+	catchError(sErrMsg) {
+		log("INFO", logContext, "*** Started " + sFctName + " ***");
+		var bZip = (toLowerCase(checkString(bZip, "false")) == "true");
+		
+		// clean target directory
+		var sTargetDir = getFolderPath() + "FILES";
+		log("INFO", logContext, "Cleaning target directory: " + sTargetDir);
+		var aDocPaths = getDocStoreSubtreeList(sTargetDir);
+		for (var i = 0; i < aDocPaths.size(); i++) {
+			var sDocPath = aDocPaths[i];
+			var doc = getDocByPath(sDocPath);
+			if (doc != null) { doc.deleteDoc(); }
+		}
+		
+		// get script object used for dynamic mapping of filename to export function
+		var scr = getScriptByPath("scripts/triggers/MDMPIM.EnvXML.Export.Library");
+		
+		// process filenames
+		for (var i=0; i<aFileNamesCSV.size(); i++) {
+			var sFileName = checkString(aFileNamesCSV[i], "NULL");
+			if (sFileName == "NULL") { continue; }
+			log("INFO", logContext, "Processing " + sFileName);
+			
+			// map filename to export function
+			var fnExport = scr.getFunctionByName("export" + replace(sFileName, ".csv", ""));
+			if (fnExport == null) {
+				log("ERROR", logContext, "No export function found for filename: " + sFileName);
+				continue;
+			}
+			
+			// get writer object
+			var writer = createOtherOut(sFileName, "Cp1252");
+			
+			// get reader object (if available)
+			var reader = null;
+			var sTemplatePath = getFolderPath() + "templates/" + sVersion + "/" + sFileName;
+			log("DEBUG", logContext, "Trying to read master file template from: " + sTemplatePath);
+			var doc = getDocByPath(sTemplatePath);
+			if (doc != null) { reader = new Reader(sTemplatePath, "Cp1252"); }
+			
+			// call export function
+			var bSuccess = false;
+			var sExportException = null;
+			catchError(sExportException) {
+				bSuccess = fnExport.invoke(logContext, writer, reader, sVersion);
+			} 
+			if (sExportException != null) {
+				log("ERROR", logContext, "Error while writing export file: " + sExportException);
+			}
+			if (bSuccess) {
+				writer.save(getFolderPath() + "FILES/Deployment/" + sFileName);
+				log("INFO", logContext, "File " + sFileName + " successfully exported.");
+			}
+			
+			// close writer
+			writer.close();
+			
+			// zip files
+			if (bZip) { 
+				zip(getFolderPath() + "FILES", getFolderPath() + "Deployment.zip");
+			}
+		}
+
+		log("INFO", logContext, "*** Finished " + sFctName + " ***");
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ "\n logContext    : " + checkString(logContext, "NULL")
+			+ "\n aFileNamesCSV : " + checkString(aFileNamesCSV, "NULL")
+			+ "\n bZip          : " + checkString(bZip, "NULL"));
+	}
+	
+	// always return something to make script compilable.
+	return null;
+}
+
+/// @}
+
+/// @cond IGNORE
+/// Export Definition
+var logContext = [];
+logContext.writer = out;
+var aFileNamesCSV = [];
+aFileNamesCSV.add("RoleToACGs.csv");
+export(logContext, aFileNamesCSV, true, "1.08");
+
+/// @endcond
+
+/// $Log: MDMPIM.EnvXML.Export.Library.wpcs,v $
+/// Revision 1.7  2009/05/11 16:48:57  rkende
+/// - bugfix for spec node attribute 'MIN_OCCURRENCE'
+/// - added method exportCatalogs()
+///
+/// Revision 1.6  2009/03/16 17:30:22  rkende
+/// - added support for AccessPrivs.csv and ACGs.csv
+///
+/// Revision 1.5  2008/11/19 17:39:04  rkende
+/// - fixed bug for link attributes when exporting Specs.csv
+///
+/// Revision 1.4  2008/11/19 17:20:14  rkende
+/// - fix for bug 97752: now correctly exporting grouping nodes using recursive logic
+///
+/// Revision 1.3  2008/11/04 16:45:43  rkende
+/// - added info for supported versions of the standard project file structure
+///
+/// Revision 1.2  2008/11/04 15:55:37  rkende
+/// - bugfixes
+/// - cleaning target docstore path
+/// - added logging
+///
+/// Revision 1.1  2008/11/03 16:35:37  rkende
+/// - initial version to be completed (also still no good javadoc)
+///
+///

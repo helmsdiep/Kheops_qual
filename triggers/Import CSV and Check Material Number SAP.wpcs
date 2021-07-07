@@ -1,0 +1,224 @@
+function outputError(sType, sMsg) {
+        log.loggerDebug(sType + " - " + sMsg);
+}
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getParser(sFilePath){
+var moni = getLogger("Monitor");
+
+var result=[];
+var oParser = null;
+var err;
+catchError(err) 
+{
+	var oReader = new Reader(sFilePath,"UTF-8");
+	if(oReader!=null) 
+	{	
+		//First line is to get the name of the lookuptable						
+		oParser = newDelimParser(oReader, ";");
+		
+		//Second line is to get all the column-names (especially for the languages)
+		var hmColumns = oParser.splitLine();
+		result["columns"] = hmColumns;
+		
+	} else {
+		moni.loggerDebug("MISSING",sFilePath);
+	}
+}
+if(err!=null){
+	moni.loggerDebug("ERROR Processing",sFilePath);
+	moni.loggerDebug("ERROR",err);
+}
+result["parser"]=oParser;
+return result;
+}
+
+function CheckMat(){
+var log = getLogger("Monitor");
+
+var strPath = "/XFER/Import/CheckMat/";
+log.loggerDebug("** strPath = " + strPath);
+
+var hmPaths = getDocStoreFilesInDirectory(strPath);
+log.loggerDebug("** hmPaths = " + hmPaths);
+
+var cntTotal = 0;
+var cntError = 0;
+var cntNotExported = 0;
+var cntNotInMDM = 0;
+var cntEqual = 0;
+var cntNotEqual = 0;
+ 
+forEachHmElement(hmPaths, intKey, strPathCSV){
+	log.loggerDebug("" );
+	log.loggerDebug("*** Process Check Material Number Part One SAP to MDM = " + strPathCSV);
+	var p=getParser(strPathCSV);		
+	var oParser = p["parser"];
+	var listAttrs = oParser.splitLine();
+	var Ctg = getCatalogNamesList();
+	
+	var bDone       = (listAttrs==null);
+	var ItemCheck = 1;
+	var ctgName = "";
+	var Catalog     = "";
+	var ERPCode = "";
+	var PrevERPCode = "";
+	var ERPCatCode = "";
+	
+	while(!bDone) {
+		ERPCode = listAttrs[2];	
+		if (ERPCode != PrvERPCode) {
+			PrvERPCode = ERPCode;
+			
+			Catalog = listAttrs[0];
+			ERPCatCode = "C"+ERPCode.substring(1,4);
+			ItemCheck = 1;
+			cntTotal = cntTotal + 1;
+			
+			if (!ctgName.startsWith(ERPCatCode)) {
+				for(var i=0; i < Ctg.size(); i++) {
+				  if (Ctg[i].startsWith(ERPCatCode)) {
+					ctgName = Ctg[i];
+				  }
+				}
+				if(ctgName==""){
+				  log.loggerDebug("**** ctg not found");
+				  return null;
+				}
+		    }
+			var ctg = getCtgByName(ctgName);
+	    	var item = ctg.getCtgItemByPrimaryKey(ERPCode);
+	
+			if (item == null) {
+				log.loggerDebug(";;;" + listAttrs[1] + ";" + listAttrs[2] + ";" + listAttrs[3] + ";Item is not existing in MDM");
+				cntNotInMDM = cntNotInMDM + 1;
+				
+				ItemCheck = 0;
+				} else {
+					var MaterialActive= getSimpleValue(item,"01AC0548-Status");				
+					var MaterialText= getSimpleValue(item,"01AC0014-invoiceName");				
+					if (MaterialActive == "[ACTIVE] - Actif" ) {
+							
+							if (item != null && ItemCheck == 1 ) {
+								var MaterialInSAP = getSimpleValue(item,"01AC0664-MaterialNumber");
+								
+								if (MaterialInSAP != listAttrs[1] && ItemCheck == 1 ) {
+									cntNotEqual = cntNotEqual + 1;
+
+									if (MaterialInSAP == "" ) {log.loggerDebug(MaterialInSAP + ";" + ERPCode + ";" + MaterialText + ";" + listAttrs[1] + ";" + listAttrs[2] + ";" + listAttrs[3] + ";Id MDM Update Material Number in MDM");
+										} else {
+															   log.loggerDebug(MaterialInSAP + ";" + ERPCode + ";" + MaterialText + ";" + listAttrs[1] + ";" + listAttrs[2] + ";" + listAttrs[3] + ";Differences Check SAP and MDM");}
+								}else {
+									cntEqual = cntEqual + 1;
+								   }
+							}
+						} else {cntError = cntError + 1;}
+			}
+		}
+	
+	listAttrs = oParser.splitLine();
+	bDone = (listAttrs==null);
+
+	}
+
+}
+	log.loggerDebug("***** cntError        = " + cntError);
+	log.loggerDebug("***** cntEqual        = " + cntEqual);
+	log.loggerDebug("***** cntNotExported  = " + cntNotExported);
+	log.loggerDebug("***** cntNotEqual     = " + cntNotEqual);
+	log.loggerDebug("***** cntNotInMDM     = " + cntNotInMDM);
+	log.loggerDebug("*****                   " );
+	log.loggerDebug("***** cntTotal        = " + cntTotal);
+	
+
+    return cntError;
+}	
+
+function BuildSAPTable(){
+    var log = getLogger("Monitor");
+    var ERPCode = "";
+    var PrevERPCode = "";
+    var SAP_Material=[];
+     
+    var strPath = "/XFER/Import/CheckMat/";
+    var hmPaths = getDocStoreFilesInDirectory(strPath);
+    
+    forEachHmElement(hmPaths, intKey, strPathCSV){
+            var p=getParser(strPathCSV);             
+            var oParser = p["parser"];
+            var listAttrs = oParser.splitLine();
+			var bDone     = (listAttrs==null);
+    		
+            var SAP_Material=[];
+            while(!bDone) {
+            	ERPCode = listAttrs[2];	
+				if (ERPCode != PrvERPCode) {
+					PrvERPCode = ERPCode;
+					
+					SAP_Material[listAttrs[1]]=[];
+	            	SAP_Material[listAttrs[1]]["ERPCode"]=listAttrs[2];
+	            	SAP_Material[listAttrs[1]]["MatText"]=listAttrs[3];
+						}
+				listAttrs = oParser.splitLine();
+				bDone = (listAttrs==null);
+                   }
+     }
+        return SAP_Material;
+}
+
+ function CheckMat_MDMtoSAP(){
+    var log = getLogger("Monitor");
+
+	var cntTotal = 0;
+	var cntError = 0;
+	var cntEqual = 0;
+	var cntNotEqual = 0;
+    
+    var strPath = "/XFER/Import/CheckMat/";
+    var hmPaths = getDocStoreFilesInDirectory(strPath);
+	log.loggerDebug("*** Process Check Material Number Part Two MDM to SAP = " + strPathCSV);    
+        
+	var ctgs = getCatalogNamesList();
+	var SAP_Mat = BuildSAPTable();	     		
+	forEachHmElement(ctgs,oKey,ctgName) {
+   		
+   		var ctg = getCtgByName(ctgName);
+    	var oItemSet = ctg.getItemSetForCatalog();
+		forEachItemSetElement(oItemSet, oitem) {
+			var strItemPK = oitem.getPrimaryKey();
+			var MaterialActive= checkString(getSimpleValue(oitem,"01AC0548-Status"), "");
+			var MaterialInMDM = checkString(getSimpleValue(oitem,"01AC0664-MaterialNumber"),"");
+			var MaterialText= getSimpleValue(item,"01AC0014-invoiceName");				     
+			var ERPCodeInSAP = checkString(SAP_Mat[MaterialInMDM]["ERPCode"],"");
+			var MatText = checkString(SAP_Mat[MaterialInMDM]["MatText"],"");
+			
+			cntTotal = cntTotal + 1;
+			                       
+            if (MaterialActive == "[ACTIVE] - Actif" && MaterialInMDM != "" ) {
+            
+            	if (ERPCodeInSAP == "") {
+            		log.loggerDebug(MaterialInMDM + ";" + strItemPK + ";" + MaterialText +  ";" + "" + ";" + ERPCodeInSAP + ";" + MatText + ";Not existing in SAP");
+            		cntError = cntError + 1;		
+            			} 	else { 
+            			            
+            	if (strItemPK != ERPCodeInSAP) {
+            		log.loggerDebug(MaterialInMDM + ";" + strItemPK + ";" + MaterialText + ";" + MaterialInMDM + ";" + ERPCodeInSAP + ";" + MatText + ";Not Equal to SAP");
+            		cntNotEqual = cntNotEqual + 1;				
+            			}  else {cntEqual = cntEqual + 1; }
+         						}
+					}		
+				}
+		}
+	
+	log.loggerDebug("***** Not in SAP      = " + cntError);
+	log.loggerDebug("***** cntEqual        = " + cntEqual);
+	log.loggerDebug("***** cntNotEqual     = " + cntNotEqual);
+	log.loggerDebug("*****                   " );
+	log.loggerDebug("***** cntTotal        = " + cntTotal);
+	
+	return cntError;
+ }

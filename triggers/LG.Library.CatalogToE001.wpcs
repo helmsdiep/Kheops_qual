@@ -1,0 +1,396 @@
+function testSelection(){
+  var  hmGlobals=[];
+  hmGlobals["LOGGER"]=getLogger("default");
+  var destinationCatalog = getCtgByName("E001-CatalogueNegoce");
+  var selname="Exported Items";
+  var mysel=getSelectionByName(selname);
+  if (mysel!=null){
+    mysel.deleteSelection();
+  }
+  mysel=new StaticSelection(destinationCatalog, selname);
+  var destItem=destinationCatalog.getEntryByPrimaryKey("K025I54487");
+ 
+  mysel.addEntryToSelection(destItem);
+  mysel.saveSelection();
+}
+
+
+function test(){
+  var  hmGlobals=[];
+ hmGlobals["LOGGER"]=getLogger("default");
+var destCategoryName="test";
+ var sourceCatalog = getCtgByName("C025-Profilés - Metal profiles");
+  var sourceCatalogName = sourceCatalog.getCtgName();
+  var sourceCatalogCode = sourceCatalogName.substring(0, 4); // ex: C010
+
+  var destinationCatalog = getCtgByName("E001-CatalogueNegoce");
+
+
+// 1. category per catalog : C010, C020...
+  var catalogCategoryTree=destinationCatalog.getPrimaryCategoryTree();
+  var category1 = catalogCategoryTree.getCategoryByPath(sourceCatalogCode, "/"); // get the category in E001 that maps to "/C010"
+  if (category1 == null) {
+    hmGlobals["LOGGER"].loggerInfo("Creating child category for " + sourceCatalogCode);
+    category1 = catalogCategoryTree.buildCategory("/" + sourceCatalogCode, "/");
+    category1.setCategoryAttrib("Default Hierarchy Primary Spec/Name", sourceCatalogName);
+    catalogCategoryTree.saveCategoryTree();
+  }
+
+  // 2. category per export 
+  //  	H002-ExportHierarchy
+  // var exportCategoryTree = destinationCatalog.getCatalogCategoryTrees()[1];
+
+  // var category2 = exportCategoryTree.getCategoryByPath(destCategoryName, "/"); // get the category in E001 that maps to the category entered by the user
+  // if (category2 == null) {
+  //   hmGlobals["LOGGER"].loggerInfo("Creating category for " + destCategoryName);
+  //   category2 = exportCategoryTree.buildCategory(destCategoryName, "/");
+  //   category2.setCategoryAttrib("Default Hierarchy Primary Spec/Name", destCategoryName);
+  //   exportCategoryTree.saveCategoryTree();
+  // } else {
+  //   hmGlobals["LOGGER"].loggerInfo("found existing " + destCategoryName);
+  // }
+
+
+    var categories = [];
+    categories.add(category1);
+//    categories.add(category2);
+
+  out.writeln( categories);
+}
+
+
+function testChanged(){
+  var  hmGlobals=[];
+  hmGlobals["LOGGER"]=getLogger("default");
+ var destCategoryName="test";
+ var destinationCatalog = getCtgByName("E001-CatalogueNegoce");
+ var destItem=destinationCatalog.getEntryByPrimaryKey("K025I54487");
+ destItem.setEntryAttrib("SC001-FlatModel/Pitem2_12BI0736-Profile_C01","toto");
+ var changed=destItem.getEntryChangedDataSinceLastSave().getModifiedAttributePathsNewEntry();
+ out.writeln(changed.size());
+}
+
+
+// C2C.C010_To_E001
+// getScriptByPath("/scripts/triggers/LG.Library.CatalogToE001").getFunctionByName("send_catalog_to_E001").invoke();
+function arrayToString(val, dedup) {
+  var myStr = "";
+  if (val != null && val.size() > 0) {//Si val contient plus d'une valeur
+    var tab = [];
+    if (dedup == true) {
+      tab = val.sort();
+    } else {
+      tab = val;
+    }
+
+    var i;
+    var last_val = "";
+    var new_val = "";
+    for (i = 0; i < tab.size(); i++) {//On boucle sur les valeurs 
+      new_val = toString(tab[i]);
+      if ((dedup == false) || (new_val != last_val)) { // suppression des doublons
+        myStr = myStr + (i == 0 ? "" : "@#@") + new_val;//On les copie dans myStr en les separant par @#@
+        last_val = new_val;
+      }
+    }
+  }
+  return myStr;
+}
+
+function testArrayToString1(dedup) {
+  var a = [];
+  a.add("toto");
+  a.add("toto");
+  a.add("titi");
+  a.add("coucou");
+  out.writeln(arrayToString(a, dedup));
+
+  var b = [];
+  out.writeln(arrayToString(b, dedup));
+
+  var c = [];
+  c.add("toto");
+  out.writeln(arrayToString(c, dedup));
+
+  var d = null;
+  out.writeln(arrayToString(d, dedup));
+
+}
+function testArrayToString() {
+  testArrayToString1(true);
+  testArrayToString1(false);
+
+}
+
+function exportItemtest(hmGlobals, srcItem) {
+
+  logWarning(srcItem.getPrimaryKey(), "Exporting " + srcItem.getPrimaryKey());
+}
+
+function exportItem(hmGlobals, destination_catalog, categories, srcItem) {
+  var pkey=srcItem.getPrimaryKey();
+  out.writeln("Exporting " + pkey);
+
+  var re_leading_zeros = new RE("^0+", 0);
+
+  var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+  var tech = lib.getFunctionByName("tech");  
+
+  var e;
+  var destItem;
+  var d = 0;
+  if (null != srcItem) {
+
+    catchError(e)
+    {
+      var destItem = destination_catalog.getEntryByPrimaryKey(pkey);
+      
+      if (destItem==null){
+        destItem = buildCtgItem(destination_catalog.getCtgName());
+      }
+      
+      var channel = "[01] - Negoce";
+      var itemLevel = lib.getFunctionByName("getItemFullLevel").invoke(hmGlobals, srcItem);
+      destItem.setCtgItemMappedAttribs(srcItem);
+      destItem.setEntryRelationshipAttribUsingItem("SC001-FlatModel/OriginalItem", srcItem);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0019-SdcNatureCode_C01", tech.invoke(hmGlobals, srcItem, "01AC0019-SdcNatureCode", 0, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0019-SdcNatureCode_C02", tech.invoke(hmGlobals, srcItem, "01AC0019-SdcNatureCode", 1, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0042-GTIN", tech.invoke(hmGlobals, srcItem, "01AC0042-GTIN", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0020-UnitDescriptor_C01", tech.invoke(hmGlobals, srcItem, "01AC0020-UnitDescriptor", 3, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0012-LongName", tech.invoke(hmGlobals, srcItem, "01AC0012-LongName", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_02FR0658-ACERMICertificateReference_C01", arrayToString(tech.invoke(hmGlobals, srcItem, "02FR0658-ACERMICertificateReference", 0, "ProductionSiteGroup", "", "", 1), true));
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_02FR0658-ACERMICertificateReference_C07", arrayToString(tech.invoke(hmGlobals, srcItem, "02FR0658-ACERMICertificateReference", 7, "ProductionSiteGroup", "", "", 1), true));
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PC0300-ThermalResistance", tech.invoke(hmGlobals, srcItem, "05PC0300-ThermalResistance", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_01AC0042-GTIN", tech.invoke(hmGlobals, srcItem, "01AC0042-GTIN", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_01AC0664-MaterialNumber", re_leading_zeros.substitute(checkString(tech.invoke(hmGlobals, srcItem, "01AC0664-MaterialNumber", null, "", "", "", 2)[0], ""), ""));
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_01AC0020-UnitDescriptor_C01", tech.invoke(hmGlobals, srcItem, "01AC0020-UnitDescriptor", 3, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_01AC0012-LongName", tech.invoke(hmGlobals, srcItem, "01AC0012-LongName", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_01AC0014-invoiceName", tech.invoke(hmGlobals, srcItem, "01AC0014-invoiceName", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0347-TradeItemOrderable", tech.invoke(hmGlobals, srcItem, "06DN0347-TradeItemOrderable", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0732-SalesUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0732-SalesUnit", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0752-PricingUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0752-PricingUnit", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0351-orderQuantityMultiple", tech.invoke(hmGlobals, srcItem, "06DN0351-orderQuantityMultiple", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0406-NetContent", tech.invoke(hmGlobals, srcItem, "06DN0406-NetContent", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0410-NetContentUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0410-NetContentUnit", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0213-netWeight", tech.invoke(hmGlobals, srcItem, "04CP0213-netWeight", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0214-netWeightUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0214-netWeightUnit", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0082-RealThickness", tech.invoke(hmGlobals, srcItem, "04CP0082-RealThickness", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0084-RealThicknessUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0084-RealThicknessUnits", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0095-Width", tech.invoke(hmGlobals, srcItem, "04CP0095-Width", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0097-WidthUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0097-WidthUnit", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0103-Length", tech.invoke(hmGlobals, srcItem, "04CP0103-Length", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0104-LengthUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0104-LengthUnits", 0, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0425-effectiveDate", tech.invoke(hmGlobals, srcItem, "06DN0425-effectiveDate", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0431-endAvailabilityDate", tech.invoke(hmGlobals, srcItem, "06DN0431-endAvailabilityDate", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_10GC0747-TotalReplenishmentLeadTime_C05", tech.invoke(hmGlobals, srcItem, "10GC0747-TotalReplenishmentLeadTime", 4, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_10GC0748-UnitOfTotalReplenishmentLeadTime_C01", tech.invoke(hmGlobals, srcItem, "10GC0748-UnitOfTotalReplenishmentLeadTime", 3, "", "", "", 2)[0]);
+
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_12BI0736-Profile_C01", tech.invoke(hmGlobals, srcItem, "12BI0736-Profile", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_12BI0737-BusinessUnit_C01", tech.invoke(hmGlobals, srcItem, "12BI0737-BusinessUnit", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_12BI0738-MaterialGroup5_C01", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_12BI0738-MaterialGroup5_C02", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", 4, "", "", "", 2)[0]);
+
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_01AC0042-GTIN", tech.invoke(hmGlobals, srcItem, "01AC0042-GTIN", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_01AC0664-MaterialNumber", re_leading_zeros.substitute(checkString(tech.invoke(hmGlobals, srcItem, "01AC0664-MaterialNumber", null, "", "", "", 3)[0], ""), ""));
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_01AC0020-UnitDescriptor_C01", tech.invoke(hmGlobals, srcItem, "01AC0020-UnitDescriptor", 3, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_01AC0012-LongName", tech.invoke(hmGlobals, srcItem, "01AC0012-LongName", null, "", "", "", 3)[0] + " " + tech.invoke(hmGlobals, srcItem, "01AC0741-PackagingItemDescription", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_01AC0014-invoiceName", tech.invoke(hmGlobals, srcItem, "01AC0014-invoiceName", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0347-TradeItemOrderable", tech.invoke(hmGlobals, srcItem, "06DN0347-TradeItemOrderable", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0732-SalesUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0732-SalesUnit", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0752-PricingUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0752-PricingUnit", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0407-TotalQuantityOfNextLowerLevel", tech.invoke(hmGlobals, srcItem, "06DN0407-TotalQuantityOfNextLowerLevel", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0351-orderQuantityMultiple", tech.invoke(hmGlobals, srcItem, "06DN0351-orderQuantityMultiple", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0213-netWeight", tech.invoke(hmGlobals, srcItem, "04CP0213-netWeight", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0214-netWeightUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0214-netWeightUnit", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0116-Depth", tech.invoke(hmGlobals, srcItem, "04CP0116-Depth", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0117-DepthUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0117-DepthUnits", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0114-Height", tech.invoke(hmGlobals, srcItem, "04CP0114-Height", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0115-HeightUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0115-HeightUnits", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0095-Width", tech.invoke(hmGlobals, srcItem, "04CP0118-PItemWidth", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_04CP0097-WidthUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0120-PItemWidthUnits", 0, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0425-effectiveDate", tech.invoke(hmGlobals, srcItem, "06DN0425-effectiveDate", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_06DN0431-endAvailabilityDate", tech.invoke(hmGlobals, srcItem, "06DN0431-endAvailabilityDate", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/PItem1_10GC0747-TotalReplenishmentLeadTime_C05", tech.invoke(hmGlobals, srcItem, "10GC0747-TotalReplenishmentLeadTime", 4, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/PItem1_10GC0748-UnitOfTotalReplenishmentLeadTime_C01", tech.invoke(hmGlobals, srcItem, "10GC0748-UnitOfTotalReplenishmentLeadTime", 3, "", "", "", 3)[0]);
+      if (itemLevel == "PItem2") {
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_01AC0042-GTIN", tech.invoke(hmGlobals, srcItem, "01AC0042-GTIN", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_01AC0664-MaterialNumber", re_leading_zeros.substitute(checkString(tech.invoke(hmGlobals, srcItem, "01AC0664-MaterialNumber", null, "", "", "", 4)[0], ""), ""));
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_01AC0020-UnitDescriptor_C01", tech.invoke(hmGlobals, srcItem, "01AC0020-UnitDescriptor", 3, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_01AC0012-LongName", tech.invoke(hmGlobals, srcItem, "01AC0012-LongName", null, "", "", "", 4)[0] + " " + tech.invoke(hmGlobals, srcItem, "01AC0741-PackagingItemDescription", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_01AC0014-invoiceName", tech.invoke(hmGlobals, srcItem, "01AC0014-invoiceName", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0347-TradeItemOrderable", tech.invoke(hmGlobals, srcItem, "06DN0347-TradeItemOrderable", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0732-SalesUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0732-SalesUnit", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0752-PricingUnit_C01", tech.invoke(hmGlobals, srcItem, "06DN0752-PricingUnit", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0407-TotalQuantityOfNextLowerLevel", tech.invoke(hmGlobals, srcItem, "06DN0407-TotalQuantityOfNextLowerLevel", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0351-orderQuantityMultiple", tech.invoke(hmGlobals, srcItem, "06DN0351-orderQuantityMultiple", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_04CP0213-netWeight", tech.invoke(hmGlobals, srcItem, "04CP0213-netWeight", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_04CP0214-netWeightUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0214-netWeightUnit", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_04CP0116-Depth", tech.invoke(hmGlobals, srcItem, "04CP0116-Depth", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_04CP0117-DepthUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0117-DepthUnits", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_04CP0114-Height", tech.invoke(hmGlobals, srcItem, "04CP0114-Height", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_04CP0115-HeightUnits_C01", tech.invoke(hmGlobals, srcItem, "04CP0115-HeightUnits", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_04CP0095-Width", tech.invoke(hmGlobals, srcItem, "04CP0118-PItemWidth", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_04CP0097-WidthUnit_C01", tech.invoke(hmGlobals, srcItem, "04CP0120-PItemWidthUnits", 0, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0425-effectiveDate", tech.invoke(hmGlobals, srcItem, "06DN0425-effectiveDate", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_06DN0431-endAvailabilityDate", tech.invoke(hmGlobals, srcItem, "06DN0431-endAvailabilityDate", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_10GC0747-TotalReplenishmentLeadTime_C05", tech.invoke(hmGlobals, srcItem, "10GC0747-TotalReplenishmentLeadTime", 4, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/PItem2_10GC0748-UnitOfTotalReplenishmentLeadTime_C01", tech.invoke(hmGlobals, srcItem, "10GC0748-UnitOfTotalReplenishmentLeadTime", 3, "", "", "", 4)[0]);
+      }
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_03FN0074-ProductPhoto", tech.invoke(hmGlobals, srcItem, "03FN0074-ProductPhoto", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PC0301-ThermalConductivityLambda", tech.invoke(hmGlobals, srcItem, "05PC0301-ThermalConductivityLambda", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PC0305-EuroclasseClassification_C01", tech.invoke(hmGlobals, srcItem, "05PC0305-EuroclasseClassification", 1, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_04CP0163-FrontFacingColour_C01", tech.invoke(hmGlobals, srcItem, "04CP0163-FrontFacingColour", 1, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_06DN0774-IntrastatCode_C01", tech.invoke(hmGlobals, srcItem, "06DN0774-IntrastatCode", null, "", "", "", 2)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PG0245-ENReference_C01", tech.invoke(hmGlobals, srcItem, "05PG0245-ENReference", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PG0767-DOPNumber", tech.invoke(hmGlobals, srcItem, "05PG0767-DOPNumber", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_03FN0065-DescriptionLong", tech.invoke(hmGlobals, srcItem, "03FN0065-DescriptionLong", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_03FN0067-ProductQualities", tech.invoke(hmGlobals, srcItem, "03FN0067-ProductQualities", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_03FN0066-TradeItemDescriptionShort", tech.invoke(hmGlobals, srcItem, "03FN0066-TradeItemDescriptionShort", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_12BI0736-Profile_C01", tech.invoke(hmGlobals, srcItem, "12BI0736-Profile", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_12BI0737-BusinessUnit_C01", tech.invoke(hmGlobals, srcItem, "12BI0737-BusinessUnit", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_12BI0738-MaterialGroup5_C01", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", null, "", "", "", 3)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem1_12BI0738-MaterialGroup5_C02", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", 4, "", "", "", 3)[0]);
+      if (itemLevel == "PItem2") {
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_12BI0736-Profile_C01", tech.invoke(hmGlobals, srcItem, "12BI0736-Profile", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_12BI0737-BusinessUnit_C01", tech.invoke(hmGlobals, srcItem, "12BI0737-BusinessUnit", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_12BI0738-MaterialGroup5_C01", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", null, "", "", "", 4)[0]);
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Pitem2_12BI0738-MaterialGroup5_C02", tech.invoke(hmGlobals, srcItem, "12BI0738-MaterialGroup5", 4, "", "", "", 4)[0]);
+      }
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PG0769-DOPUrl", tech.invoke(hmGlobals, srcItem, "05PG0769-DOPUrl", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_03FN0578-TechnicalForm", tech.invoke(hmGlobals, srcItem, "03FN0578-TechnicalForm", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_08IE0488-EnvironmentalBasicData", tech.invoke(hmGlobals, srcItem, "08IE0488-EnvironmentalBasicData", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_08IE0841-SanitizedCertificateReference_C01", tech.invoke(hmGlobals, srcItem, "08IE0841-SanitizedCertificateReference", 2, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_08IE0841-SanitizedCertificateReference_C02", tech.invoke(hmGlobals, srcItem, "08IE0841-SanitizedCertificateReference", 1, "", "", "", 1)[0]);
+
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_04CP0226-Material_C01", arrayToString(tech.invoke(hmGlobals, srcItem, "04CP0226-Material", 1, "", "", "", 1)));
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Bunit_04CP0226-Material_C01", arrayToString(tech.invoke(hmGlobals, srcItem, "04CP0226-Material", 1, "", "", "", 2)));
+
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_07MO0486-ShelfLife", tech.invoke(hmGlobals, srcItem, "07MO0486-ShelfLife", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_07MO0487-ShelfLifeUnit_C01", tech.invoke(hmGlobals, srcItem, "07MO0487-ShelfLifeUnit", 0, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0011-replacementGtin", tech.invoke(hmGlobals, srcItem, "01AC0011-replacementGtin", null, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0016-associationType_C01", tech.invoke(hmGlobals, srcItem, "01AC0016-associationType", 1, "", "", "", 1)[0]);
+      d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_01AC0036-brandName_C12", tech.invoke(hmGlobals, srcItem, "01AC0036-brandName", 11, "", "", "", 1)[0]);
+      if (pkey.startsWith("K010") || pkey.startsWith("K025")){
+        //var res= ((tech.invoke(hmGlobals, srcItem, "05PG0248-NFCertified",null, "", "", "", 1)[0]==true ) ? "oui" : "non");
+        d++; destItem.setEntryAttrib("SC001-FlatModel/Prod_05PG0248-NFCertified",tech.invoke(hmGlobals, srcItem, "05PG0248-NFCertified",null, "", "", "", 1)[0]);
+        
+      }
+    }
+
+
+    if (e != null) {
+      logError(pkey, "d=" + d + " error=" + toString(e));
+    } else {
+      hmGlobals["LOGGER"].loggerDebug("Moving item into categories");
+      destItem.moveCtgItemToCategories(categories, False);
+      
+      // only save the item if it has actually changed.
+      var changed=destItem.getEntryChangedDataSinceLastSave().getModifiedAttributePathsNewEntry();
+      if (changed.size()>0){
+        destItem.saveCtgItem();
+      }
+    }
+  }
+}
+
+
+function exportRec(hmGlobals, destinationCatalog, categories, srcItem) {
+  //out.writeln("Trying to export " + srcItem.getPrimaryKey());
+  var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+  var tech = lib.getFunctionByName("tech");
+  //var count = 0;
+  var status = hmGlobals["FN_GET_STATUS"].invoke(srcItem);//Recuperation du statut de l'item
+  var itemLevel = hmGlobals["FN_GET_ITEM_TYPE"].invoke(srcItem);//Recuperation du type de l'item
+  var getChildItems = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+  
+  var exportedItems = [];
+  var pk=srcItem.getPrimaryKey();
+  
+  hmGlobals["LOGGER"].loggerDebug("Processing " + pk);
+
+  if (status == "ACTIVE") { // statut ACTIF
+    
+    var isInCatalog = tech.invoke(hmGlobals, srcItem, "06DN0346-IsInCatalog", null, "ChannelOfDistributionGroup", "06DN0422-ChannelOfDistribution", "[01] - Negoce", 0);
+    if ((isInCatalog.size() > 0) && (isInCatalog[0] == true)) { // item au catalogue
+      // try to export children first
+      var children = [];
+      children = getChildItems.invoke(hmGlobals, srcItem);
+
+      if (children.size() > 0) {
+        var i = 0;
+        var child = null;
+        forEachHmElement(children, i, child) {
+          var itemChild = getCtgByName(children[i]["itemCatalog"]).getEntryByPrimaryKey(children[i]["itemPrimaryKey"]);
+          var result=exportRec(hmGlobals,destinationCatalog, categories, itemChild);
+          // append list of exported children to exportItems. (mergeValues function does not work (???))
+          forEachHmElement(result, j, a) {
+            exportedItems[j]=a;
+          }
+        }
+      }
+      if (exportedItems.size() == 0 && (itemLevel == "BUnit" || itemLevel == "PItem")) { // if no children was exported then we export the current Item if it's a BUnit or a PItem
+        exportItem(hmGlobals, destinationCatalog, categories, srcItem);
+        exportedItems[pk]="exported"; // just for the sake of putting a value.
+      }
+
+    }
+  }
+
+  return exportedItems;
+}
+
+// this function is called for each Product of the source catalog.
+function send_catalog_to_E001() {
+  var lib = getScriptByPath("/scripts/triggers/LG.Library.ItemUtils");
+  var hmGlobals = lib.getFunctionByName("initGlobals").invoke();
+  hmGlobals["LOGGER"]=getLogger("default");
+  
+
+  // start by setting all items to inactive
+  var sourceCatalog = getSourceCatalog();
+  var sourceCatalogName = sourceCatalog.getCtgName();
+  var sourceCatalogCode = sourceCatalogName.substring(0, 4); // ex: C010
+  var destinationCatalog = getDestinationCatalog();
+  // 1. category per catalog : C010, C020...
+  hmGlobals["LOGGER"].loggerInfo("BEGIN Export "+ sourceCatalogCode+" to E001");
+
+  // 1. category per catalog : C010, C020...
+  var catalogCategoryTree=destinationCatalog.getPrimaryCategoryTree();
+  var category1 = catalogCategoryTree.getCategoryByPath(sourceCatalogCode, "/"); // get the category in E001 that maps to "/C010"
+  if (category1 == null) {
+    hmGlobals["LOGGER"].loggerInfo("Creating child category for " + sourceCatalogCode);
+    category1 = catalogCategoryTree.buildCategory("/" + sourceCatalogCode, "/");
+    category1.setCategoryAttrib("Default Hierarchy Primary Spec/Name", sourceCatalogName);
+    catalogCategoryTree.saveCategoryTree();
+  }
+
+  var categories = [];
+  categories.add(category1);
+
+  // variable to store all items that we are transferring.
+  var newitems=[];
+  
+  // for each Product
+  forEachCtgItem(srcItem) {
+    // recursively scan the children and get a hashmap of the PK of the exported children
+    var result=exportRec(hmGlobals, destinationCatalog, categories, srcItem);
+    
+    // remember every exported item.
+    forEachHmElement(result, j, a) {
+      newitems[j]=a;
+    }
+  }
+
+  // deleting nodes that are not in the catalog anymore...
+  hmGlobals["LOGGER"].loggerInfo("deleting nodes that are not in the catalog anymore...");    
+  var itemset=category1.getItemSetForCategory(destinationCatalog);
+
+  forEachItemSetElement(itemset,item){
+    if (!newitems.containsKey(item.getPrimaryKey())){
+      hmGlobals["LOGGER"].loggerDebug("Item "+item.getPrimaryKey()+ " not active anymore.");    
+      deleteCtgItem(item);
+    }
+  }
+
+  hmGlobals["LOGGER"].loggerInfo("END Export to E001");
+}

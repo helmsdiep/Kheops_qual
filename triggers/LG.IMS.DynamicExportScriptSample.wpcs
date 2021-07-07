@@ -1,0 +1,21 @@
+function mapFields(hmGlobals, item, tech) {
+var e;var res;catchError(e) {
+var book = new ExcelBook(null,"XLSX");
+var sheet = book.createExcelSheet();
+var row = sheet.createRow(0);
+var cell = row.createExcelCell(0);
+var lib = getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+var convertL210NumberToUnit = lib.getFunctionByName("convertL210NumberToUnit");
+var getDedupCSV = lib.getFunctionByName("getDedupCSV");
+var stripStart=createJavaMethod("org.apache.commons.lang.StringUtils","stripStart","java.lang.String","java.lang.String");
+var res = tech.invoke(hmGlobals, item, "01AC0664-MaterialNumber",null,"","","",null)[0]; 
+if (res==null){
+res=tech.invoke(hmGlobals, item, "01AC0664-MaterialNumber",null,"","","",2)[0]; 
+}
+res=runJavaMethod(null,stripStart,res,"0");
+    if (null != res) {
+        cell.setCellType("STRING");
+        cell.setStringCellValue(res);
+}}
+if (e!=null){res=checkString(res,"")+ " - " + e.substring(1,300);}
+    return res;}

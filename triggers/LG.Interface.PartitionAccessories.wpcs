@@ -1,0 +1,326 @@
+//
+// Interfacage avec la base etiquettes TMA100280
+// export XML ou fichier plat
+// catalogue "C035-Acc ouvrages verticaux - Partition accessories"
+//
+
+//
+// technical utils functions
+//
+
+function addMapElement(mapEl, key, val) {
+    getScriptByPath("/scripts/triggers/LG.Library.Utils")
+          .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+  return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey){
+    return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getDateValue").invoke(oitem, nodeName, "dd/MM/yyyy HH:mm:ss");
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpMultiValues").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getMultiValues(oItem,nodeName) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getMultiValues").invoke(oItem,nodeName);
+}
+
+function getItemLevel(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,nodeName);
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+function getAllChildrenItems(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getAllChildrenItems").invoke(oitem);
+}
+
+// filtre des décimaux finissant par '.0' demandé par mail Roland Dominici 25/01/11
+function filterDecimalZero(str){
+     if(str.endsWith(".0")) {
+       return  replace(str, ".0","");
+     }
+    return str;
+}
+
+function getBooleanValue(item, nodeName, ifTrue, ifFalse, ifDefault){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getBooleanValue").invoke(item, nodeName, ifTrue, ifFalse, ifDefault);
+}
+
+// 06DN0436-handlingInstructions
+// Col 3 de L048-Conditions stockage - Handling instructions
+// max 7 occurrences stockées dans le même attribut avec le séparateur suivant @#@
+function getHandlingInstructions(oitem){
+  var s = "";
+  var lkp = getLkpByName("L048-Conditions stockage - Handling instructions");
+  var handlingInstructions = getEn(oitem,"06DN0436-handlingInstructions");
+  if (handlingInstructions!=null && handlingInstructions.size()>0) {
+    for(var i=0;i<handlingInstructions.size();i++) {
+      if (i==7) {break;}
+      var en = handlingInstructions[i].getEntryNodeValue();
+      if (en!=null){
+        s = s + substring(checkString(lookupValues(lkp,en)[1],""),0,120);
+        if(i < handlingInstructions.size()-1) {
+          s = s +"@#@";
+        }
+      }
+    }
+  }
+  return s;
+}
+
+// findSitePath
+// @desc return the attribute path of a production site from its code
+// @param oitem the item
+// @param siteCode the site code in 02FR0063-ProductionSite
+// @return the attribute path eg "ProductionSiteGroup#3"
+function findSitePath(oitem, siteCode){
+  var productionSiteGroup = getEn(oitem,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return null; }
+  for(var i=0; i<productionSiteGroup.size(); i++) {
+    var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+    if (fProductionSite.contains(siteCode)){
+      return "ProductionSiteGroup#"+i;
+    }
+  }
+  return null; 
+}
+
+// Concatenates all the elements of a string array, using the specified separator between each element. 
+function arrayJoin(array, separator){
+  var str = "";
+  for (var i=0; i<array.size(); i++){
+     str = str + ((i==0) ? "" : separator ) + array[i];
+  }
+  return str;
+}
+
+//
+
+function getDataSite(oitem, PlaceOfStorageGroupID){
+	var parent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+	var parentBUnit = getPublishingItemAtLevel(oitem,"BUnit");
+	var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+	var DATA = [];
+	//
+	var strMaterialNumber = getSimpleValue(oitem, "01AC0664-MaterialNumber");
+	if(strMaterialNumber!=null && strMaterialNumber!=""){
+		var iMaterialNumber = strMaterialNumber.length();
+		for(var k=0;k<iMaterialNumber;k++) {
+			var testzero=strMaterialNumber.startsWith("0");
+			if(testzero==true) {
+				strMaterialNumber=substring(strMaterialNumber,1,strMaterialNumber.length());
+			}
+		}
+	}
+	//
+	// production site attributes
+	var siteSAPCode= getLkpValue(oitem ,"PlaceOfStorageGroup#"+PlaceOfStorageGroupID+"/06DN0679-Plant" , "C00-Code");
+	var siteSAPStatus= getLkpValue(oitem ,"PlaceOfStorageGroup#"+PlaceOfStorageGroupID+"/06DN0707-PlantMaterialStatus" , "C00-Code");
+	//
+	var iItemLevel = getItemLevel(oitem);
+	var bSubstitPItem2=false;
+	if(siteSAPStatus=="Y9" && iItemLevel==3) {
+		var arrayChildrenItem = getAllChildrenItems(oitem);
+		for(var r=0;r<arrayChildrenItem.size();r++) {
+			var oChildItem = arrayChildrenItem[r];
+			if(oChildItem!=null) {
+				var PlaceOfStorageGroupPItem2 = getEn(oChildItem,"PlaceOfStorageGroup");
+				if(PlaceOfStorageGroupPItem2!=null) { 
+					for(var z=0; z<PlaceOfStorageGroupPItem2.size(); z++) {
+						var siteSAPCodePItem2= getLkpValue(oChildItem ,"PlaceOfStorageGroup#"+z+"/06DN0679-Plant" , "C00-Code");
+						var siteSAPStatusPItem2= getLkpValue(oChildItem ,"PlaceOfStorageGroup#"+z+"/06DN0707-PlantMaterialStatus" , "C00-Code");
+						if(siteSAPCodePItem2==siteSAPCode && siteSAPStatusPItem2=="YU") {
+							bSubstitPItem2=true;
+						}
+					}
+				}
+			}
+		}
+	}
+	if(siteSAPCode!="" && (siteSAPStatus=="YU" || (siteSAPStatus=="Y9" && bSubstitPItem2==true))) {
+		var siteName= getLkpValue(oitem ,"PlaceOfStorageGroup#"+PlaceOfStorageGroupID+"/06DN0679-Plant" , "C04-Description/fr_FR");
+		if(siteName!=null && siteName!="") {
+			siteName = replaceString(siteName,"USINE DE ","");
+		}
+		
+		addMapElement(DATA, "PROD_ID", getSimpleValue( oitem ,"01AC0044-ERPCode")) ; // same as oitem.getPrimaryKey()
+		addMapElement(DATA, "ItemNumber", strMaterialNumber) ;
+		addMapElement(DATA, "GTIN", getSimpleValue(parentBUnit, "01AC0042-GTIN"));
+		addMapElement(DATA, "CreationDate", getDateValue( oitem ,"01AC0006-CreationDate")) ;
+		addMapElement(DATA, "LastUpdate", getDateValue( oitem ,"01AC0004-LastUpdate")) ;
+		var strTotalQuantityOfNextLowerLevel=checkString(getSimpleValue( oitem ,"06DN0407-TotalQuantityOfNextLowerLevel"),"1");
+		addMapElement(DATA, "TotalQuantityOfNextLowerLevel",strTotalQuantityOfNextLowerLevel) ;
+		addMapElement(DATA, "LabelName1", getSimpleValue( parentProd ,"01AC0017-LabelName1")) ;
+		addMapElement(DATA, "brandName", getLkpValue( parentProd ,"01AC0036-brandName","C07-Logo")) ;
+		addMapElement(DATA, "Width", filterDecimalZero(getSimpleValue(parentProd ,"04CP0095-Width"))) ;
+		addMapElement(DATA, "Length", filterDecimalZero(getSimpleValue(parentBUnit ,"04CP0103-Length"))) ;
+		addMapElement(DATA, "netWeight", filterDecimalZero(getSimpleValue(oitem ,"04CP0213-netWeight"))) ;	
+		addMapElement(DATA, "netWeightUnit", getLkpValue(oitem ,"04CP0214-netWeightUnit","C03-Code unité non standard")) ;
+		addMapElement(DATA, "PRODUCTIONSITE", siteSAPCode);
+		addMapElement(DATA, "PRODUCTIONSITENAME", siteName);
+		var productFunctions = getLkpMultiValues(parentProd, "03FN0068-ProductFunction","C03-Libellé");
+		addMapElement(DATA, "ProductFunction1",(productFunctions.size()>0 ? productFunctions[0] : ""));
+		addMapElement(DATA, "ProductFunction2",(productFunctions.size()>1 ? productFunctions[1] : ""));
+		addMapElement(DATA, "ENReference", getLkpValue( parentProd ,"05PG0245-ENReference", "C01-N° de norme")) ;
+		addMapElement(DATA, "IsNFCertified", getBooleanValue(parentProd, "05PG0248-NFCertified", "true", "false", ""));
+		addMapElement(DATA, "IsCECertified", getSimpleValue(parentProd, "05PG0249-CECertified"));
+		addMapElement(DATA, "handlingInstructions", getHandlingInstructions(oitem));
+		var productUses = getLkpMultiValues(parentProd, "07MO0442-ProductUse", "C02-Libellé");
+		addMapElement(DATA, "ProductUse1",(productUses.size()>0 ? productUses[0] : ""));
+		addMapElement(DATA, "ProductUse2",(productUses.size()>1 ? productUses[1] : ""));
+		addMapElement(DATA, "ProductUse3",(productUses.size()>2 ? productUses[2] : ""));
+		addMapElement(DATA, "LabelingHealth", getLkpValue(parentProd,"08IE0653-LabelingHealth","C01-Classement"));
+		//
+		return DATA;
+	}
+	else {
+		return null;
+	}
+}
+
+function canExport(oitem){
+    // Catalogue 
+    if (!oitem.getPrimaryKey().substring(1,4).contains("035")) {
+      return false;
+    }
+
+    // Que le PItem (?)
+    if (!oitem.getPrimaryKey().contains("I") && !oitem.getPrimaryKey().contains("B")) {
+      return false;
+    }
+
+	// Que les items éligibles à la publication dans SAP et possédant le material number
+	var strMaterialNumber="";
+	var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+	if(oItemMaterialNumberEn!=null) {
+		strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+	}
+	//
+	var strPublishedIntoSAP="";
+	var oItemPublishedIntoSAPEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0775-PublishedIntoSAP");
+	if(oItemPublishedIntoSAPEn!=null) {
+		strPublishedIntoSAP = checkString(oItemPublishedIntoSAPEn[0].getEntryNodeValue(),"");
+	}
+
+	if((strPublishedIntoSAP=="true" && strMaterialNumber=="") || strPublishedIntoSAP=="false") {
+      return false;
+	}
+	
+    // Les items ayant le statut 01AC0548-Status = ACTIF 
+    if (!getSimpleValue(oitem,"01AC0548-Status").contains("[ACTIVE] - Actif")) {
+      return false;
+    }
+
+    return true;
+}
+
+///////
+///////
+
+function getData(oitem){
+	var dataGrp = [];
+	var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+	var PlaceOfStorageGroup = getEn(oitem,"PlaceOfStorageGroup");
+	if(PlaceOfStorageGroup==null) { 
+		return dataGrp; 
+	}
+	var e;
+	catchError(e) {
+		for(var i=0; i<PlaceOfStorageGroup.size(); i++) {
+			var data = getDataSite(oitem, i);
+			if(data!=null) {
+				dataGrp.add(data);
+			}
+		}
+	}
+	if (e!=null){
+	    err.writeln("Error on "+oitem.getPrimaryKey()+", "+e); 
+	}
+	return dataGrp;
+}
+
+function getEtiquetteXML(oitem){
+    if(!canExport(oitem)) {
+      return "<!-- no partitionaccessories_etiquettes_export -->";
+    }
+    var dataGrp = getData(oitem);
+    if(dataGrp==null ||dataGrp.size()<1 ) {
+      return "<!-- no partitionaccessories_etiquettes_export -->";
+    }
+    var xml = "";
+    for(var i=0; i<dataGrp.size(); i++) {
+      xml = concat(xml,"<group name=\"partitionaccessories_etiquettes_export\">",buildMapElementXML(dataGrp[i]), "</group>");
+    }
+    var outWriter = createOtherOut("");
+    outWriter.writeln(xml);
+    outWriter.save("/test/partitionaccessories._"+today().formatDate("yyyyMMdd_HHmmss")+".xml");
+    return xml;
+}
+
+function getFullCSV(){
+	var oitem;
+    var csv = "";
+    var headerDone = false;
+    forEachCtgItem("C035-Acc ouvrages verticaux - Partition accessories",oitem) {
+	   var e;
+		catchError(e) {
+			if(!canExport(oitem)) {
+				continue;
+			}
+			logDebug("Export "+oitem.getPrimaryKey());
+			var dataGrp = getData(oitem);
+			for(var i=0; i<dataGrp.size(); i++) {
+				if (!headerDone){
+					csv = csv + buildMapElementCSV(dataGrp[i], true);
+					headerDone = true;
+				}
+				csv = csv + buildMapElementCSV(dataGrp[i], false);
+			}
+		} 
+		if (e!=null) { 
+			// out.writeln(oitem.getPrimaryKey()+" "+e);
+			// e=null;
+		}
+    }
+    return csv;
+}
+

@@ -1,0 +1,378 @@
+//
+// Export données PIPD pour GSB
+//
+
+//
+// technical utils functions
+//
+
+function addMapElement(mapEl, key, val) {
+    getScriptByPath("/scripts/triggers/LG.Library.Utils")
+          .getFunctionByName("addMapElement").invoke(mapEl, key, val);
+}
+
+function buildMapElementXML(mapEl) {
+   return getScriptByPath("/scripts/triggers/LG.Library.Utils") .getFunctionByName("buildMapElementXML").invoke(mapEl);
+}
+
+function buildMapElementCSV(mapEl, processKey){
+    return getScriptByPath("/scripts/triggers/LG.Library.Utils")
+              .getFunctionByName("buildMapElementCSV").invoke(mapEl, processKey);
+}
+
+//
+// functional utils functions
+//
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getBoolValue(oitem, nodeName){
+    var ovalue = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+	if(ovalue!=null && ovalue=="true") {
+		return "Oui";
+	}
+	else if(ovalue!=null && ovalue=="false") {
+		return "Non";
+	}
+	else {
+		return "";
+	}
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getDateValue").invoke(oitem, nodeName, "yyyyMMdd HH:mm:ss");
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpMultiValues").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getMultiValues(oItem,nodeName) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getMultiValues").invoke(oItem,nodeName);
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+function getItemLevel(oitem){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getItemLevel").invoke(oitem);
+}
+
+function getEn(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+               .getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,nodeName);
+}
+
+function getPublishingItemAtLevelPIPD(oitem,sLevel){
+    if (oitem == null) {
+      return null;
+    }
+    var level = getItemLevel(oitem);
+    if (level == sLevel) {
+      return oitem;
+    }
+    var oParent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+    // parent item may be in CA with recently updated values
+    // useful for cascade publishing
+    var oParentCtgName = oParent.getCatalog().getCtgName();
+    var collabAreaName =  "CA"+substring(oParentCtgName,1);
+    var collabArea = getCtgByName(collabAreaName);
+    var oParentCAitem = collabArea.getEntryByPrimaryKey(oParent.getPrimaryKey());
+    if (oParentCAitem!=null) {
+      return getPublishingItemAtLevelPIPD(oParentCAitem ,sLevel);
+    }
+    return getPublishingItemAtLevelPIPD(oParent,sLevel);
+}
+
+// 06DN0436-handlingInstructions
+function getHandlingInstructions(oitem){
+	var strHandlingInstructions = "";
+	var handlingInstructions = getEn(oitem,"06DN0436-handlingInstructions");
+	if (handlingInstructions!=null && handlingInstructions.size()>0) {
+		for(var i=0;i<handlingInstructions.size();i++) {
+			var strHandlingInstructionTemp = checkString(getLkpValue( oitem ,"06DN0436-handlingInstructions#"+i,"C02-Libellé"),"");
+			if(strHandlingInstructionTemp!="") {
+				if(strHandlingInstructions!="") {
+					strHandlingInstructions = strHandlingInstructions+"@#@"+strHandlingInstructionTemp;
+				} else {
+					strHandlingInstructions = strHandlingInstructionTemp;		
+				}
+			}
+		}
+	}
+	return strHandlingInstructions;
+}
+
+// 02FR0056-CertificateNF
+function getCertificateNF(oitem){
+	var strCertificateNF = "";
+	var productionSiteGroup = getEn(oitem,"ProductionSiteGroup");
+	if(productionSiteGroup==null) { return null; }
+	for(var i=0; i<productionSiteGroup.size(); i++) {
+		var strCertificateNFTemp = checkString(getLkpValue( oitem ,"ProductionSiteGroup#"+i+"/02FR0056-CertificateNF","C01-N°du certificat NF"),"");
+		if(strCertificateNFTemp!="") {
+			strCertificateNF = strCertificateNFTemp;
+			return strCertificateNF;
+		}
+	}
+	return "";
+}
+
+//
+//
+//
+
+// findSitePath
+// @desc return the attribute path of a production site from its code
+// @param oitem the item
+// @param siteCode the site code in 02FR0063-ProductionSite
+// @return the attribute path eg "ProductionSiteGroup#3"
+function findSitePath(oitem, siteCode){
+  var productionSiteGroup = getEn(oitem,"ProductionSiteGroup");
+  if(productionSiteGroup==null) { return null; }
+  for(var i=0; i<productionSiteGroup.size(); i++) {
+    var fProductionSite = getEn(oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite")[0].getEntryNodeValue();
+    if (fProductionSite.contains(siteCode)){
+      return "ProductionSiteGroup#"+i;
+    }
+  }
+  return null; 
+}
+
+// Concatenates all the elements of a string array, using the specified separator between each element. 
+function arrayJoin(array, separator){
+  var str = "";
+  for (var i=0; i<array.size(); i++){
+     str = str + ((i==0) ? "" : separator ) + array[i];
+  }
+  return str;
+}
+
+// filtre des décimaux finissant par '.0'  
+function filterDecimalZero(str){
+    if(str!=null && str!="") {
+		if(str.endsWith(".0")) {
+		   return  replace(str, ".0","");
+		}
+	}
+    return str;
+}
+
+function initGlobals(){
+	//On déclare la hash map
+    var hmGlobals = [];
+	//On récupère des fonctions qui sont stockées dans des librairies de fonctions,
+	//Elles seront utiles plus tard dans le programme
+	//On les stocke dans une hash map de variables globales
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+    hmGlobals["FN_GET_ENTRY_NODE_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeAtLevel");
+    hmGlobals["FN_GET_PARENT_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentAtLevel");
+    hmGlobals["FN_GET_STATUS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+	hmGlobals["FN_GET_ITEM_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemLevel");
+	//Recupere la constant kheops "QUOT" de la table L902-KheopsConstants et la stocke dans la variable globale
+    hmGlobals["QUOT"] = lookupValues(getLkpByName("L902-KheopsConstants"),"QUOT")[0];
+    return hmGlobals;
+}
+
+function getType(hmGlobals,item){
+	return hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+}
+
+function getItemLevel(hmGlobals,item){
+	return hmGlobals["FN_GET_ITEM_LEVEL"].invoke(item);
+}
+
+function getDataSite(oitem){
+	var hmGlobals = initGlobals();
+	var type = getType(hmGlobals,oitem);
+	var itemlevel = getItemLevel(hmGlobals,oitem);
+	//
+	var strBUnitERPCode="";
+	var strPItem1ERPCode="";
+	var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+	var parentBUnit;
+	if(type!="Prod") {
+		parentBUnit = getPublishingItemAtLevel(oitem,"BUnit");
+		strBUnitERPCode = parentBUnit.getPrimaryKey();
+	}
+	var parentPItem1;
+	if(itemlevel==4){
+		parentPItem1 = getPublishingItemAtLevelPIPD(oitem,3);
+		strPItem1ERPCode = parentPItem1.getPrimaryKey();
+	}
+	var DATA = [];
+	addMapElement(DATA, "ERPCODE", getSimpleValue( oitem ,"01AC0044-ERPCode"));
+	addMapElement(DATA, "STATUS", getSimpleValue( oitem ,"01AC0548-Status"));
+	addMapElement(DATA, "CREATION_DATE", getDateValue( oitem ,"01AC0006-CreationDate"));
+	addMapElement(DATA, "LONG_NAME", getSimpleValue( oitem ,"01AC0012-LongName"));
+	addMapElement(DATA, "INVOICE_NAME", getSimpleValue( oitem ,"01AC0014-invoiceName"));
+	if(type=="PItem") {
+		addMapElement(DATA, "MATERIAL_TYPE", getLkpValue( parentBUnit ,"01AC0659-MaterialType","C04-Description/fr_FR")); 
+		
+	} else {
+		addMapElement(DATA, "MATERIAL_TYPE", getLkpValue( oitem ,"01AC0659-MaterialType","C04-Description/fr_FR")); 
+	}
+	addMapElement(DATA, "GTIN", getSimpleValue(oitem, "01AC0042-GTIN"));
+	addMapElement(DATA, "MATERIAL_NUMBER", getSimpleValue( oitem ,"01AC0664-MaterialNumber"));
+	addMapElement(DATA, "BASE_UNIT_OF_MESURE", getLkpValue( oitem ,"06DN0661-BaseUnitOfMeasure","C04-Description/fr_FR"));  
+	if(type=="PItem") {
+		addMapElement(DATA, "INTRASTAT_CODE", getLkpValue( parentBUnit ,"06DN0774-IntrastatCode","C04-Description/fr_FR"));
+		
+	} else {
+		addMapElement(DATA, "INTRASTAT_CODE", getLkpValue( oitem ,"06DN0774-IntrastatCode","C04-Description/fr_FR"));
+	}
+	addMapElement(DATA, "NET_WEIGHT", getSimpleValue( oitem ,"04CP0213-netWeight"));
+	addMapElement(DATA, "NET_WEIGHT_UNIT", getLkpValue( oitem ,"04CP0214-netWeightUnit","C03-Code unité non standard")); 
+	addMapElement(DATA, "COMMERCIAL_THICKNESS", getSimpleValue( parentProd ,"04CP0080-CommercialThickness"));  
+	addMapElement(DATA, "COMMERCIAL_THICKNESS_UNITS", getLkpValue( parentProd ,"04CP0081-CommercialThicknessUnits","C03-Code unité non standard"));  
+	addMapElement(DATA, "REAL_THICKNESS", getSimpleValue( parentProd ,"04CP0082-RealThickness"));  
+	addMapElement(DATA, "REAL_THICKNESS_UNITS", getLkpValue( parentProd ,"04CP0084-RealThicknessUnits","C03-Code unité non standard"));    
+	addMapElement(DATA, "HEIGHT", getSimpleValue( oitem ,"04CP0114-Height"));  
+	addMapElement(DATA, "HEIGHT_UNITS", getLkpValue( oitem ,"04CP0115-HeightUnits","C03-Code unité non standard"));      
+	addMapElement(DATA, "WIDTH", filterDecimalZero(getSimpleValue(parentProd ,"04CP0095-Width")));  
+	addMapElement(DATA, "WIDTH_UNIT", getLkpValue( parentProd ,"04CP0097-WidthUnit","C03-Code unité non standard"));  
+	addMapElement(DATA, "DEPTH", filterDecimalZero(getSimpleValue( oitem ,"04CP0116-Depth")));  
+	addMapElement(DATA, "DEPTH_UNITS", getLkpValue( oitem ,"04CP0117-DepthUnits","C03-Code unité non standard")); 
+	if(type!="Prod") {
+		addMapElement(DATA, "LENGTH", filterDecimalZero(getSimpleValue( parentBUnit ,"04CP0103-Length")));  
+		addMapElement(DATA, "LENGTH_UNITS", getLkpValue( parentBUnit ,"04CP0104-LengthUnits","C03-Code unité non standard"));
+	}
+	else {
+		addMapElement(DATA, "LENGTH", "");  
+		addMapElement(DATA, "LENGTH_UNITS", "");
+	}
+	addMapElement(DATA, "FRONT_FACING_COLOUR", getLkpValue( parentProd ,"04CP0163-FrontFacingColour","C02-Libellé"));   
+	addMapElement(DATA, "BACK_FACING_COLOUR", getLkpValue( parentProd ,"04CP0164-BackFacingColour","C02-Libellé"));  
+	addMapElement(DATA, "MATERIAL", getLkpValue( parentProd ,"04CP0226-Material","C02-Libellé"));  
+	addMapElement(DATA, "EUROCLASSE_CLASSIFICATION_OF_BOARD", getLkpValue( parentProd ,"05PC0579-EuroclasseClassificationOfBoard","C02-Libellé"));
+	addMapElement(DATA, "DESCRIPTION_LONG", getSimpleValue(parentProd, "03FN0065-DescriptionLong"));
+	addMapElement(DATA, "INSULATION_THICKNESS", filterDecimalZero(getSimpleValue( parentProd ,"04CP0089-InsulationThickness"))) ;
+	addMapElement(DATA, "INSULATION_THICKNESS_UNITS", getLkpValue( parentProd ,"04CP0090-InsulationThicknessUnits","C03-Code unité non standard")); 
+	if(type!="Prod") {	
+		addMapElement(DATA, "SURFACE_AREA", filterDecimalZero(getSimpleValue( parentBUnit ,"04CP0105-SurfaceArea")));  
+		addMapElement(DATA, "SURFACE_AREA_UNITS", getLkpValue( parentBUnit ,"04CP0106-SurfaceAreaUnits","C03-Code unité non standard"));  
+	}
+	else {
+		addMapElement(DATA, "SURFACE_AREA", "");  
+		addMapElement(DATA, "SURFACE_AREA_UNITS", "");  
+	}
+	addMapElement(DATA, "USAGE_ADVICE", getSimpleValue(parentProd, "07MO0466-UsageAdvice"));
+	addMapElement(DATA, "EUROCLASSE_CLASSIFICATION", getLkpValue( parentProd ,"05PC0305-EuroclasseClassification","C02-Libellé"));  
+	addMapElement(DATA, "CLASSIFICATION_M", getLkpValue( parentProd ,"05PC0306-ClassificationM","C02-Libellé"));
+	addMapElement(DATA, "LABELING_HEALTH", getLkpValue( parentProd ,"08IE0653-LabelingHealth","C02-Libellé"));  
+	addMapElement(DATA, "REAL_BOARD_THICKNESS", filterDecimalZero(getSimpleValue(parentProd ,"04CP0087-RealBoardThickness")));  
+	addMapElement(DATA, "REAL_BOARD_THICKNESS_UNITS", getLkpValue( parentProd ,"04CP0088-RealBoardThicknessUnits","C03-Code unité non standard"));  
+	addMapElement(DATA, "HANDLING_INSTRUCTIONS", getHandlingInstructions(oitem));
+	addMapElement(DATA, "NET_WEIGHT", filterDecimalZero(getSimpleValue( oitem ,"04CP0213-netWeight")));  
+	addMapElement(DATA, "NET_WEIGHT_UNIT", getLkpValue( oitem ,"04CP0214-netWeightUnit","C03-Code unité non standard"));    
+	addMapElement(DATA, "GROSS_WEIGHT", filterDecimalZero(getSimpleValue( oitem ,"04CP0215-grossWeight")));  
+	addMapElement(DATA, "GROSS_WEIGHT_UNIT", getLkpValue( oitem ,"04CP0216-grossWeightUnit","C03-Code unité non standard"));    
+	addMapElement(DATA, "ROUGH_VOLUME", filterDecimalZero(getSimpleValue( oitem ,"04CP0217-RoughVolume")));  
+	addMapElement(DATA, "ROUGH_VOLUME_UNIT", getLkpValue( oitem ,"04CP0218-RoughVolumeUnit","C03-Code unité non standard"));   
+	addMapElement(DATA, "NUMBER_OF_PACKAGED_ITEMS", getSimpleValue( oitem ,"06DN0402-NumberOfPackagedItems"));
+	addMapElement(DATA, "CE_CERTIFIED", getBoolValue( parentProd ,"05PG0249-CECertified"));
+	// 02FR0056-CertificateNF
+	addMapElement(DATA, "CERTIFICATE_NF",getCertificateNF(parentProd));
+	addMapElement(DATA, "EN_REFERENCE", getLkpValue( parentProd ,"05PG0245-ENReference","C01-N° de norme"));  
+	addMapElement(DATA, "EN_PRODUCT_TYPE", getLkpValue( parentProd ,"05PG0246-ENProductType","C01-Type de produit selon la norme en code")); 
+	addMapElement(DATA, "DOP_NUMBER", getSimpleValue( parentProd ,"05PG0767-DOPNumber"));
+	addMapElement(DATA, "PRODUCT_TYPE_ID", getSimpleValue( parentProd ,"05PG0768-ProductTypeID"));
+	addMapElement(DATA, "PRODUCT_USAGE", getSimpleValue( parentProd ,"05PG0770-ProductUsage"));
+	addMapElement(DATA, "PROD_ERPCODE",parentProd.getPrimaryKey());
+	addMapElement(DATA, "BUNIT_ERPCODE",strBUnitERPCode);
+	addMapElement(DATA, "PITEM1_ERPCODE",strPItem1ERPCode);
+	//
+	return DATA;
+}
+
+function getData(oitem){
+  var dataGrp = [];
+  var e;
+  catchError(e) {
+	  dataGrp.add(getDataSite(oitem));
+  }
+  if (e!=null){
+    err.writeln("Error on "+oitem.getPrimaryKey()+", "+e); 
+  }
+  return dataGrp;
+}
+
+function canExport(oitem){
+    // Canal GSB
+	var bIsGSB = false;
+	var channelOfDistributionGroup = getEn(oitem,"ChannelOfDistributionGroup");
+	for(var i=0; i<channelOfDistributionGroup.size(); i++) {
+		var strChannelOfDistribution = getEn(oitem,"ChannelOfDistributionGroup#"+i+"/06DN0422-ChannelOfDistribution")[0].getEntryNodeValue();
+		var bIsInCatalog = getEn(oitem,"ChannelOfDistributionGroup#"+i+"/06DN0346-IsInCatalog")[0].getEntryNodeValue();
+		if(strChannelOfDistribution=="[02] - Grand Public" && (bIsInCatalog=="true" || bIsInCatalog==true)) {
+			bIsGSB=true;
+		}
+	}
+	if(bIsGSB==false) {
+		return false;
+	}
+
+    // Les items ayant le statut 01AC0548-Status = ACTIF 
+    if (!getSimpleValue(oitem,"01AC0548-Status").contains("[ACTIVE] - Actif")) {
+      return false;
+    }
+
+    return true;
+}
+
+///////
+///////
+
+function getFullCSV(){
+    var oitem;
+    var csv = "";
+    var headerDone = false;
+	var oKey;
+	var ctgName;
+	var ctgs = getCatalogNamesList();
+	forEachHmElement(ctgs,oKey,ctgName) {
+		strCatalogCode=substring(ctgName,1,4);
+		if(strCatalogCode=="010" || strCatalogCode=="015" || strCatalogCode=="020" || strCatalogCode=="025" || strCatalogCode=="030" || strCatalogCode=="035" || strCatalogCode=="040" || strCatalogCode=="045" || strCatalogCode=="065" || strCatalogCode=="070" || strCatalogCode=="075" || strCatalogCode=="110" || strCatalogCode=="135" || strCatalogCode=="145") {
+			forEachCtgItem(ctgName,oitem) {
+				var e;
+				catchError(e) {
+					if(!canExport(oitem)) {
+						continue;
+					}
+					logDebug("Export "+oitem.getPrimaryKey());
+					var dataGrp = getData(oitem);
+					for(var i=0; i<dataGrp.size(); i++) {
+						if (!headerDone){
+							csv = csv + buildMapElementCSV(dataGrp[i], true);
+							headerDone = true;
+						}
+						csv = csv + buildMapElementCSV(dataGrp[i], false);
+					}
+				} 
+				if (e!=null) { 
+					// out.writeln(oitem.getPrimaryKey()+" "+e);
+					// e=null;
+				}
+			}
+		}
+	}
+    return csv;
+}

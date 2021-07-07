@@ -1,0 +1,523 @@
+// Si on lance le script plusieurs fois dans la même session, alors celui-ci ne prends pas en compte
+// les nouveaux items.
+// Cela ne pose pas de pb en fonctionnement normal, puisque ce script est schedulé.
+
+
+/// output warning msg 
+//:GLFUNCTION void outputWarning(sMsg) 
+function outputWarning(sType, sMsg) {
+        out.writeln(sType + " " + sMsg);
+}
+
+/// output Debug msg 
+//:GLFUNCTION void outputDebug(sMsg) 
+function outputDebug(sMsg) {
+        out.writeln(sMsg);
+        logDebug(sMsg);
+}
+
+/// output Debug msg 
+//:GLFUNCTION void outputError(sMsg) 
+function outputError(sType, sMsg) {
+//        out.writeln("<span class='error'>" + sType + "-" + sMsg + "</span>");
+        out.writeln(sType + " - " + sMsg);
+}
+
+function wmrefresh(aLkp){
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var hmRequestProperties=[];
+	hmRequestProperties["Authorization"]=lookupValues(lkpTableKheopsConstants,"WM_AUTHORIZATION")[0];
+	var hmParameters=[];
+	// construct csv string from aLkp and pass it as parameter.
+	hmParameters["pLkpList"]="";
+	if (aLkp!=null && aLkp.size()>0) // partial refresh (?)
+	{
+		var oKey;
+		var oValue;
+		forEachHmElement(aLkp,oKey,oValue) {
+			hmParameters["pLkpList"]=hmParameters["pLkpList"] + oValue + ",";
+		}
+	}
+	var sRequestMethod="GET";
+	var sURL="http://" + lookupValues(lkpTableKheopsConstants,"HOST_WMIS")[0] +":5555/invoke/" +lookupValues(lkpTableKheopsConstants,"WM_SERVICE_LKP_REFRESH")[0];
+	var res=getHTTPResponse(sURL,hmRequestProperties, hmParameters, sRequestMethod);
+	// no ERROR treatment...
+}
+// -----------------------------------------------------------------------
+// Description: Return array containing information and order of files to.
+//			 	the data is | delimited as follow be imported
+//				<ul>
+//					<li>file type, XLS, CSV
+//					<li>lookup table to import
+//					<li>file path
+//					<li>csv delimited file info
+//					<ul>
+//						<li>[key] column in csv file
+//						<li>libel column in csv file
+//						<li>key column position in lookup spec.
+//						<li>spreadsheet index if xls file or charset if CSV
+//					</ul>
+// 				</ul>
+// Prototype:   String[] getImportOrder(){
+// Parameter:  	none
+// Return:      list of string
+// -----------------------------------------------------------------------
+// @return array of file and file type and file info to import
+//:GLFUNCTION string[] getCSVImportOrder()
+function getImportOrder(aLkp){
+	var hm=[];
+	var listOrder=[];
+	hm["L025"]="0,1,1";
+	hm["L029"]="0,1,1";
+	hm["L032"]="0,1,1";
+	hm["L034"]="0,1,1";
+	hm["L036"]="0,1,1";
+	hm["L037"]="0,1,1";
+	hm["L038"]="0,1,1";
+	hm["L039"]="0,1,1";
+	hm["L040"]="0,1,1";
+	hm["L045"]="0,1,1";
+	hm["L046"]="0,2,1";
+	hm["L066"]="0,2,1";
+	hm["L080"]="0,1,1";
+	hm["L081"]="0,1,1";
+	hm["L082"]="0,1,1";
+	hm["L089"]="0,1,1";
+	hm["L091"]="0,1,1";
+	hm["L092"]="0,1,1";
+	hm["L098"]="0,1,1";
+	hm["L123"]="0,0,0";
+	hm["L155"]="0,1,1";
+	hm["L167"]="0,1,1";
+	hm["L169"]="0,1,1";
+	hm["L205"]="0,1,1";
+	hm["L208"]="0,1,1";
+	hm["L209"]="0,1,1";
+	hm["L218"]="0,1,1";
+	hm["T134T"]="0,1,1";
+	var oKey;
+	var oValue;
+	if (aLkp==null || aLkp.size()==0)
+	{
+		forEachHmElement(hm,oKey,oValue) {
+			listOrder.add("csv|"+oKey+"|file:///var/ftp/lookups/"+oKey+".csv|"+ oValue+ ",UTF-8");
+		}
+	}
+	else
+	{
+		var i=0;
+		for (i=0;i<aLkp.size();i++){
+			var oKey=aLkp[i];
+			var oValue=hm[oKey];
+			if (oValue!=null){
+				listOrder.add("csv|"+oKey+"|file:///home/pim/ftp/lookups/"+oKey+".csv|"+ oValue+ ",UTF-8");
+			}
+		}
+	}
+	return listOrder;
+}
+
+// -----------------------------------------------------------------------
+// Description: Return a parser following parameters passed in argument.
+//			 	the argument is | delimited as follow be imported
+//				<ul>
+//					<li>file type, XLS, CSV
+//					<li>lookup table to import
+//					<li>file path
+//					<li>csv delimited file info
+//					<ul>
+//						<li>header row number
+//						<li>start data column
+//						<li>key column 
+//						<li>spreadsheet index if xls file or charset if CSV
+//					</ul>
+// 				</ul>
+// Prototype:   Object getParser(String sParam){
+// Parameter:  	sParam	string pipe delimited
+// Return:      a parser
+// -----------------------------------------------------------------------
+/// @param sParam string | delimited (file type, target lkp, file path, sOptions)
+/// @return parser on the file to process
+//:GLFUNCTION PARSER getParser(STRING)
+function getParser(sParam){
+	var result=[];
+	var listAttrs = sParam.parseDelim("|");
+	
+	var sFileType 	= listAttrs[0];
+	var sFilePath 	= listAttrs[2];
+	var sOptions 	= listAttrs[3];
+	var oParser 		= null;
+	
+	var lkpTableMapping = getLkpByName("LKP_SAPTableMapping");
+	
+	var err;
+	catchError(err) 
+	{
+		if(toUpperCase(sFileType)=="CSV")
+		{
+			var sCharset = checkString(parseCSV(sOptions)[3],"UTF-8");
+			var oReader = new Reader(sFilePath,sCharset);
+			
+			if(oReader!=null) 
+			{							
+				oParser = new CSVParser(oReader);
+				var s=oParser.splitLine()[0];//Get the name of the lookuptable from the first line
+				//TODO add mapping for tables from SAP
+				var strLkpName = lookup(lkpTableMapping, s);
+				result["lkpname"]=strLkpName.decodeUsingCharset("UTF-8");
+			} else {
+				outputError("MISSING",sFilePath);
+			}
+		}
+	}
+	if(err!=null){
+		outputError("ERROR Processing",sFilePath);
+		outputError("ERROR",err);
+	}
+	result["parser"]=oParser;
+	return result;
+}
+
+// -----------------------------------------------------------------------
+// Description: return a hash map with parser options
+// Prototype:   HashMap getOptions(String sParam)
+// Parameter:  	sParam	string pipe delimited
+// Return:      HashMap with key/value 
+//				<ul>
+//					<li>HEAD_ROW/Integer
+//					<li>START_COLUMN/Integer
+//					<li>PKID_COLUMN/Integer 
+//					<li>CHARSET/String
+//				</ul>
+// -----------------------------------------------------------------------
+/// @param sParam	string pipe delimited
+/// @return HashMap with key HEAD_ROW,START_COLUMN,PKID_COLUMN,CHARSET
+//:GLFUNCTION HASHMAP getOptions(STRING)
+function getOptions(sParam){
+	var sOptions = sParam.parseDelim("|")[3];
+	var listOptions = parseCSV(sOptions);
+	var hmOptions = [];
+	hmOptions["PK1"] = checkInt(listOptions[0],0);
+	hmOptions["PK2"] = checkInt(listOptions[1],0);
+	hmOptions["KHEOPS_KEY_POS"] = checkInt(listOptions[2],0);
+	hmOptions["CHARSET"] = listOptions[3];
+	
+	return hmOptions;
+}
+
+function showHmAsHTML(params,hm){
+	out.writeln("<table>");
+	var oKey;
+	var oValue;
+	var i;
+	out.writeln("<tr>");
+	for (i=0;i<params.size();i++){
+		out.writeln("<th>"+params[i]+"</th>");
+	}
+	out.writeln("</tr>");
+
+	forEachHmElement(hm,oKey,oValue) {
+		out.writeln("<tr>");
+		for (i=0;i<params.size();i++){
+			out.writeln("<td>"+ checkString(oValue[params[i]],"")+"</td>");
+		}
+		out.writeln("</tr>");
+	}
+
+	out.writeln("</table>");
+}
+
+function showHmAsText(params,hm){
+	var oKey;
+	var oValue;
+	var i;
+	var aLen=[];
+	aLen.add(20);
+	aLen.add(10);
+	aLen.add(50);
+	aLen.add(50);
+	aLen.add(200);
+	var s=0;
+	for (i=0;i<aLen.size();i++){
+		s = s + aLen[i]; 
+	}
+	
+	out.writeln(resizeString("",s,"-",true));	
+	
+	for (i=0;i<params.size();i++){
+		out.write(resizeString(params[i],aLen[i]," ",true));
+	}
+	out.writeln("");
+	forEachHmElement(hm,oKey,oValue) {
+		for (i=0;i<params.size();i++){
+			out.write(resizeString(checkString(oValue[params[i]],""),aLen[i]," ",true));
+		}
+		out.writeln("");
+	}
+	out.writeln(resizeString("",s,"-",true));	
+}
+
+
+function formatOutput(sReport){
+	var oKey;
+	var oValue;
+	var params=[];
+	params.add("key");
+	params.add("type");
+	params.add("before");
+	params.add("new");
+	params.add("info");
+	showHmAsText(params,sReport["detail"]);
+	
+	var params=[];
+	params.add("created");
+	params.add("modified");
+	params.add("errors");
+	showHmAsText(params,sReport["summary"]);
+	
+}
+
+// -----------------------------------------------------------------------
+// Description: save and commit a list of Item
+// Prototype:   List commitItemSave(List listItem)
+// Parameter:  	listItem list of items
+// Return:      empty array
+// -----------------------------------------------------------------------
+/// @param listItem list of items
+/// @return empty array
+//:GLFUNCTION ARRAY commitItemSave(STRING, PARSER)
+function commitItemSave(listItem) {
+	useTransaction {
+		for(var i=0;i<listItem.size();i++){
+			var item = listItem[i];
+			if(item!=null){
+				item.saveCtgItem();
+			}
+		}
+	}
+	return [];
+}
+// -----------------------------------------------------------------------
+// Description: Load a lookup table with the provided parser
+// Prototype:   void loadLookUp(String sLkpName,Object oParser)
+// Parameter:  	sLkpName lookup table name
+//				oParser parser to read
+//				hmOptions hash map with options (header row, start colunm, key column)
+// Return:      none
+// -----------------------------------------------------------------------
+/// @param : string lookup table name 
+/// @param : parser on the file containing data
+///	@param hmOptions hash map with options (header row, start colunm, key column)
+//:GLFUNCTION Void loadLookUp(STRING, PARSER)
+function loadLookUp(sLkpName,oParser,hmOptions) {
+	var ctgLkp = getCtgByName(sLkpName);
+	var lkp=getLkpByName(sLkpName);
+	
+	var listItem = [];
+
+	var iCreatedItems=0;
+	var iModifiedItems=0;
+	var iErrors=0;
+	var sResult=[];
+	sResult["detail"]=[];
+	sResult["summary"]=[];
+	if (ctgLkp==null)
+	{
+		var sMsg=[];
+		sMsg["key"]="";
+		sMsg["type"]="ERROR";
+		sMsg["info"]="Lookup '" + sLkpName +"' does not exist.";
+		sMsg["before"]=null;
+		sMsg["new"]=null;
+		sResult["detail"].add(sMsg);
+
+		var sInfo=[];
+		sInfo["created"]=0;
+		sInfo["modified"]=0;
+		sInfo["errors"]=1;
+		sResult["summary"].add(sInfo);
+		return sResult;
+	}
+	else
+	{
+	
+		var specLkp = ctgLkp.getCtgSpec(true);
+		var listSpecAttrPaths = specLkp.getSpecAttribPaths();		
+		var listAttrs = oParser.splitLine();	
+		
+		var bDone = (listAttrs==null);
+
+		while(!bDone) {
+			var listAttrs2 =[];
+			var sMsg=[];
+			var bNeedSave = false;
+			var bError = false;
+			var itemLkp=null;
+
+			// on decale les colonnes d'un cran vers la droite pour construire la PK "[key] - libellé"
+			// listAttrs ={V1,V2}
+			// il faut la transformer en  listAttrs ={[V1] - V2 , V1 , V2}
+			var i;
+			var sKheopsKey = "";
+			var sRealKey= "";
+			if (hmOptions["PK1"]==hmOptions["PK2"])
+			{
+				sRealKey = trim(listAttrs[hmOptions["PK1"]].decodeUsingCharset("UTF-8"));
+				sKheopsKey = sRealKey;
+			}
+			else
+			{
+				sRealKey = trim(listAttrs[hmOptions["PK1"]].decodeUsingCharset("UTF-8"));
+				var sLibel = listAttrs[hmOptions["PK2"]].decodeUsingCharset("UTF-8");
+				sKheopsKey = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getLkpKey").invoke(sRealKey,sLibel);			
+			}
+			listAttrs2[listSpecAttrPaths[0]]=sKheopsKey;
+			
+			for (i=1;i<listSpecAttrPaths.size();i++){
+				listAttrs2[listSpecAttrPaths[i]]=checkString(listAttrs[i-1],"").decodeUsingCharset("UTF-8");
+			}
+			
+			// on va faire une lookup sur la 2eme colonne en fait.
+			//itemLkp = ctgLkp.getCtgItemByPrimaryKey(sKey);
+			if (hmOptions["KHEOPS_KEY_POS"]==0)
+			{
+				itemLkp = ctgLkp.getCtgItemByPrimaryKey(sKheopsKey);
+			}
+			else
+			{
+				var aLkp=[];
+				aLkp[listSpecAttrPaths[hmOptions["KHEOPS_KEY_POS"]]]=trim(sRealKey);
+				var r=lkp.getKeysFromValues(aLkp);
+				if (r!=null){
+					if (r.size()>1)
+					{
+						sMsg["key"]=sRealKey;
+						sMsg["type"]="<span class='error'>ERROR</span>";
+						sMsg["info"]="More than one line was found";
+						sResult["detail"].add(sMsg);
+						iErrors++;
+						bError=true;
+					}
+					else
+					{
+						itemLkp = ctgLkp.getCtgItemByPrimaryKey(r[0]);
+					}
+					
+				}
+			}
+
+			if (!bError) 
+			{
+				if(itemLkp==null){
+					itemLkp = new CtgItem(ctgLkp);
+					iCreatedItems++;
+					sMsg["key"]=sRealKey;
+					sMsg["type"]="CREATION";
+					sResult["detail"].add(sMsg);
+					bNeedSave = true;
+				}
+				
+				//check if an attribute value has changed, if so then modify the item
+                for(var j=0;j<listSpecAttrPaths.size();j++){
+                    var currentSpecPath = listSpecAttrPaths[j];
+                    if (currentSpecPath.contains("C03-JDECode")) {
+                      // AS400 has no JDE code and must not override them
+                      // with a blank value 
+                      continue;
+                    }
+                    var oldval = checkString(itemLkp.getCtgItemAttrib(currentSpecPath),"");
+                    var newval = checkString(listAttrs2[currentSpecPath],"");
+                    if (oldval != newval){
+                        if (checkString(sMsg["type"],"")==""){
+                            sMsg["key"]=checkString(sRealKey,sKey);
+                            sMsg["type"]="MODIF";
+                            sMsg["info"]=getRidOfRootName(currentSpecPath);
+                            sMsg["before"]=oldval;
+                            out.writeln("OLD   :   " + oldval);
+                            sMsg["new"]=newval;
+                            out.writeln("NEW   :   " + newval);
+                            sResult["detail"].add(sMsg);
+                        }
+                        itemLkp.setCtgItemAttrib(currentSpecPath,newval);
+                        iModifiedItems++;
+                        bNeedSave=true;
+                    }
+                }
+	
+				if (bNeedSave){	
+					listItem.add(itemLkp);
+				}
+				
+				if(listItem.size()>50) {
+				//	listItem = commitItemSave(listItem);
+				}
+			}
+			
+			listAttrs = oParser.splitLine();
+			bDone = (listAttrs==null);
+//			bDone = true;
+		}
+		//commitItemSave(listItem);
+	}
+	var sInfo=[];
+	sInfo["created"]=iCreatedItems;
+	sInfo["modified"]=iModifiedItems;
+	sInfo["errors"]=iErrors;
+	sResult["summary"].add(sInfo);
+	return sResult;
+}
+
+// -----------------------------------------------------------------------
+// Description: Initialize lookup tables with data
+// Prototype:   void processLookupImport()
+// Parameter:  	none
+// Return:      none
+// -----------------------------------------------------------------------
+//:GLFUNCTION Void processLookupImport()
+function processLookupImport(aLkp) {
+	var glErr = null;
+//	out.writeln("<html><head>");
+//	out.writeln("<style type='text/css'>");
+//	out.writeln("body {font-family: monospace;} table, td, th {border: solid thin; padding: 0.2em; border-collapse: collapse;}.error{color: red;}");
+//	out.writeln("</style>");
+//	out.writeln("</head>");
+//	out.writeln("<body>");
+	//wmrefresh(aLkp);//TODO this line triggers the csv file creation??
+	catchError(glErr) {
+		var listImports = getImportOrder(aLkp);
+		for(var k=0;k<listImports.size();k++) {	
+			var sParam = listImports[k];
+			var p=getParser(sParam);
+			var oParser = p["parser"];
+			var sLkpName = p["lkpname"];
+			var hmOptions = getOptions(sParam);
+			var impErr = null;
+			var sReport=[];
+
+			catchError(impErr) {
+//				outputDebug("<H1>"+ sLkpName + "</H1>");
+				outputDebug("### "+ sLkpName + "###");
+				//TODO here the lookups are loaded, skip for testing..
+				sReport=loadLookUp(sLkpName,oParser,hmOptions);
+				//formatOutput(sReport);
+			}
+			if(impErr!=null)
+			{			
+				outputError("ERROR :", impErr + "<br>");
+			} 
+		}
+	}
+	if(glErr!=null){
+		outputError("ERROR", glErr);
+	}
+//	out.writeln("</body></html>");
+	return "";
+}
+
+var aLkp=[];
+aLkp.add("T134T");
+//aLkp.add("L209");
+//aLkp.add("L092");
+//aLkp.add("L155");
+processLookupImport(aLkp);
+//wmrefresh(aLkp);

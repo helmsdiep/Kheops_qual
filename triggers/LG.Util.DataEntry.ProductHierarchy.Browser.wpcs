@@ -1,0 +1,23 @@
+function getURL(entry)
+{
+//	hostName = "172.24.3.75:7507";
+	var TriggerScriptName = "LG.Util.ProductHierarchy.Browser";
+	var containerType;
+	var containerName;
+	if (entry.isEntryAnItem())
+	{
+		containerType = "CATALOG";
+		containerName = entry.getCatalog().getCtgName();
+	}
+	else
+	{
+		containerType = "CATEGORY_TREE";
+		containerName = entry.getCategoryTree().getCategoryTreeName();
+	}
+	///@CHANGED hvdheuvel 10-10-12
+	///invoker.jsp now also requires an invoking_user
+	var usrCurrentUser = getCurrentUserName();
+	var returnURL = "/utils/invoker.jsp?script=" + TriggerScriptName + "&action=displayHierarchy&bUserOutput=false&company_code=" + getCompanyCode() + "&invoking_user=" + usrCurrentUser + "/"  + getCompanyCode() + "&itemCtgName=" + urlEncode(containerName) +"&itemPrimaryKey=" + entry.getPrimaryKey();
+	return returnURL;
+	//return "http://www.google.com";
+}

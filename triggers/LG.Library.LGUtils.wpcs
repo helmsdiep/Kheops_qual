@@ -1,0 +1,1133 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Library.LGUtils
+// @description: 
+//   consolidate every utility functions specific to Kheops project
+//   here 
+//
+/////////////////////////////////////////////////////////////////
+
+// @brief addValuesToMultiValues() add a list of values to a multi-value attribute
+// @param item
+// @param sShortAttrName, eg "03FN0068-ProductFunction"
+// @param aValues, ["a","b","c"]
+// @param clear: if set to true, will replace all existing values, otherwise will only add selected values
+// @return the new value list.
+function addValuesToMultiValues(item, sShortAttrName, aValues, clear) {
+    clear = (clear == null ? false : clear);
+    if (item != null) {
+        var getEntryNodesFromAttrPath = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+
+        // find full attribute path
+        var hm = item.getEntryAttribsList();
+        fullAttrPath = "";
+        forEachHmElement(hm, oKey, oValue){
+            if (oValue.contains(sShortAttrName)) {
+                fullAttrPath = oValue;
+                break;
+            }
+        }
+
+        if (fullAttrPath != "") {
+            // get existing entries if any, and get their values.
+            var en = getEntryNodesFromAttrPath.invoke(item, sShortAttrName);
+            var v = [];
+            if (!clear) {
+                if (en != null) {
+                    forEachHmElement(en, oKey, oValue){
+                        v.add(oValue.getEntryNodeValue());
+                    }
+                }
+            }
+            // at this stage, v contains list of existing values
+            // so merge it with the new values
+            // please note that mergeValues will also de-duplicate values.
+            v = mergeValues(v, aValues);
+            item.setEntryAttribValues(fullAttrPath, v);
+            return v;
+        }
+    }
+    return null;
+}
+
+// get a deduplicated CSV array of String
+function getDedupCSV(aArray,sep){
+	var res="";
+	var hm=[];
+	if (aArray!=null){
+		forEachHmElement(aArray,oKey,oValue){
+			if (oValue!=null){
+				hm[oValue]="ok";
+			}
+		}
+		var first=true;
+		forEachHmElement(hm,oKey,oValue){
+			res=res + (first ? "":sep) + oKey;
+			first=false;
+		}
+		
+	}
+	return res;
+}
+// convertL210NumberToUnit
+// @desc take as input a value and units from L210 table to return a converted value.
+// @param srcNumber value to convert
+// @param srcUnit source unit (L210 key)
+// @param dstUnit target unit (L210 key)
+// @return double
+// 
+function convertL210NumberToUnit(srcNumber,srcUnit,dstUnit){
+    var lkpTableNormalizedUnits = getCtgByName("L210-Unités normées - normalized units");
+    var coef1=lkpTableNormalizedUnits.getEntryByPrimaryKey(srcUnit).getEntryAttrib("SL210-normalized_units/C06-Coef");
+    var coef2=lkpTableNormalizedUnits.getEntryByPrimaryKey(dstUnit).getEntryAttrib("SL210-normalized_units/C06-Coef");
+    return srcNumber*coef1/coef2;
+}
+
+// getLGNextSeqValue
+// @desc return next sequence value for seq_name
+// this is a custom function returning an Oracle sequence
+// @param seq_name Oracle sequence name
+// @return integer
+function getLGNextSeqValue(seq_name){
+    var n=0;
+    ///@CHANGED - hvdheuvel 10-10-12
+    ///Created a sequence in the database to use
+	var queryString = "SELECT PIM." + seq_name + ".nextval from dual";
+	var dbContext=getWPCDBContext();
+    var connection=dbContext.getWPCDBConnection();
+	var resultset = connection.executeQuery(queryString);
+    resultset.next();
+	n=toInteger(resultset.getColumnAt(1));
+	dbContext.releaseWPCDBConnection(connection);
+	return n;
+}
+
+// ================================================================================
+//
+// @brief getCtgNameFromErpCode() set the constant attribute used in the script
+// @param sErpCode the ERP code ID
+// @return the catalog name used
+function getCtgNameFromErpCode(sErpCode) {
+	var sCtgName;
+	var i;
+	
+	log.loggerDebug("Get Catalog Name From ERPCode: "        + sErpCode);
+	
+	var sTempCodeCtg = "C" + substring(sErpCode,1,4);
+	var aListCtg = getCatalogNamesList("LIST");
+//	var aListCtg = []; //getCatalogNamesList("LIST");
+//	var DBContext = getWPCDBContext();
+//	var connDB = DBContext.getWPCDBConnection();
+//	var queryString = "select ctg_name from ctg where ctg_name like '" + sTempCodeCtg + "%'";
+//	var resultset = connDB.executeQuery(queryString);
+//	
+//	while (resultset.next()){
+//		aListCtg.add(resultset.getColumnAt(1));
+//	}
+//	DBContext.releaseWPCDBConnection(connDB);
+//	
+	
+	for (i=0; i<aListCtg.size();i++) {
+		if ( sTempCodeCtg == substring(aListCtg[i],0,4) ){
+			sCtgName = aListCtg[i];
+			break;
+		}
+	}
+
+	return sCtgName;
+}
+
+// getEntryNodeFromAttrPath
+// @desc  returns the entrynode cooresponding to the attribute path 
+// not including the spec name. ex: getEntryNodeFromAttrPath(itm,"01AC0019-SdcNatureCode");
+// @param oItem item objet to retrieve the entry node from
+// @param sAttrPath path of the attribute
+// @return entryNode
+function getEntryNodeFromAttrPath(oItem, sAttrPath) {
+	// Get the three spec nodes and iterates through them
+	var aNodes = oItem.getRootEntryNode().getEntryNodeChildren();
+	var i;
+	var en = null;
+	// Get attributeName from attributePath
+	var sAttrName = sAttrPath.substring(sAttrPath.lastIndexOf("/")+1);
+	// remove occurence suffix if any
+	sAttrName = sAttrName.parseDelim("#",0); 
+	log.loggerDebug("getEntryNodeFromAttrPath(\""+sAttrName+"\")");
+	
+	for (i= 0; i<aNodes.size(); i++) {
+		
+		// get the spec from this spec node
+		var spec = getSpecByName(aNodes[i].getEntryNodePath());
+
+		if (spec.getSpecAttribNames().containsValue(sAttrName) || sAttrName.endsWith("Group")) {
+			var e;
+			var enToReturn = null;
+			catchError(e) {
+				enToReturn = aNodes[i].getEntryNode(sAttrPath);
+				if(enToReturn != null){
+					return enToReturn;
+				} 
+			}
+			if(e!=null) {
+				log.loggerDebug("getEntryNodeFromAttrPath("+sAttrPath+") : " + e);
+			}
+		}
+	}
+	return null;
+} 
+function getEntryNodesFromAttrPath(oItem, sAttrPath) {
+
+	// Get the three spec nodes and iterates through them
+	var rootNode = oItem.getRootEntryNode();
+	var aNodes = rootNode.getEntryNodeChildren();
+	var i;
+
+	for (i= 0; i<aNodes.size(); i++) {
+		// get the spec from this spec node
+		var specname=aNodes[i].getEntryNodePath();
+
+		var e;
+		catchError(e) {
+			var t=rootNode.getEntryNodes(specname +"/" +sAttrPath);
+			if (t.size() != 0){
+				return t;
+			}
+		}
+		if(e!=null) {
+			log.loggerDebug("Exception while trying to getEntryNodes(\"" + specname +"/" +sAttrPath +"\")");
+		}
+	}
+	return null;
+} 
+
+/// allocateERPCode
+/// @param containerCode three digit container code
+/// @param type (Prod|BUnit|PItem)
+/// @return erpcode
+//:GLFUNCTION String allocateERPCode(String containerCode, String type)
+//function containerCode(containerCode, type) {
+function allocateERPCode(containerCode, type) {
+	var typeCode;
+	if (type == "Prod") {
+		typeCode = "P";
+	} else if (type == "BUnit") {
+		typeCode = "B";
+	} else if (type == "PItem") {
+		typeCode = "I";
+	} else {
+		typeCode = "X";
+	}	
+	var iSeq=getLGNextSeqValue("ERPCode");
+	return concat("K" + containerCode + typeCode + iSeq.formatNumber("00000", null));
+
+}
+
+/// allocateItemNumber
+/// @return ItemNumber
+//:GLFUNCTION String allocateItemNumber()
+function allocateItemNumber() {
+	///@CHANGED hvdheuvel 10-10-12
+	///TODO Create ItemNumber Sequence in db system. Soon to be changed for SAP number...
+	var iSeq=getLGNextSeqValue("ItemNumber");
+	
+	//var iSeq = rand(2147483647); --> was for temporary use
+	return iSeq.formatNumber("00000", null);
+}
+
+// getParentItem
+// @param hmGlobals
+// @param item item
+// @return parent item
+function getParentItem(hmGlobals,item){
+	return item.getItemUsingEntryRelationshipAttrib(hmGlobals["PARENT_RELATIONSHIP_FIELD"]);
+}
+
+// @brief getChildItems return the parent item of the above level
+// @param item item to process 
+// @return the items below
+function getChildItems(hmGlobals,item) 
+{
+	var itemFamily = [];
+	var ctgName = item.getCatalog().getCtgName();
+	if (ctgName.startsWith("CA")){
+		//ctgName = "C"+substring(ctgName,2);
+		ctgName = getCtgNameFromErpCode(item.getCtgItemPrimaryKey());
+	}
+	
+	var queryString = "select item.pk from catalog('" + ctgName 
+    			+ "') where item['SC000-GlobPrim/99CTL100-ParentItem'].pk = '" 
+        		+ item.getPrimaryKey() +"'";
+        		
+	var query = new SearchQuery(queryString);
+	var resultset = query.execute();
+        
+	while (resultset.next())
+	{
+		var tempHM = [];
+		tempHM["itemCatalog"] = ctgName;
+		tempHM["itemPrimaryKey"] = resultset.getString(1);
+		itemFamily.add(tempHM);
+	} 
+	return itemFamily;
+}
+
+// ================================================================================
+//
+// @brief getItemType return in which category the item belong to
+// @param item curent item process
+// @return an arry of items
+function getItemType(item)
+{
+	var a=substring(item.getPrimaryKey(),4,5);
+	if (a=="B") {
+		return "BUnit";
+	}else
+	{
+		if (a=="P") 
+		{
+			return "Prod";
+		}
+		else
+		{
+			if (a=="I")
+			{
+				return "PItem";
+			}
+			else
+			{
+				return null;
+			}
+		}
+	}
+}
+
+
+
+// getEntryNodeAtLevel
+// @desc returns the entry node for sExactPathWithoutSpec at specified level.
+// @param hmGlobals hmGlobals 
+// @param oItem oItem
+// @param sLevel Prod, BUnit or Pitem
+// @sExactPathWithoutSpec attribute path without spec name
+function getEntryNodeAtLevel(hmGlobals,item,sLevel,sExactPathWithoutSpec){
+	if (item==null) {
+		return null;
+	}
+	else
+	{
+		if (getItemType(item)==sLevel) 
+		{
+			return getEntryNodesFromAttrPath(item,sExactPathWithoutSpec);
+		}
+		
+		var oParent=getParentItem(hmGlobals,item);
+		return getEntryNodeAtLevel(hmGlobals,oParent,sLevel,sExactPathWithoutSpec);
+	}
+}
+
+
+// concatSpaces
+// @desc  return s trimmed and with consecutive spaces eliminated.
+// @param s s
+// @return string
+function concatSpaces(s){
+      if (s.contains("  "))
+      {
+      	return concatSpaces(s.replaceString("  "," "));
+      }else
+      {
+      	return trim(s);
+      }
+}
+
+// getLkpKey
+// @desc  return the key part for the lookup
+// @param col1 first column
+// @param col2 second column
+// @return string
+function getLkpKey(col1,col2){
+	return "[" + concatSpaces(col1) + "] - " + concatSpaces(col2);
+}
+// getAttrsListFromPrivPropValue
+// @desc returns an array containing the set of spec/attrname for this item for which private property from L901, column iColumnNumber equals sAttrValue
+// @param iColumnNumber column of L901
+// @param sAttrValue value looked up in L901 on column iColumnNumber
+// @param oItem item to clone
+// @returns array
+function getAttrsListFromPrivPropValue(oItem,iColumnNumber,sAttrValue){
+	var lkpTablePrivateAttributesProperties = getLkpByName("L901-PrivateAttributesProperties");
+	var itemAttrs=oItem.getEntryAttribsList();
+	var result=[];
+	var i=0;	
+	var sKey;
+	var sValue;
+	forEachHmElement(itemAttrs,sKey,sValue) {
+		if (checkString(lookupValues(lkpTablePrivateAttributesProperties,getRidOfRootName(sValue))[iColumnNumber],"")==sAttrValue)
+		{
+			result[i]=sValue;
+			i++;
+		}
+	}
+	return result;
+}
+
+
+// getAttrsToClone
+// @desc returns an array containing the set of spec/attrname to clone for this item  in case of duplication
+// @param oItem item to clone
+// @returns array
+function getAttrsToClone(oItem){
+	return getAttrsListFromPrivPropValue(oItem,2,"true");
+}
+
+
+// getAttrsNotToClone
+// @desc returns an array containing the set of spec/attrname not to clone for this item in case of duplication
+// @param oItem item not to clone
+// @returns array
+function getAttrsNotToClone(oItem){
+	return getAttrsListFromPrivPropValue(oItem,2,"false");
+}
+
+// getAttrsToInherit
+// @desc returns an array containing the set of spec/attrname to inherit for this item in case of child creation
+// @param oItem item to inherit
+// @returns array
+function getAttrsToInherit(oItem){
+	return getAttrsListFromPrivPropValue(oItem,1,"true");
+}
+
+// getAttrsNotToInherit
+// @desc returns an array containing the set of spec/attrname not to inherit for this item in case of child creation
+// @param oItem item not to inherit
+// @returns array
+function getAttrsNotToInherit(oItem){
+	return getAttrsListFromPrivPropValue(oItem,1,"false");
+}
+
+
+// getStatus
+// @desc returns the status of an Item.
+// @param entry entry
+// @return string
+function getStatus(entry){
+  	var StatutsTable = getLkpByName("L220-Statuts - Status");
+ 	var lkpStatus = getEntryNodesFromAttrPath(entry,"01AC0548-Status")[0].getEntryNodeValue(); 
+	var StatutsTableValues=lookupValues(StatutsTable,lkpStatus);
+	return StatutsTableValues[0];
+}
+// setStatus
+// @desc set the status of an Item
+// @param entry entry
+// @param status MODIFY, ACTIVE etc...
+function setStatus(entry,status){
+	var sTabValues = [];
+	sTabValues.add(status);
+  	var StatutsTable = getLkpByName("L220-Statuts - Status");
+	var sVal = StatutsTable.getKeysFromValues(sTabValues);
+	entry.setEntryAttrib(getEntryNodesFromAttrPath(entry,"01AC0548-Status")[0].getEntryNodeExactPath(),sVal[0]);
+}
+
+function runDeactivateAllSites(hmGlobals,entry) {
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug("DEACTIVATE ALL SITES");
+	var dToday = today();
+
+	var e;
+	catchError(e) {
+		
+		// ----------------------
+		// Appelation commerciale
+		// ----------------------
+		
+		// 01AC0012 : Limité à 70 caractères
+		var strLongName = entry.getEntryAttrib("/SC000-GlobPrim/01AC0012-LongName");
+		var strLongName_new = concat("ZZZ",strLongName);
+		if(strLongName_new.length()<=70) {
+			entry.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName",strLongName_new);
+		}
+		else {
+			var strLongNameescapespace = replaceString (strLongName_new," ","");
+			if(strLongNameescapespace.length()>70) {
+				strLongNameescapespace = substring(strLongNameescapespace,0,70);
+			}
+			entry.setEntryAttrib("/SC000-GlobPrim/01AC0012-LongName",strLongNameescapespace);
+		}
+		
+		var strSecSpecName = "";
+		var strInvoiceName = "";
+		var oInvoiceNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"01AC0014-invoiceName");
+		if (oInvoiceNameEn!=null) {
+			var strInvoiceName = checkString(oInvoiceNameEn.getEntryNodeValue(),"");
+			//
+			var strTemp=oInvoiceNameEn.getEntryNodeExactPath();
+			if(strTemp!=null && strTemp!="") {
+				strTemp = substring(strTemp,1);
+				strSecSpecName = checkString(substring(strTemp,0,strTemp.indexOf("/")), "");
+			}
+		}
+
+		// 01AC0014 : Limité à 35 caractères
+		var strInvoiceName_new = concat("ZZZ",strInvoiceName);
+		if(strInvoiceName_new.length()<=35) {
+			entry.setEntryAttrib(strSecSpecName+"/01AC0014-invoiceName",strInvoiceName_new);
+		}
+		else {
+			var strInvoiceNameescapespace = replaceString (strInvoiceName_new," ","");
+			if(strInvoiceNameescapespace.length()>35) {
+				strInvoiceNameescapespace = substring(strInvoiceNameescapespace,0,35);
+			}
+			entry.setEntryAttrib(strSecSpecName+"/01AC0014-invoiceName",strInvoiceNameescapespace);
+		}
+
+		entry.setEntryAttrib(strSecSpecName+"/01AC0670-XPlantMatlStatus","YD");
+		entry.setEntryAttrib(strSecSpecName+"/01AC0671-XPlantMatlStatusValidFrom",dToday);
+
+		// ----------------------
+		// Distribution
+		// ----------------------			
+
+		entry.setEntryAttrib("/SC000-GlobPrim/06DN0427-ValidToDate",dToday);
+		entry.setEntryAttrib(strSecSpecName+"/06DN0347-TradeItemOrderable",false);
+		entry.setEntryAttrib(strSecSpecName+"/06DN0351-orderQuantityMultiple","");
+		entry.setEntryAttrib(strSecSpecName+"/06DN0352-orderQuantityMini","");
+
+		var oDistributionGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(entry,"ChannelOfDistributionGroup");
+		if(oDistributionGroup!=null) {
+			for(var p=0;p<oDistributionGroup.size();p++) {
+				var oChannelOfDistributionEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"ChannelOfDistributionGroup#" + p + "/06DN0422-ChannelOfDistribution");
+				if(oChannelOfDistributionEn!=null) {
+					// var strChannelOfDistribution = checkString(oChannelOfDistributionEn.getEntryNodeValue(),"");
+					// if(strChannelOfDistribution=="[01] - Negoce") {
+						var oIsInCatalogEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"ChannelOfDistributionGroup#" + p + "/06DN0346-IsInCatalog");
+						if(oIsInCatalogEn!=null) {
+							oIsInCatalogEn.setEntryNodeValue(false);
+						}
+					// }
+				}
+			}
+		}
+
+		var oCountryGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(entry,"CountryGroup");
+		if(oCountryGroup!=null) {
+			for(var p=0;p<oCountryGroup.size();p++) {
+				var oTranslatedInvoiceNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"CountryGroup#" + p + "/06DN0420-TranslatedInvoiceName");
+				if(oTranslatedInvoiceNameEn!=null) {
+					var strTranslatedInvoiceName = checkString(oTranslatedInvoiceNameEn.getEntryNodeValue(),"");
+					if(strTranslatedInvoiceName!="") {
+						var strTranslatedInvoiceName_new = concat("ZZZ",strTranslatedInvoiceName);
+						if(strTranslatedInvoiceName_new.length()<=48) {
+							oTranslatedInvoiceNameEn.setEntryNodeValue(strTranslatedInvoiceName_new);
+						}
+						else {
+							var strTranslatedInvoiceNameescapespace = replaceString (strTranslatedInvoiceName_new," ","");
+							if(strTranslatedInvoiceNameescapespace.length()>48) {
+								strTranslatedInvoiceNameescapespace = substring(strTranslatedInvoiceNameescapespace,0,48);
+							}
+							oTranslatedInvoiceNameEn.setEntryNodeValue(strTranslatedInvoiceNameescapespace);
+						}
+					}
+				}
+			}
+		}
+		
+		var oPlaceOfStorageGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(entry,"PlaceOfStorageGroup");
+		if(oPlaceOfStorageGroup!=null) {
+			for(var p=0;p<oPlaceOfStorageGroup.size();p++) {
+				var oPlantMaterialStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"PlaceOfStorageGroup#" + p + "/06DN0707-PlantMaterialStatus");
+				if(oPlantMaterialStatusEn!=null) {
+					var strPlantMaterialStatus = checkString(oPlantMaterialStatusEn.getEntryNodeValue(),"");
+					if(strPlantMaterialStatus!="YD") {
+						oPlantMaterialStatusEn.setEntryNodeValue("YD");
+						//
+						var oPlantMaterialStatusValidFromEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"PlaceOfStorageGroup#" + p + "/06DN0708-PlantMaterialStatusValidFrom");
+						if(oPlantMaterialStatusValidFromEn!=null) {
+							oPlantMaterialStatusValidFromEn.setEntryNodeValue(dToday);
+						}
+					}
+				}
+			}
+		}
+		
+		// ----------------------
+		// Gestion commerciale
+		// ----------------------	
+
+		var oXDistrChanStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"10GC0677-XDistrChanStatus");
+		if (oXDistrChanStatusEn!=null) {
+			entry.setEntryAttrib(strSecSpecName+"/10GC0677-XDistrChanStatus","YD");
+		}
+		var oXDistrChanStatusValidFromEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"10GC0678-XDistrChanStatusValidFrom");
+		if (oXDistrChanStatusValidFromEn!=null) {
+			entry.setEntryAttrib(strSecSpecName+"/10GC0678-XDistrChanStatusValidFrom",dToday);
+		}
+		var oTotalReplenishmentLeadTimeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"10GC0747-TotalReplenishmentLeadTime");
+		if (oTotalReplenishmentLeadTimeEn!=null) {
+			entry.setEntryAttrib(strSecSpecName+"/10GC0747-TotalReplenishmentLeadTime","[99] - J+Y");
+		}
+		var oSalesOrganisationGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(entry,"SalesOrganisationGroup");
+		if(oSalesOrganisationGroup!=null) {
+			for(var p=0;p<oSalesOrganisationGroup.size();p++) {
+				var oDistrChannelStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"SalesOrganisationGroup#" + p + "/10GC0733-DistrChannelStatus");
+				if(oDistrChannelStatusEn!=null) {
+					var strDistrChannelStatus = checkString(oDistrChannelStatusEn.getEntryNodeValue(),"");
+					if(strDistrChannelStatus!="YD") {
+						oDistrChannelStatusEn.setEntryNodeValue("YD");
+						//
+						var oDistrChannelStatusValidFromEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"SalesOrganisationGroup#" + p + "/10GC0734-DistrChannelStatusValidFrom");
+						if(oDistrChannelStatusValidFromEn!=null) {
+							oDistrChannelStatusValidFromEn.setEntryNodeValue(dToday);
+						}
+					}
+				}
+			}
+		}
+	}
+	if (e!=null){
+		log.loggerDebug( "FAILED to deactivate all sites item : " +entry.getPrimaryKey());
+    }
+}
+
+// runInitialRules
+// @param hmGlobals hmGlobals
+// @param entry entry
+// @param aAttrsList list of attrs for which we want initial rules to run
+function runInitialRules(hmGlobals,entry,aAttrsList){
+	var i;
+	var log=hmGlobals["LOGGER"];
+	log.loggerDebug( "BEGIN Initialization Rules.");
+	//
+	var strCtgName="";
+	var strCatalogCode="";
+	if(substring(entry.getCatalog().getCtgName(),0,2)=="CA") {
+		strCtgName = getColAreaByName(entry.getCatalog().getCtgName()).getColAreaSrcContainer().getCtgName();
+	}
+	else {
+		strCtgName = entry.getCatalog().getCtgName();
+	}
+	if(strCtgName!=null && strCtgName!="") {
+		strCatalogCode = substring(strCtgName,1,4);
+	}
+	//
+	var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemLevel").invoke(entry);
+	//
+	var script=getScriptByPath("/scripts/triggers/LG.Business.Initial.Rules");
+	
+	if(strCatalogCode=="025"){
+		aAttrsList.add("06DN0436");
+	}
+	
+    for(i=0;i<aAttrsList.size();i++) 
+    {
+    	var attr=aAttrsList[i];
+    	var sFunctionName="fn"+substring(getNameFromPath(attr,"/"),0,8)+"_Init";
+        var fnInitialRule = script.getFunctionByName(sFunctionName);
+        if (fnInitialRule!=null)  
+        {
+	        var e;
+			catchError(e) {
+	         	log.loggerDebug( attr + " : running initialization rule.");
+				var attrPathArray = attr.parseDelim("/");
+				var attrPath = substring(attr,(attr.indexOf("/")+1));
+				var en;
+				
+				// Create first occurence when grouping
+				if(attrPathArray.size() > 2) {
+					var groupingname = attrPathArray[1];
+					var attrname = attrPathArray[2];
+					
+					// log.loggerDebug("groupingname="+groupingname);
+					// log.loggerDebug("attrname="+attrname);
+				
+					var enGroupingArray = getEntryNodesFromAttrPath(entry, groupingname);
+					if(enGroupingArray!=null) {
+						var iGroupingArraySize = enGroupingArray.size();
+						for(var j=0;j<iGroupingArraySize;j++) {
+							var enTemp = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry, concat(groupingname,"#",j,"/",attrname));
+							if(enTemp!=null) {
+								fnInitialRule.invoke(hmGlobals,entry,enTemp);
+							}
+						}
+					}
+					else {
+						var rootNode = entry.getRootEntryNode();
+						//
+						var strSecSpecName = "";
+						var oInvoiceNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"01AC0014-invoiceName");
+						if (oInvoiceNameEn!=null) {
+							var strTemp=oInvoiceNameEn.getEntryNodeExactPath();
+							if(strTemp!=null && strTemp!="") {
+								strTemp = substring(strTemp,1);
+								strSecSpecName = checkString(substring(strTemp,0,strTemp.indexOf("/")), "");
+							}
+						}
+						//
+						if(!((strCatalogCode=="800" && (strItemType=="1" || strItemType=="2") && attrPath.contains("PlaceOfStorageGroup")) || (strCatalogCode=="800" && strItemType=="2" && attrPath.contains("SalesOrganisationGroup")))) {
+							enTemp = rootNode.setEntryNode(concat(strSecSpecName,"/",attrPath));
+						}
+						fnInitialRule.invoke(hmGlobals,entry,enTemp);
+					}
+				}
+				else {
+					en = getEntryNodesFromAttrPath(entry, attrPath)[0];
+					fnInitialRule.invoke(hmGlobals,entry,en);
+				}
+			}
+        	if (e!=null){
+        		log.loggerDebug( "FAILED to run initialzation rule " +sFunctionName);
+        	}
+        }
+    }
+	log.loggerDebug("END Initialization Rules.");
+}
+
+// getGroupingDifferences
+// @desc returns a hash with grouping occurences of sGroupName in entry e1 and entry e2.
+// 	 	example1:
+//		 result["[01] - Carpentras"]]["en1"]={ENTRYNODE(e1,"[01] - Carpentras")}
+//		 result["[01] - Carpentras"]]["en2"]={ENTRYNODE(e2,"[01] - Carpentras")}
+//		 result["[02] - Auneuil"]]["en1"]={ENTRYNODE(e1,"[01] - Auneuil")}
+//		 result["[01] - Auneuil"]]["en2"]={ENTRYNODE(e2,"[01] - Auneuil")}
+// 		this make it easy to compare which occurences where here before etc...
+//		ex: var hmDiffs=getGroupingDifferences("PlaceOfStorageGroup","06DN0358-PlaceOfStorage",e1,e2);
+// @param sGroupName name of the grouping
+// @param sGroupKey  key of the grouping (without specname/groupname)
+// @param e1 entry 1
+// @param e2 entry 2
+// @return HashMap
+function getGroupingDifferences(sGroupName,sGroupKey,e1,e2){
+	var result=[];
+	var oKey;
+	var oValue;
+
+	if (e2==null){
+		throwError("getGroupingDifferences function called with e2==null");
+	}
+	///@CHANGED - ronan 10-10-12
+	///Was failing for the getEntryNodeChildren.
+	var en2init  = getEntryNodesFromAttrPath(e2,sGroupName);
+	var en2 = null;
+	var en2ExactPath = "";
+	if (en2init!=null) {
+		en2 = en2init[0].getEntryNodeParent();
+		en2ExactPath = en2.getEntryNodeExactPath();
+	}
+
+	if (en2==null){
+		throwError("getGroupingDifferences function : could not get EntryNode for group "+sGroupName);
+	}
+	// fill the hash with occurences in e1.
+	if (e1!=null){
+		var rootEntryNode1 = e1.getRootEntryNode();
+		var en1init  = getEntryNodesFromAttrPath(e1,sGroupName+"#0");
+		if (en1init!=null) {
+			var en1 = en1init[0].getEntryNodeParent();
+			var en1ExactPath = en1.getEntryNodeExactPath();
+			
+			forEachHmElement(en1.getEntryNodeChildren(),oKey,oValue) {
+				var k=rootEntryNode1.getEntryNode(en1ExactPath+"#"+oKey+"/"+sGroupKey).getEntryNodeValue();
+				if (k!=null && k!="") {
+					result[k]=[];
+					result[k]["en1"]=oValue;
+				}
+			}	
+		}
+	}
+	// complete the hash with occurences in e2.
+	forEachHmElement(en2.getEntryNodeChildren(),oKey,oValue) {
+		var rootEntryNode2 = e2.getRootEntryNode();
+		var k=rootEntryNode2.getEntryNode(en2ExactPath+"#"+oKey+"/"+sGroupKey).getEntryNodeValue();
+		if (result[k]==null) {
+			result[k]=[];
+		}
+		if (k!=null && k!="") {
+			result[k]["en2"]=oValue;
+			result[k]["occurences"]=checkInt(result[k]["occurences"],0) + 1;
+		}
+	}
+	return result;
+}
+
+// cleanupMultiOccurence
+// @desc cleans up multi occurence attribute \
+//		 by removing null occurence values
+// @param en entrynode
+function cleanupMultiOccurence(en){
+	if (en!=null){
+		var children=en.getEntryNodeChildren();
+		if (children!=null){
+			var i;
+			for (i=0;i<children.size();i++){
+				if (children[i].getEntryNodeValue()==null) {
+					children[i].deleteEntryNode();
+				}
+			}
+			if (en.getEntryNodeChildren()==null || en.getEntryNodeChildren().size()==0){
+				return null;
+			}
+		}
+	}
+	return en;
+}
+
+function processRelationShipRelatedName(oItem,sGroupName,sRelationShipAttributName,sRelatedItemAttributeDisplayName) {
+	var script=getScriptByPath("/scripts/triggers/LG.Library.LGUtils");
+	var fnGetEntryNodesFromAttrPath=script.getFunctionByName("getEntryNodesFromAttrPath");
+	var nodes=fnGetEntryNodesFromAttrPath.invoke(oItem,sGroupName);
+	if(nodes!=null) {
+		forEachHmElement(nodes, key, node){
+			var pathTemp=node.getEntryNodeExactPath();
+			var relationshipField=item.getEntryRelationshipAttrib(concat(pathTemp,"/",sRelationShipAttributName));
+			if(relationshipField != null && relationshipField.size() > 0 ){
+				var relatedCatalog = getCtgByName(relationshipField[0]); 
+				var relatedItemId = relationshipField[1];
+				var relatedEntry = relatedCatalog.getEntryByPrimaryKey(relatedItemId); 
+				var relatedItemName = relatedEntry.getCtgItemAttrib("SC000-GlobPrim/01AC0012-LongName"); 
+				node.setEntryNode(concat("/",sRelatedItemAttributeDisplayName)).setEntryNodeValue(relatedItemName); 
+			}
+		}
+	}
+}
+
+// Find an item from its pKey
+// use the naming convention : K450B26036 is in ctg '450'
+function getItemFromPKey(itemPkey){
+   var ctgCode = "C"+itemPkey.substring(1,4);
+   var ctgs = getCatalogNamesList();
+   var ctgName = "";
+   for(var i=0; i < ctgs.size(); i++) {
+     // out.writeln(ctgs[i]);
+     if (ctgs[i].startsWith(ctgCode)) {
+       ctgName = ctgs[i];
+     }
+   }
+   if(ctgName==""){
+     // ctg not found
+     return null;
+   }
+   var ctg = getCtgByName(ctgName);
+   var item = ctg.getCtgItemByPrimaryKey(itemPkey);
+   return item;
+}
+
+// getLkpEntryAttribByPrimaryKey
+// @desc returns an attribute of a lkp table from its primary key 
+// @param lkpName the name of the lkp table
+// @param pKey a pkey used in the lkp table 
+// @param attSpec the spec name of the attribute to return
+// @return string
+function getLkpEntryAttribByPrimaryKey(lkpName, pKey, attSpec) {
+  var lookup = getCtgByName(lkpName);
+  var item = lookup.getEntryByPrimaryKey(pKey);
+  return checkString(item.getEntryAttrib(lookup.getCtgSpec().getSpecName()+"/"+attSpec),"",false);
+}
+
+// getLkpAttribFromNodes
+// @desc returns an attribute of a lkp table from its primary key 
+// @param entryNodes the entrynodes taken from a spec of an item  
+// @param lkpName the name of the lkp table
+// @param attSpec the spec name of the attribute to return
+// @return string
+function getLkpAttribFromNodes(entryNodes, lkpName, attSpec) {
+  var result = "";
+  var e;
+  catchError(e) {
+    if (entryNodes!=null && entryNodes.size()>0) {
+      var valEntryNode = entryNodes[0].getEntryNodeValue();
+      if (valEntryNode!=null && valEntryNode!="") {
+        // out.writeln(entryNode + " " + lkpName + " "+ attSpec);
+        result = getLkpEntryAttribByPrimaryKey(lkpName, valEntryNode, attSpec);
+      }
+    }
+  }
+  if (e!=null){
+    err.writeln(entryNodes[0] + " " + lkpName + " "+ attSpec);
+    err.writeln(e);
+  }
+  return result;
+}
+
+// getLkpValue
+// @desc returns the column value of a lkp table linked to an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param lkpColumn the spec name (column) of the attribute to return
+// @return string
+function getLkpValue(item,nodeName,lkpColumn) {
+    if (item == null) {return "";}
+    var enitem = getEntryNodesFromAttrPath(item,nodeName);
+    if (enitem==null || enitem.size()<1) {
+      return "";
+    }
+    // get the lkp table linked to this node
+    var lkpName=enitem[0].getNodeFromEntryNode().getNodeLookupTableName();
+    var result = "";
+    var valEntryNode = enitem[0].getEntryNodeValue();
+    if (valEntryNode!=null && valEntryNode!="") {
+        var lookup = getCtgByName(lkpName);
+        var item = lookup.getEntryByPrimaryKey(valEntryNode);
+        result = checkString(item.getEntryAttrib(lookup.getCtgSpec().getSpecName()+"/"+lkpColumn),"",false);
+    }
+    return result;
+}
+
+
+// getLkpMultiValues
+// @desc returns the column values of a lkp table linked to a multi occurence EntryNode name 
+// @param oItem the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes (multi occurence)
+// @param lkpColumn the spec name (column) of the attribute to return
+// @return array
+function getLkpMultiValues(oItem,nodeName,lkpColumn) {
+    var arr = [];
+    var enitem = getEntryNodesFromAttrPath(oItem,nodeName);
+    if (enitem==null || enitem.size()<1) { 
+        return arr;
+    }
+    for(var i=0;i<enitem.size();i++) {
+        // get the lkp table linked to this node
+        var lkpName=enitem[i].getNodeFromEntryNode().getNodeLookupTableName();
+        var result = "";
+        var valEntryNode = enitem[i].getEntryNodeValue();
+        if (valEntryNode!=null && valEntryNode!="") {
+            var lookup = getCtgByName(lkpName);
+            var item = lookup.getEntryByPrimaryKey(valEntryNode);
+            result = checkString(item.getEntryAttrib(lookup.getCtgSpec().getSpecName()+"/"+lkpColumn),"",false);
+        }
+        arr.add( result);
+    }
+    return arr;
+}
+
+
+// getMultiValues
+// @desc returns the values of a multi occurence EntryNode
+// @param oItem the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes (multi occurence)
+// @return array
+function getMultiValues(oItem,nodeName) {
+    var arr = [];
+    var enitem = getEntryNodesFromAttrPath(oItem,nodeName);
+    if (enitem==null || enitem.size()<1) { 
+        return arr;
+    }
+    for(var i=0;i<enitem.size();i++) {
+        arr.add( checkString(enitem[i].getEntryNodeValue(),"",false) ); 
+    }
+    return arr;
+}
+
+
+// getSimpleValue
+// @desc returns the column value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @return string
+function getSimpleValue(item, nodeName){
+    if (item == null) {return "";}
+    var enitem = getEntryNodesFromAttrPath(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+        return checkString(enitem[0].getEntryNodeValue(),"",false);
+    }
+    return "";
+}
+
+
+// getDoubleValue
+// @desc returns the column double value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param ifNull the default double value returned if the retrieved value is null
+// @return double
+function getDoubleValue(item, nodeName, ifNull){
+    if (item == null) {return "";}
+    var enitem = getEntryNodesFromAttrPath(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+        return checkDouble(enitem[0].getEntryNodeValue(),ifNull);
+    }
+    return ifNull;
+}
+
+
+// getBooleanValue
+// @desc returns an string answer according to the boolean value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param ifTrue answer returned if the boolean value is true
+// @param ifFalse answer returned if the boolean value is false
+// @param ifDefault answer returned if the boolean expression cannot be evaluated
+// @return string
+function getBooleanValue(item, nodeName, ifTrue, ifFalse, ifDefault){
+    var boolValue = getSimpleValue(item, nodeName);
+    if (boolValue=="true") {
+        return ifTrue;
+    }
+    if (boolValue=="false") {
+        return ifFalse;
+    }
+    return ifDefault;
+}
+
+
+// getEnByItemType
+// @desc returns an EntryNodes enumeration from an item using two path used wether the itemType is or not a 'Prod'
+// @param item the item where entry node is taken  
+// @param itemType the type of item : BUnit, PItem, Prod
+// @param buPiKey EntryNode path if BUnit, PItem
+// @param prodKey EntryNode path if Prod
+// @return string
+function getEnByItemType(item, itemType, buPiKey, prodKey){
+    var key = "";
+    if (itemType=="BUnit" || itemType=="PItem") {
+        key = buPiKey; 
+    } else if (itemType=="Prod") {
+        key = prodKey; 
+    }
+    return getEntryNodesFromAttrPath(item,key);
+}
+
+// getItemAtLevel
+// @desc returns a upper-level item in the hierarchy
+// @param oitem the item where entry node is taken  
+// @param sLevel the type of item : BUnit, PItem, Prod
+function getItemAtLevel(oitem,sLevel){
+    if (oitem == null) {
+      return null;
+    }
+    var type = getItemType(oitem);
+    if (type == sLevel) {
+      return oitem;
+    }
+    var oParent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+    return getItemAtLevel(oParent,sLevel);
+}
+
+// getPublishingItemAtLevel
+// @desc returns a upper-level item in the hierarchy, may be in CA
+// @param oitem the item where entry node is taken  
+// @param sLevel the type of item : BUnit, PItem, Prod
+function getPublishingItemAtLevel(oitem,sLevel){
+    if (oitem == null) {
+      return null;
+    }
+    var type = getItemType(oitem);
+    if (type == sLevel) {
+      return oitem;
+    }
+    var oParent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+    // parent item may be in CA with recently updated values
+    // useful for cascade publishing
+    var oParentCtgName = oParent.getCatalog().getCtgName();
+    var collabAreaName =  "CA"+substring(oParentCtgName,1);
+    var collabArea = getCtgByName(collabAreaName);
+    var oParentCAitem = collabArea.getEntryByPrimaryKey(oParent.getPrimaryKey());
+    if (oParentCAitem!=null) {
+      return getPublishingItemAtLevel(oParentCAitem ,sLevel);
+    }
+    return getPublishingItemAtLevel(oParent,sLevel);
+}
+
+// getDateValue
+// @desc returns the date value of an item EntryNode name 
+// @param item the item where entry node is taken  
+// @param nodeName the AttrPath of the EntryNodes
+// @param dateform the date format, default is dd/MM/yyyy HH:mm:ss
+// @return string
+function getDateValue(item, nodeName, dateform){
+if (dateform == null) {
+      // dateform = "dd/MM/yyyy HH:mm:ss";
+      dateform = "yyyy'-'MM'-'dd'T'HH:mm:ss";
+    }
+    if (item == null) {return "";}
+    var enitem = getEntryNodesFromAttrPath(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+        var date = enitem[0].getEntryNodeValue();
+        if (date!=null) {
+          return date.formatDate(dateform);
+        }
+    }
+    return "";
+}
+
+// getItemLevel
+// @desc return the level (1..4) of the given item
+// @param oitem the item from which level will be returned
+// @return if Prod => 1, Bunit => 2, Pitem level 1 => 3, Pitem level 2 => 4
+function getItemLevel(oitem){
+  var parent = oitem.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+  if (parent==null) {
+    return 1; // Prod
+  }
+  var parentType = getItemType(parent);
+  return((parentType==null ? 1 : (parentType=="Prod" ? 2 : (parentType=="BUnit" ? 3 : 4))));  
+}
+
+// getAllChildrenItems
+// @desc return all the children (lower level) of the given item
+// @param oitem the parent item
+// @return an array of child items
+function getAllChildrenItems(oitem) {
+    var allChildren = [];
+    var children = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(null,oitem);
+    var child;
+    var i;
+    forEachHmElement(children,i,child) {
+      var itemChild = getCtgByName(children[i]["itemCatalog"]).getEntryByPrimaryKey(children[i]["itemPrimaryKey"]);
+      allChildren.add(itemChild);
+      var allSubChildren = getAllChildrenItems(itemChild);
+      for(var k =0; k< allSubChildren.size(); k++){
+        allChildren.add(allSubChildren[k]);
+      }
+    }
+    return allChildren;
+}
+
+
+// addSpecAttribute
+// @desc add an node in a spec (= new attribute in a catalog)
+// @param specName the name of the spec to modify
+// @param nodeName the name of the node to add
+// @param order the order of the node in the spec / in gui display
+// @param attColls the array of 'attribute collections' the new node belong to (eg ACWP040-ProdRequired)
+// @param nodeAttrsMap the array of attributes of the new node (MIN_OCCURRENCE, labels...)
+function addSpecAttribute(specName, nodeName, nodeAttrsMap, attColls, order){
+    var err;
+    catchError(err) {
+        var attrPath = specName+"/"+nodeName;
+        
+        // add new node to spec
+        var secSpec = getSpecByName(specName);
+        var newNode = null;
+        if (nodeAttrsMap["LOOKUP_TABLE"]==null) {
+          newNode = new SpecNode(secSpec, attrPath, order);
+        } else {
+          newNode = new SpecLookupTableNode(secSpec,attrPath, nodeAttrsMap["LOOKUP_TABLE"], order);
+        }
+        var oKey;
+        var oValue ;
+        forEachHmElement(nodeAttrsMap, oKey , oValue) {
+            newNode.setAttribute(oKey, oValue);
+        }
+        secSpec.saveSpec();
+        out.writeln("Added in spec "+specName+" node: "+nodeName);
+
+        // add new spec node to attribute collections
+        for(var i=0; i<attColls.size();i++) {
+            var attrCol = attColls[i];
+            getAttrGroupByName(attrCol).addAttributeToAttrGroup(attrPath);
+            out.writeln("Added in attribute collection "+attrCol+" path: "+attrPath);
+        }
+    }
+    if (err!=null) {
+        out.writeln("error:"+err);
+    }
+}
+function addLog(log, text, line){
+
+var lkpTableLogging = getLkpByName("L902-KheopsConstants");
+var logging = lookupValues(lkpTableLogging,"LOG")[0];
+
+if (logging=="On") {
+	log.loggerDebug(text + checkString(line,""));
+}
+}

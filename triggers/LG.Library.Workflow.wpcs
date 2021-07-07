@@ -1,0 +1,223 @@
+function getValue(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getStatus(hmGlobals,entry){
+    return hmGlobals["FN_GET_STATUS"].invoke(entry);
+}
+
+function setStatus(hmGlobals,entry,status){
+    return hmGlobals["FN_SET_STATUS"].invoke(entry,status);
+  }
+
+
+
+// initGlobals
+// @desc init global values
+// @return hashmap
+function initGlobals(){
+    var hmGlobalConst = [];
+    hmGlobalConst = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+    var hmGlobals = [];
+    // hmGlobals["LOGGER"]=getLogger("workflow.log");
+    hmGlobals["LOGGER"]=getLogger("Lafarge.BusinessRules");
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ATTRS_TO_CLONE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsToClone");
+    hmGlobals["FN_GET_ATTRS_NOT_TO_CLONE"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsNotToClone");
+    hmGlobals["FN_RUN_INITIAL_RULES"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runInitialRules");
+	hmGlobals["FN_RUN_DEACTIVATE_SITES"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("runDeactivateAllSites");
+    hmGlobals["FN_MERGE_HASHES"] = getScriptByPath("/scripts/triggers/LG.Library.Utils").getFunctionByName("mergeHashes");
+    hmGlobals["FN_GET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+    hmGlobals["FN_SET_STATUS"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("setStatus");
+    hmGlobals["FN_GET_ATTRS_NOT_TO_INHERIT"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getAttrsNotToInherit");
+    return hmGlobals["FN_MERGE_HASHES"].invoke(hmGlobals,hmGlobalConst);
+}
+
+function runInitialRules(hmGlobals,entry,aAttrsList){
+    return hmGlobals["FN_RUN_INITIAL_RULES"].invoke(hmGlobals,entry,aAttrsList);
+}
+
+function runDeactivateAllSites(hmGlobals,entry){
+    return hmGlobals["FN_RUN_DEACTIVATE_SITES"].invoke(hmGlobals,entry);
+}
+
+function setOccurrence(hmGlobals,entry,aAttrsList) {
+    var logger=hmGlobals["LOGGER"];
+    logger.loggerDebug("BEGIN of setOccurrence.");
+    var hm = [];
+    hm[0] = null;
+    var i;
+    for(i=0;i<aAttrsList.size();i++) {
+        var en = entry.getRootEntryNode().getEntryNode(aAttrsList[i]);
+        if(en!=null) {
+            if(checkString(en.getEntryNodeType(),"")=="M" && en.getEntryNodeChildren().size()==0) {
+                entry.setEntryAttribValues(aAttrsList[i],hm);
+            }
+        }
+    }
+    logger.loggerDebug("END of setOccurrence.");
+}
+
+function IN(entrySet, colArea, workflow, step, stepPath) {
+    // Run Initialization Rules
+    
+    var hmGlobals=initGlobals();
+    var log = hmGlobals["LOGGER"];
+    var entry;
+    // for each entry
+    forEachEntrySetElement(entrySet, entry) {
+        var e = null;
+        // log.loggerDebug("IN WFL Att" + entry.getEntryAttrib("SC000-GlobPrim/AttTechSave"));
+		
+		var testDeactivateSites = entry.getEntryAttrib("SC000-GlobPrim/AttTechDeactivateAllSites");
+		// log.loggerDebug("IN WFL testDeactivateSites=" + testDeactivateSites);
+        
+        catchError(e) {
+            log.loggerDebug("WORKFLOW IN STEP " + stepPath + " : " + entry.getPrimaryKey());
+
+            // get the entry Status
+            var status=getStatus(hmGlobals,entry);
+            // log.loggerDebug("Status = " + status);
+
+			var oXDistrChanStatusValidFrom3 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(entry,"10GC0678-XDistrChanStatusValidFrom");
+			if(oXDistrChanStatusValidFrom3!=null) {
+				var strXDistrChanStatus3 = oXDistrChanStatusValidFrom3.getEntryNodeValue();
+				log.loggerDebug("strXDistrChanStatus3="+strXDistrChanStatus3);
+			}
+			
+            if (status == "CREATION"){
+                var attrsList = entry.getEntryAttribsList();
+                if(stepPath=="Prod" || (workflow.getWflName()=="WFL10-C010-Prod" && stepPath=="INITIAL")) {
+                    log.loggerDebug("CREATION - Product - Running initial rules");
+                    runInitialRules(hmGlobals,entry,attrsList);
+                }
+                else {
+                    log.loggerDebug("CREATION - Other");
+                    runInitialRules(hmGlobals,entry,hmGlobals["FN_GET_ATTRS_NOT_TO_INHERIT"].invoke(entry));
+                }
+                setOccurrence(hmGlobals,entry,attrsList); 
+                        
+            }
+            else if (status == "DUPLICATING" ) {
+			  entry.setEntryAttrib("/SC000-GlobPrim/AttTechDeactivateAllSites","");              
+			  runInitialRules(hmGlobals,entry,hmGlobals["FN_GET_ATTRS_NOT_TO_CLONE"].invoke(entry));
+            }
+            else if (status == "ACTIVE") {
+                setStatus(hmGlobals,entry,"MODIFYING");
+				//
+				if (testDeactivateSites == "true" ) {
+					runDeactivateAllSites(hmGlobals,entry);
+				}
+				entry.setEntryAttrib("/SC000-GlobPrim/AttTechDeactivateAllSites","");
+            }
+        }
+        
+        if(e!=null) {
+           var errorMessage = concat( "[IN] ", checkString( entry.getPrimaryKey(), "no pkey"), ": une erreur s'est produite " ,e);
+           log.loggerError("LG.Library.Workflow "+errorMessage);
+           if (errorMessage.length()>300) {
+            errorMessage = substring(errorMessage,0,299);
+           }
+           entry.setEntryAttrib(hmGlobals["ERROR_FIELD"],errorMessage);
+        }
+        log.loggerDebug("Saving ITEM ... BEGIN"); 
+        var enValidErrorsItem = entry.saveCtgItem();
+        if ( enValidErrorsItem != null && (enValidErrorsItem.getGlobalErrors().size()> 0 || enValidErrorsItem.getLocationErrors().size() > 0)){
+        	log.loggerDebug(" ERROR Wfl IN SaveItem "+enValidErrorsItem.getGlobalErrors()+" Location"+enValidErrorsItem.getLocationErrors());
+        }
+        log.loggerDebug("Saving ITEM ... DONE");
+       // log.loggerDebug("FIN IN  WFL Att" + entry.getEntryAttrib("SC000-GlobPrim/AttTechSave"));
+         
+    }
+}
+
+
+function OUT(entrySet, colArea, workflow, step, stepPath) {
+    // entrySet: entry set
+    // colArea: collaboration area
+    // workflow: workflow
+    // step: step
+    // stepPath: step path
+    
+    var hmGlobals=initGlobals();  
+    var log = hmGlobals["LOGGER"];
+    var entry;
+    forEachEntrySetElement(entrySet, entry) 
+    {
+    	log.loggerDebug("WFL Att" + entry.getEntryAttrib("SC000-GlobPrim/AttTechSave"));
+    	entry.setEntryAttrib("SC000-GlobPrim/AttTechSave","false");
+
+        log.loggerDebug("OUT for entry"+entry.getPrimaryKey());
+        var dToday = today();
+        var sUser = getCurrentUserName();
+        var dEffectiveDate = getValue(hmGlobals,entry,"06DN0425-effectiveDate");
+        var fIsInPDM = (getEn(hmGlobals,entry,"01AC0001-IsInPDM")!=null ? getValue(hmGlobals,entry,"01AC0001-IsInPDM") : null);
+
+        var status=getStatus(hmGlobals,entry);
+        var e=null;
+        catchError(e) 
+        {
+            //En Réactivation
+            //MR0009 01AC0009-UnblockedDate
+            //
+            //En réactivation, initialisé au nom du User en cours
+            //Si la date de désactivation est renseignée
+            //IR0010 01AC0010-UnblockedUser
+            if (status == "INACTIVE"){
+                entry.setEntryAttrib(getEn(hmGlobals,entry,"01AC0009-UnblockedDate")[0].getEntryNodeExactPath(), dToday);
+                entry.setEntryAttrib(getEn(hmGlobals,entry,"01AC0010-UnblockedUser")[0].getEntryNodeExactPath(), sUser);
+                entry.setEntryAttrib(getEn(hmGlobals,entry,"01AC0007-BlockedDate")[0].getEntryNodeExactPath(), null );
+                entry.setEntryAttrib(getEn(hmGlobals,entry,"01AC0008-BlockedUser")[0].getEntryNodeExactPath(), null);
+            }
+        
+            if(fIsInPDM==false) 
+            {
+                var itemFamily = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,entry);
+                if(itemFamily.size()!=0) 
+                {
+                    var i;
+                    for(i=0;i<itemFamily.size();i++) 
+                    {
+                        var itemChild = getCtgByName(itemFamily[i]["itemCatalog"]).getEntryByPrimaryKey(itemFamily[i]["itemPrimaryKey"]);
+                        var fIsInPDMChild = getScriptByPath("/scripts/triggers/LG.Library.Workflow").getFunctionByName("getEn").invoke(hmGlobals,itemChild,"01AC0001-IsInPDM");
+                        itemChild.setEntryAttrib(fIsInPDMChild[0].getEntryNodeExactPath(),false);
+                        var enValidErrorsItem = itemChild.saveCtgItem();
+      				  	if ( enValidErrorsItem != null && (enValidErrorsItem.getGlobalErrors().size()> 0 || enValidErrorsItem.getLocationErrors().size() > 0)){
+        					log.loggerDebug(" ERROR Wfl OUT SaveItem itemChild"+enValidErrorsItem.getGlobalErrors()+" Location"+enValidErrorsItem.getLocationErrors());
+        				}
+                    }
+                }
+            }
+
+            //IR548 01AC0548-Status
+            //Si dans le Workflow on fait Done Mise à jour du Statuts à ACTIVE
+            setStatus(hmGlobals,entry,"ACTIVE");
+            //TODO NEED TO BE REACTIVATE
+	getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(entry,colArea);
+        }
+
+        if(e!=null) {
+           var errorMessage = concat( "[OUT] ", checkString( entry.getPrimaryKey(), "no pkey"), ": une erreur s'est produite " ,e);
+           log.loggerError("LG.Library.Workflow "+errorMessage);
+           if (errorMessage.length()>300) {
+            errorMessage = substring(errorMessage,0,299);
+           }
+           entry.setEntryAttrib(hmGlobals["ERROR_FIELD"],errorMessage);
+        }
+        var enValidErrorsItem = entry.saveCtgItem();
+      	if ( enValidErrorsItem != null && (enValidErrorsItem.getGlobalErrors().size()> 0 || enValidErrorsItem.getLocationErrors().size() > 0)){
+        	log.loggerDebug(" ERROR Wfl SaveItem OUT function"+enValidErrorsItem.getGlobalErrors()+" Location"+enValidErrorsItem.getLocationErrors());
+        }
+        log.loggerDebug("FIN WFL Att" + entry.getEntryAttrib("SC000-GlobPrim/AttTechSave"));
+        //entry.saveCtgItem();
+    } 
+}
+
+function TIMEOUT(entrySet, colArea, workflow, step, stepPath) {
+    return null;
+}
