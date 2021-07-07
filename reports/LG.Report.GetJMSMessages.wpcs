@@ -1,0 +1,2 @@
+var r=getScriptByPath("/scripts/triggers/LG.JMS.In").getFunctionByName("getMessageFromBroker").invoke();
+out.writeln("Got " + r + " messages from broker.");

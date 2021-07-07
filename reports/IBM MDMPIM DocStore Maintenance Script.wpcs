@@ -1,0 +1,372 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM DocStore Maintenance
+//******************************************************************
+// CHANGE LOG
+// 2010-03-11 - Initial release
+// 2011-11-18 - Included batched delete and deletion of "fetched feed files"
+//******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/DB Queries"
+
+function getLocalizedSystemMessage(message_name, locale_obj, english_message)
+{
+	var msg;
+	var errLog = getLogger("IBM MDMPIM DocStore Maintenance Script Function: getLocalizedSystemMessage");
+	var msgExp;
+	catchError (msgExp)
+	{
+		msg = getSystemMessageByName(message_name, locale_obj);
+	}
+	if (msgExp != null)
+	{
+		msg = english_message;
+		errLog.loggerError("*** No Localized Message *** " + message_name + " *** " + locale_obj + " *** " + checkString(msgExp,"[novalue]"));
+	}
+    return msg;
+}
+
+function getSingleObjectQueryResult (resultSet)
+{
+    if ( null != resultSet && resultSet.next() )
+    {
+        return resultSet.getColumnAt(1);
+    }
+    return null;
+}
+
+function getCompanyId(db_connection, company_code)
+{
+    var companyIdSQL = ""
+        + "\n" + "SELECT cmp_company_id "
+        + "\n" + "  FROM cmp "
+        + "\n" + " WHERE cmp_company_code = '" + company_code + "' "
+        + "\n";
+    return getSingleObjectQueryResult(db_connection.executeQuery(companyIdSQL));
+}
+
+function checkTempTableExists(db_connection, tab_name)
+{
+    var queryTempTableExists = checkTableExists(tab_name);
+    return getSingleObjectQueryResult(db_connection.executeQuery(queryTempTableExists));
+}
+
+function logDocumentsToPurge(db_connection, i_documents, myLog) {
+    var strQueryDocumentsToPurge_SQL = "select * from DOCS_TO_PURGE";
+    var hmResultSet = db_connection.executeQuery(strQueryDocumentsToPurge_SQL);
+    var DefaultLocale = getDefaultLocale();
+    var ii = 0;
+    var iLength = formatNumberByLocPrecision(i_documents, DefaultLocale, 0).length();
+
+    while( null != hmResultSet && hmResultSet.next() ){
+        myLog.loggerDebug("   Document " + resizeString(formatNumberByLocPrecision(ii, DefaultLocale, 0), iLength, "0", false) 
+			+ " to purge: \"" + hmResultSet.getColumnAt(2) + "\" (Doc-ID " + hmResultSet.getColumnAt(1) 
+			+ ") ");
+        ii++;
+    }
+    return null;
+}
+
+
+
+function populateTempTable(db_connection, path, date, company_id, myLog)
+{
+    var expired_documents_sql = populateDocsToPurge(path, date, company_id);
+    var expired_documents_count = db_connection.executeUpdate(expired_documents_sql);
+    db_connection.commit();
+    myLog.loggerInfo(" - Filled temporary table \"DOCS_TO_PURGE\" with " + expired_documents_count + " rows.");
+    return expired_documents_count;
+}
+
+function createTempTable(db_connection, myLog)
+{
+    var strCreateTable_SQL = "create table DOCS_TO_PURGE ("
+    + "\n" + "DOC_ID            integer,"
+    + "\n" + "DOC_PATH          varchar(1000) not null)";
+    var rcCreateTable = db_connection.executeUpdate(strCreateTable_SQL);
+    db_connection.commit();
+    myLog.loggerDebug(" - Created temporary table \"DOCS_TO_PURGE\"; rc = " + rcCreateTable);
+}
+
+function dropTempTable(db_connection, myLog)
+{
+    var drop_table_sql = ""
+        + "\n" + "   drop table DOCS_TO_PURGE "
+        + "\n";
+    db_connection.executeUpdate(drop_table_sql);
+    db_connection.commit();
+    myLog.loggerDebug(" - Dropped temporary table \"DOCS_TO_PURGE\".");
+}
+
+function deleteFromDocstoreTables(db_connection, path, date, company_id, myLog)
+{
+    var min_doc_id = 0;
+    var max_doc_id = 0;
+    var minMaxDocIdSQL = ""
+    + "\n" + "   SELECT COALESCE(MIN(DOC_ID),0), COALESCE(MAX(DOC_ID),0) "
+    + "\n" + "   FROM DOCS_TO_PURGE ";
+    var hmResultSet = db_connection.executeQuery(minMaxDocIdSQL);
+    while( null != hmResultSet && hmResultSet.next() )
+    {
+        min_doc_id = toInteger(hmResultSet.getColumnAt(1));
+        max_doc_id = toInteger(hmResultSet.getColumnAt(2));
+    }
+    var batch_counter = 0;
+    var batch_size = 1000;
+    var high_limit = 0;
+    var deleted_dhi_count = 0;
+    var deleted_dbl_count = 0;
+    var deleted_doa_count = 0;
+    var deleted_dad_count = 0;
+    var deleted_ftf_count = 0;
+    var deleted_fee_count = 0;
+    
+    for ( batch_counter = min_doc_id; batch_counter <= max_doc_id; batch_counter = batch_counter + batch_size )    
+    {
+        high_limit = batch_counter + batch_size;
+        if ( high_limit > max_doc_id )
+        { high_limit = max_doc_id; }
+        //out.writeln ( "*** batch_start and high_limit ***"); 
+        //out.writeln(batch_counter + " " + high_limit );	
+
+        var delete_dhi_sql = ""
+            + "\n" + " DELETE "
+            + "\n" + "   FROM dhi "
+            + "\n" + "   WHERE EXISTS "
+            + "\n" + "   ( SELECT 1 "
+            + "\n" + "       FROM docs_to_purge WHERE dhi_doc_id = doc_id)  "
+            + "\n" + "   AND dhi_cmp_id = " + company_id
+            + "\n" + "   AND dhi_doc_id between " + batch_counter + " and " + high_limit 
+            + "\n" + " ";
+        deleted_dhi_count = deleted_dhi_count + db_connection.executeUpdate(delete_dhi_sql);
+
+        var delete_dbl_sql = ""
+            + "\n" + " DELETE "
+            + "\n" + "   FROM dbl "
+            + "\n" + "   WHERE EXISTS "
+            + "\n" + "   ( SELECT 1 "
+            + "\n" + "       FROM docs_to_purge WHERE dbl_doc_id = doc_id)  "
+            + "\n" + "   AND dbl_cmp_id = " + company_id
+            + "\n" + "   AND dbl_doc_id between " + batch_counter + " and "  + high_limit
+            + "\n" + " ";
+        deleted_dbl_count = deleted_dbl_count + db_connection.executeUpdate(delete_dbl_sql);
+            
+        var delete_doa_sql = ""
+            + "\n" + " DELETE "
+            + "\n" + "   FROM doa "
+            + "\n" + "   WHERE EXISTS "
+            + "\n" + "   ( SELECT 1 "
+            + "\n" + "       FROM docs_to_purge WHERE doa_doc_id = doc_id)  "
+            + "\n" + "     AND doa_cmp_id = " + company_id
+            + "\n" + "   AND doa_doc_id between " + batch_counter + " and "  + high_limit
+            + "\n" + " ";
+        deleted_doa_count = deleted_doa_count + db_connection.executeUpdate(delete_doa_sql);
+           
+        var delete_dad_sql = ""
+            + "\n" + " DELETE "
+            + "\n" + "   FROM dad "
+            + "\n" + "   WHERE DAD_DOC_PATH IN "
+            + "\n" + "   ( SELECT DOC_PATH FROM DOCS_TO_PURGE WHERE "
+            + "\n" + "   doc_id between " + batch_counter + " and "  + high_limit	    
+            + "\n" + "   ) AND dad_cmp_id = " + company_id
+            + "\n" + " ";
+        deleted_dad_count = deleted_dad_count + db_connection.executeUpdate(delete_dad_sql);
+        
+        var delete_ftf_sql = ""
+            + "\n" + " DELETE "
+            + "\n" + "   FROM FTF "
+            + "\n" + "   WHERE (FTF_FEED_ID = -1 "
+            + "\n" + "   OR FTF_DOC_STORE_PATH IN "
+            + "\n" + "   ( SELECT DOC_PATH FROM DOCS_TO_PURGE WHERE "
+            + "\n" + "   doc_id between " + batch_counter + " and "  + high_limit	    
+            + "\n" + "   )) AND FTF_COMPANY_ID = " + company_id
+            + "\n" + " ";
+        deleted_ftf_count = deleted_ftf_count + db_connection.executeUpdate(delete_ftf_sql);
+        db_connection.commit();
+    }
+
+    myLog.loggerDebug(" - " + deleted_dhi_count + " rows deleted in table DHI (deleted_dhi_count)");
+    myLog.loggerDebug(" - " + deleted_dbl_count + " rows deleted in table DBL (deleted_dbl_count)");
+    myLog.loggerDebug(" - " + deleted_doa_count + " rows deleted in table DOA (deleted_doa_count)");
+    myLog.loggerDebug(" - " + deleted_dad_count + " rows deleted in table DAD (deleted_dad_count)");
+    myLog.loggerDebug(" - " + deleted_ftf_count + " rows deleted in table FTF (deleted_ftf_count)");
+    var delete_doc_store_purge = truncateTable("DOCS_TO_PURGE");
+    db_connection.executeUpdate(delete_doc_store_purge);
+    db_connection.commit();   
+
+}
+
+
+function archivePathBeyondDate(db_connection, path, date, sFileName)
+{
+    // loop over documents and store in zip file
+    var doc_paths_to_archive_sql = ""
+        + "\n" + "   SELECT doc_path FROM docs_to_purge "
+        + "\n";
+    var doc_paths_to_archive_sql_resultset = db_connection.executeQuery(doc_paths_to_archive_sql);
+    var envObjList = new EnvObjectList();
+
+    while (doc_paths_to_archive_sql_resultset.next())
+    {
+        var path_to_add_to_zip_file = doc_paths_to_archive_sql_resultset.getColumnAt(1);
+        if ( path_to_add_to_zip_file != null )
+        {
+            // get list of files 
+			envObjList.addObjectByNameToExport(path_to_add_to_zip_file,"DOC_STORE","CREATE_OR_UPDATE");
+        }
+    }
+
+	// Add to zip file
+	var archivePath = "/IBM_MDMPIM_DocStore_Maintenance/Archives/" + date + "/" + sFileName;
+	exportEnv(envObjList,archivePath);
+	return archivePath;
+}
+
+function printDocStoreMaintenanceReport(dirListing, dftLoc)
+{
+	var counter;
+	var msgDsmCol1 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM1",dftLoc,"Directory name");
+	var msgDsmCol2 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM2",dftLoc,"Maintenance action");
+	var msgDsmCol3 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM3",dftLoc,"Files deleted");
+	var msgDsmCol4 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM4",dftLoc,"Cut off date");
+	var msgDsmCol5 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM5",dftLoc,"Archive file");
+
+	out.writeln("<table border='1'>");
+	out.writeln("<tr>");
+	out.writeln("<th>" + msgDsmCol1 + "</th>");
+	out.writeln("<th>" + msgDsmCol2 + "</th>");
+	out.writeln("<th>" + msgDsmCol3 + "</th>");
+	out.writeln("<th>" + msgDsmCol4 + "</th>");
+	out.writeln("<th>" + msgDsmCol5 + "</th>");
+	out.writeln("</tr>");
+	for (counter = 0; counter < dirListing.size(); counter++)
+	{
+		var sDirInfo = dirListing[counter].parseDelim("|");
+		out.writeln("<tr>");
+		out.writeln("<td>" + sDirInfo[0] + "</td>");
+		out.writeln("<td align=center>" + sDirInfo[1] + "</td>");
+		out.writeln("<td align=center>" + sDirInfo[2] + "</td>");
+		out.writeln("<td>" + sDirInfo[3] + "</td>");
+		out.writeln("<td>" + sDirInfo[4] + "</td>");
+		out.writeln("</tr>");
+	}
+	out.writeln("</table>");
+}
+
+//********************************************************************************************
+//
+// Main
+//
+//********************************************************************************************
+var sCompanyCode = getCompanyCode();
+var dftLoc = getDefaultLocale();
+// Messages for DocStore maintenance report
+var msgNoCmpId = getLocalizedSystemMessage("COMMON_INFO_NO_COMPANY_CODE",dftLoc,"Could not find company id for company code ");
+var msgDsmHead = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_HEADR",dftLoc,"DocStore maintenance report for company: ");
+var msgDsmNoLk = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_NOLKP",dftLoc,"No entries found in lookup table: ");
+var msgDsmComp = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_ENDED",dftLoc,"DocStore maintenance completed successfully");
+
+var myLog = getLogger("IBM_MDMPIM_DocStoreMaintenance");
+myLog.loggerInfo("------------ Start of DocStore Maintenance script ------------");
+
+var dbContext = getWPCDBContext();
+var dbConnection = dbContext.getWPCDBConnection();
+out.writeln("<h1>" + msgDsmHead + sCompanyCode + "</h1>");
+var docStoreMaintenanceReport = [];
+var zipArchive = "-";
+
+var existsFlag = checkTempTableExists(dbConnection,"DOCS_TO_PURGE");
+if ( existsFlag != null )
+{
+  dropTempTable(dbConnection, myLog);
+}
+
+var excep;
+catchError (excep)
+{
+    createTempTable(dbConnection, myLog);
+    var companyId = getCompanyId(dbConnection, sCompanyCode);
+
+    if ( companyId == null )
+    {
+        throwError (msgNoCmpId + " - " + sCompanyCode);
+    }
+
+
+	var lookupTable = getLkpByName("IBM_MDMPIM_DocStore_Maintenance_Lookup");
+	var keys = lookupTable.getLkpKeys();
+	if(keys != null)
+	{
+		//Validate lookup table entries
+		for( var i = 0;i<keys.size();i++)
+		{
+			var sPath = lookupValues(lookupTable,keys[i]);
+			if (checkString(sPath[0],"0") == "0" || ! sPath[0].startsWith("/"))
+			{
+				throwError("Invalid DocStore path entry for Lookup key " + keys[i]);
+			}
+			if (! ( sPath[1] == "purge" || sPath[1] == "archive" ))
+			{
+				throwError("Invalid files action entry for Lookup key " + keys[i]);
+			}			
+			if (checkInt(sPath[2],-1) == -1 || sPath[2] < 0)
+			{
+				throwError("Invalid Days_To_Keep entry for Lookup key " + keys[i]);
+			}			
+		}
+		for( var i = 0;i<keys.size();i++)
+		{ 
+			var sPath = lookupValues(lookupTable,keys[i]);
+			var docstore_path = sPath[0];
+			var action = sPath[1];
+			var days_to_keep = sPath[2];
+			var dAdjustedDate = today().addDate("DATE", -1 * checkInt(days_to_keep, 1000));
+			var dbFormattedDate = dAdjustedDate.formatDate("yyyy-MM-dd HH:mm:ss");
+			var zipArchive = "-";
+
+			var iNumberOfDocuments = populateTempTable(dbConnection, docstore_path, dbFormattedDate, companyId, myLog);
+			myLog.loggerInfo("Action is: \"" + action + "\" for path [" + docstore_path + "] older than [" + dbFormattedDate 
+				+ "] (dbFormattedDate)");
+			if (iNumberOfDocuments > 0)
+			{
+				if ( action == "purge" ) {
+					logDocumentsToPurge(dbConnection, iNumberOfDocuments, myLog);
+					deleteFromDocstoreTables(dbConnection, docstore_path, dbFormattedDate, companyId,myLog);
+				}
+				if ( action == "archive" ) {
+					var archiveFile = replaceString(replaceString(docstore_path,"/","")," ","") + ".zip";
+					zipArchive = archivePathBeyondDate(dbConnection, docstore_path, dbFormattedDate,archiveFile);
+					deleteFromDocstoreTables(dbConnection, docstore_path, dbFormattedDate, companyId, myLog);
+				}
+			}
+			docStoreMaintenanceReport[i] = docstore_path + "|" + action + "|" + iNumberOfDocuments + "|" + dbFormattedDate + "|" + zipArchive;
+        }
+		printDocStoreMaintenanceReport(docStoreMaintenanceReport, dftLoc);
+	}
+	else
+	{ 
+		out.writeln(msgDsmNoLk + lookupTable); 
+	}
+	dropTempTable(dbConnection,myLog);
+}
+
+if (excep != null)
+{
+    out.writeln ( "*** EXCEPTION = " + checkString(excep , "[novalue]") );
+    myLog.loggerError("*** EXCEPTION = " + checkString(excep , "[novalue]") );
+}
+else
+{
+	dbContext.releaseWPCDBConnection(dbConnection);
+	myLog.loggerInfo("------------ End of DocStore Maintenance ------------");
+	out.writeln("<p>" + msgDsmComp + "</p>");	
+}

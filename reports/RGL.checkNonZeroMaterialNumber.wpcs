@@ -1,0 +1,32 @@
+var logPath = "/verifications/checkMaterialNumber-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	var oitem;
+	forEachItemSetElement(isItemSet,oitem) {
+		var strItemPK = oitem.getPrimaryKey();
+		//
+		var oMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+		if(oMaterialNumberEn!=null) {
+			var strMaterialNumber = checkString(oMaterialNumberEn.getEntryNodeValue(),"");
+			if(strMaterialNumber!="") {
+				var iMaterialNumberLen = strMaterialNumber.length();
+				if(iMaterialNumberLen<18) {
+					logOut.writeln(strItemPK+"|"+strMaterialNumber);
+				}
+			}
+		}
+	}
+}
+logOut.save(logPath);

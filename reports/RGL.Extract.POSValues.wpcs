@@ -1,0 +1,108 @@
+function getCatalogToExport(){
+	var aCatalogToExport = [];
+	aCatalogToExport[0]="C020-Doublages - Composite panels";
+	aCatalogToExport[1]="C025-Profilés - Metal profiles";
+	aCatalogToExport[2]="C030-Acc plafonds - Ceiling accessories";
+	aCatalogToExport[3]="C035-Acc ouvrages verticaux - Partition accessories";
+	aCatalogToExport[4]="C040-Acc finition - Finishing accessories";
+	aCatalogToExport[5]="C045-Vis - Fasteners";
+	aCatalogToExport[6]="C050-Salsi acc cloisons - Honeycomb partitions accessories";
+	aCatalogToExport[7]="C055-Salsi acc finition - Finishing accessories";
+	aCatalogToExport[8]="C065-Enduits - Jointing compounds";
+	aCatalogToExport[9]="C070-Liants - Adhesives";
+	aCatalogToExport[10]="C075-Colles - Adhesives";
+	aCatalogToExport[11]="C080-Salsi enduits poudres - Powder compounds";
+	aCatalogToExport[12]="C085-Salsi enduits pâtes - Ready-mix compounds";
+	aCatalogToExport[13]="C095-Salsi colles - Adhesives";
+	aCatalogToExport[14]="C100-Salsi enduits préparation support - Pre-painting compounds";
+	aCatalogToExport[15]="C105-Salsi enduits techniques - Technical compounds";
+	aCatalogToExport[16]="C110-Panneaux isolant - Insulating panels";
+	aCatalogToExport[17]="C135-Plâtres - Gypsum plasters";
+	aCatalogToExport[18]="C140-Salsi plâtres - Gypsum plasters";
+	aCatalogToExport[19]="C180-Outils finition - Finishing tools";
+	aCatalogToExport[20]="C185-Outillage général - Other Tools";
+	aCatalogToExport[21]="C190-Pièces détachées machines à projeter - Spare parts for spraying machines";
+	aCatalogToExport[22]="C195-Services";
+	aCatalogToExport[23]="C200-Produits financiers - Financial products";
+	aCatalogToExport[24]="C205-Services industriels - Industrial services";
+	aCatalogToExport[25]="C210-Produits&consommables industriels - Industrial products";
+	aCatalogToExport[26]="C215-Services&produits généraux - Other services&products";
+	aCatalogToExport[27]="C400-Artifices&Explosifs - Explosives";
+	aCatalogToExport[28]="C410-Polyethylene";
+	aCatalogToExport[29]="C425-Ajouts - Additives";
+	aCatalogToExport[30]="C445-Acc papiers - Paper accessories";
+	aCatalogToExport[31]="C460-Solutions mères&premix - Premixes";
+	aCatalogToExport[32]="C485-Acier - Steel";
+	aCatalogToExport[33]="C500-Etiquettes - Labels";
+	aCatalogToExport[34]="C510-Cartons d emballage - Packaging cardboard";
+	aCatalogToExport[35]="C525-Sacherie - Bags";
+	aCatalogToExport[36]="C530-Big bags";
+	aCatalogToExport[37]="C535-Palets";
+	aCatalogToExport[38]="C540-Récipients - Small containers";
+	aCatalogToExport[39]="C600-Prestia Plâtre formulé automatique - Auto formulated gypsum";
+	aCatalogToExport[40]="C610-Prestia Plâtre non formulé - Non formulated gypsum";
+	aCatalogToExport[41]="C690-Noble Perlite";
+	aCatalogToExport[42]="C730-Platec Prestations - Services";
+	return aCatalogToExport;
+}
+
+var logPath = "/test/zzzzzzzzzzzzz-extract-posvalues-20131020-204500.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var oKey;
+var strCatName;
+var ctgs = getCatalogNamesList();
+
+var aCatToExport = getCatalogToExport();
+forEachHmElement(ctgs,oKey,strCatName) {
+	if(aCatToExport.containsValue(strCatName)){
+		logDebug("strCatName : "+strCatName);
+		var catCataglog = getCtgByName(strCatName);
+		var isItemSet = catCataglog.getItemSetForCatalog();
+		forEachItemSetElement(isItemSet, itmProcessingItem){
+			var strItemPK = itmProcessingItem.getPrimaryKey();
+			var PlaceOfStorageGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(itmProcessingItem,"PlaceOfStorageGroup");
+			if(PlaceOfStorageGroup!=null) {
+				for(var i=0;i<PlaceOfStorageGroup.size();i++) {
+					var entemp = PlaceOfStorageGroup[i];
+					// 06DN0358-PlaceOfStorage
+					var strPlaceOfStorage="";
+					var oPlaceOfStorageEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"PlaceOfStorageGroup#"+i+"/06DN0358-PlaceOfStorage");
+					if(oPlaceOfStorageEn!=null) {
+						strPlaceOfStorage = checkString(oPlaceOfStorageEn.getEntryNodeValue(),"");
+					}
+					// out.writeln("strPlaceOfStorage="+strPlaceOfStorage);
+					// 06DN0646-ManufacturerCountry
+					var strManufacturerCountry ="";
+					var oManufacturerCountryEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"PlaceOfStorageGroup#"+i+"/06DN0646-ManufacturerCountry");
+					if(oManufacturerCountryEn!=null) {
+						strManufacturerCountry = checkString(oManufacturerCountryEn.getEntryNodeValue(),"");
+					}
+					// out.writeln("strManufacturerCountry="+strManufacturerCountry);
+					// 06DN0361-GrossWeightUnit
+					var strGrossWeightUnit ="";
+					var oGrossWeightUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"PlaceOfStorageGroup#"+i+"/06DN0361-GrossWeightUnit");
+					if(oGrossWeightUnitEn!=null) {
+						strGrossWeightUnit = checkString(oGrossWeightUnitEn.getEntryNodeValue(),"");
+					}
+					// out.writeln("strGrossWeightUnit="+strGrossWeightUnit);
+					// 06DN0360-GrossWeight
+					var strGrossWeight ="";
+					var oGrossWeightEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"PlaceOfStorageGroup#"+i+"/06DN0360-GrossWeight");
+					if(oGrossWeightEn!=null) {
+						strGrossWeight = checkString(oGrossWeightEn.getEntryNodeValue(),"");
+					}
+					// out.writeln("strGrossWeight="+strGrossWeight);
+					//
+					logOut.writeln(strCatName+"|"+strItemPK+"|"+strPlaceOfStorage+"|"+strManufacturerCountry+"|"+strGrossWeightUnit+"|"+strGrossWeight);
+				}
+			}
+		}
+	}
+}
+logOut.save(logPath);

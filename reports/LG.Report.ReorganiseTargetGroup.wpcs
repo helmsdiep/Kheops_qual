@@ -1,0 +1,5 @@
+var InMode = 0;  			// 0= No Update 1= Update
+var InCatalog = "C440";		// Catalog Name.  When empty all catalogs
+var InAfterSystemCopie = 0; // 1= Runs after System Copie.  Sets TargetGroup ID correct
+
+var r=getScriptByPath("/scripts/triggers/ReorganiseTargetGroup").getFunctionByName("Reorganise").invoke(InMode, InCatalog, InAfterSystemCopie);

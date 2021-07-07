@@ -1,0 +1,13 @@
+var e;
+
+catchError(e) {
+  var processLookupImport=getScriptByPath("/scripts/triggers/Siniat.Library.SAPLookupRefresh").getFunctionByName("processLookupImport");
+  var strPath = "/XFER/";
+  var strLookUp= "";
+  processLookupImport.invoke(strPath, strLookUp);
+}
+
+if (e!=null){
+  out.writeln(e);
+  logDebug(e);
+}

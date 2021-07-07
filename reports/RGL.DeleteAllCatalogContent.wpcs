@@ -1,0 +1,12 @@
+var oKey;
+var strCatName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,strCatName) {
+	logDebug("strCatName : "+strCatName);
+	out.writeln("strCatName : "+strCatName);
+	var catCataglog = getCtgByName(strCatName);
+	var isItemSet = catCataglog.getItemSetForCatalog();
+	forEachItemSetElement(isItemSet, oitem){
+		oitem.deleteCtgItem();
+	}
+}

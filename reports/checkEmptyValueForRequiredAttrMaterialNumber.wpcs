@@ -1,0 +1,280 @@
+function checkEmptyValueForRequiredAttr(oitem,strAttrName,logOut,strType) {
+	var strItemPK = oitem.getPrimaryKey();
+	var strMaterialNumber="";
+	var strLongName="";
+	var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+	var oItemLongNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0012-LongName");
+	var oItemStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0548-Status");
+	var strItemStatus="";
+	if(oItemStatusEn!=null) {
+		strItemStatus = checkString(oItemStatusEn[0].getEntryNodeValue(),"");
+	}
+	
+	if(oItemMaterialNumberEn!=null) {
+		strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+	}
+	if(oItemLongNameEn !=null) {
+		strLongName = checkString(oItemLongNameEn[0].getEntryNodeValue(),"");
+	}
+	//
+	var strCatalogName = oitem.getCatalog().getCtgName();
+	var strCatalogCode = substring(strCatalogName,0,4);
+	var strItemEn="";
+	var oItemEnList = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,strAttrName);
+	if(oItemEnList!=null) {
+		for(var m=0;m<oItemEnList.size();m++) {
+			var oItemEn = oItemEnList[m];
+			if(oItemEn!=null) {
+				var oisGrouping = oItemEn.getNodeFromEntryNode().isNodeGrouping();
+				if(oisGrouping==false) {
+					var aTemp = strAttrName.parseDelim("/");
+					var strAttrNameDisplay = "";
+					if(aTemp.size()==2) {
+						strAttrNameDisplay=aTemp[1];
+					}
+					else {
+						strAttrNameDisplay=strAttrName;
+					}
+					//
+					var strItemEnValue = oItemEn.getEntryNodeValue();
+					var strEnType = oItemEn.getNodeFromEntryNode().getNodeAttributeValue("TYPE");
+					//
+					if(strEnType=="STRING" || strEnType=="LOOKUP_TABLE" ) {
+						if(strItemEnValue==null || strItemEnValue=="") {
+							logOut.writeln(concat(strItemStatus,"|",strCatalogCode,"|",strCatalogName,"|",strType,"|",strItemPK,"|",strMaterialNumber,"|",strAttrName,"|",strAttrNameDisplay,"|",strLongName));
+						}
+					}
+					else {
+						if(strItemEnValue==null) {
+							logOut.writeln(concat(strItemStatus,"|",strCatalogCode,"|",strCatalogName,"|",strType,"|",strItemPK,"|",strMaterialNumber,"|",strAttrName,"|",strAttrNameDisplay,"|",strLongName));
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+var logPath = "/verifications/checkEmptyValueForRequiredAttr-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var strCategoryTreeName="H000-Typology";
+var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+var oPItemCategory = oCategoryTree.getEntryByPrimaryKey("PItem");
+//
+var owfl = getWflByName("Authoring Workflow");
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	//
+	var oCatalog=getCtgByName(ctgName);
+	var strCatalogCode = substring(ctgName,0,4);
+	//
+	// ******************************************
+	// Prod
+	// ******************************************
+	var oProdWflStep = owfl.getWflStepByName("Prod");
+	var oRequiredProdAttrGroups = oProdWflStep.getRequiredAttributeGroups();
+	for(var i=0;i<oRequiredProdAttrGroups.size();i++) {
+		var strAttrColl = oRequiredProdAttrGroups[i];
+		var oAttrColl = getAttrGroupByName(strAttrColl);
+		if(oAttrColl!=null) {
+			var aAttributePathList = oAttrColl.getAllAttributePathsFromAttrGroup();
+			var aAttributeFinalList = [];
+			for(var j=0;j<aAttributePathList.size();j++) {
+				var strAttrFullPath = aAttributePathList[j];
+				if(substring(strAttrFullPath,0,5)==concat("S",strCatalogCode)) {
+					var aTemp = strAttrFullPath.parseDelim("/");
+					var iTemp = aTemp.size();
+					if (iTemp>1) {
+						aAttributeFinalList.add(strAttrFullPath);
+					}
+				}
+			}
+			//
+			var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+			var oitemProd;
+			forEachItemSetElement(oProdItemSet,oitemProd) {
+				var strItemStatus="";
+				var oItemStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemProd,"01AC0548-Status");
+				if(oItemStatusEn!=null) {
+					strItemStatus = oItemStatusEn[0].getEntryNodeValue();
+				}
+				strItemStatus = checkString(strItemStatus,"");
+				//
+				if (strItemStatus=="[ACTIVE] - Actif") {		
+					var strItemPK = oitemProd.getPrimaryKey();
+					//
+					out.writeln(strItemPK);
+					//
+					for(var k=0;k<aAttributeFinalList.size();k++) {
+						var strAttrFullPath = aAttributeFinalList[k];
+						var aTemp = strAttrFullPath.parseDelim("/");
+						//
+						if(aTemp.size()==2) {
+							var strAttrListNiv1 = aTemp[1];
+							checkEmptyValueForRequiredAttr(oitemProd,strAttrListNiv1,logOut,"Prod");
+						}
+						if(aTemp.size()==3) {
+							var strAttrListNiv1 = aTemp[1];
+							var strAttrListNiv2 = aTemp[2];
+							//
+							var oItemGroupingEnList = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemProd,strAttrListNiv1);
+							if(oItemGroupingEnList!=null) {
+								for(var l=0;l<oItemGroupingEnList.size();l++) {
+									var oItemGroupingEn = oItemGroupingEnList[l];
+									if(oItemGroupingEn!=null) {
+										checkEmptyValueForRequiredAttr(oitemProd,concat(strAttrListNiv1,"#",l,"/",strAttrListNiv2),logOut,"Prod");
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// ******************************************
+	// BUnit
+	// ******************************************
+	var oBUnitWflStep = owfl.getWflStepByName("BUnit");
+	var oRequiredBUnitAttrGroups = oBUnitWflStep.getRequiredAttributeGroups();
+	for(var i=0;i<oRequiredBUnitAttrGroups.size();i++) {
+		var strAttrColl = oRequiredBUnitAttrGroups[i];
+		var oAttrColl = getAttrGroupByName(strAttrColl);
+		if(oAttrColl!=null) {
+			var aAttributePathList = oAttrColl.getAllAttributePathsFromAttrGroup();
+			var aAttributeFinalList = [];
+			for(var j=0;j<aAttributePathList.size();j++) {
+				var strAttrFullPath = aAttributePathList[j];
+				if(substring(strAttrFullPath,0,5)==concat("S",strCatalogCode)) {
+					var aTemp = strAttrFullPath.parseDelim("/");
+					var iTemp = aTemp.size();
+					if (iTemp>1) {
+						aAttributeFinalList.add(strAttrFullPath);
+					}
+				}
+			}
+			//
+			var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+			var oitemBUnit;
+			forEachItemSetElement(oBUnitItemSet,oitemBUnit) {
+				var strItemStatus="";
+				var oItemStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemBUnit,"01AC0548-Status");
+				if(oItemStatusEn!=null) {
+					strItemStatus = oItemStatusEn[0].getEntryNodeValue();
+				}
+				strItemStatus = checkString(strItemStatus,"");
+				//
+				if (strItemStatus=="[ACTIVE] - Actif") {		
+					var strItemPK = oitemBUnit.getPrimaryKey();
+					//
+					out.writeln(strItemPK);
+					//
+					for(var k=0;k<aAttributeFinalList.size();k++) {
+						var strAttrFullPath = aAttributeFinalList[k];
+						var aTemp = strAttrFullPath.parseDelim("/");
+						//
+						if(aTemp.size()==2) {
+							var strAttrListNiv1 = aTemp[1];
+							checkEmptyValueForRequiredAttr(oitemBUnit,strAttrListNiv1,logOut,"BUnit");
+						}
+						if(aTemp.size()==3) {
+							var strAttrListNiv1 = aTemp[1];
+							var strAttrListNiv2 = aTemp[2];
+							//
+							var oItemGroupingEnList = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemBUnit,strAttrListNiv1);
+							if(oItemGroupingEnList!=null) {
+								for(var l=0;l<oItemGroupingEnList.size();l++) {
+									var oItemGroupingEn = oItemGroupingEnList[l];
+									if(oItemGroupingEn!=null) {
+										checkEmptyValueForRequiredAttr(oitemBUnit,concat(strAttrListNiv1,"#",l,"/",strAttrListNiv2),logOut,"BUnit");
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// ******************************************
+	// PItem
+	// ******************************************
+	var oPItemWflStep = owfl.getWflStepByName("PItem");
+	var oRequiredPItemAttrGroups = oPItemWflStep.getRequiredAttributeGroups();
+	for(var i=0;i<oRequiredPItemAttrGroups.size();i++) {
+		var strAttrColl = oRequiredPItemAttrGroups[i];
+		var oAttrColl = getAttrGroupByName(strAttrColl);
+		if(oAttrColl!=null) {
+			var aAttributePathList = oAttrColl.getAllAttributePathsFromAttrGroup();
+			var aAttributeFinalList = [];
+			for(var j=0;j<aAttributePathList.size();j++) {
+				var strAttrFullPath = aAttributePathList[j];
+				if(substring(strAttrFullPath,0,5)==concat("S",strCatalogCode)) {
+					var aTemp = strAttrFullPath.parseDelim("/");
+					var iTemp = aTemp.size();
+					if (iTemp>1) {
+						aAttributeFinalList.add(strAttrFullPath);
+					}
+				}
+			}
+			//
+			var oPItemItemSet = oPItemCategory.getItemSetForCategory(oCatalog);
+			var oitemPItem;
+			forEachItemSetElement(oPItemItemSet,oitemPItem) {
+				var strItemStatus="";
+				var oItemStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemPItem,"01AC0548-Status");
+				if(oItemStatusEn!=null) {
+					strItemStatus = oItemStatusEn[0].getEntryNodeValue();
+				}
+				strItemStatus = checkString(strItemStatus,"");
+				//
+				var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+		
+				//if (strItemStatus=="[ACTIVE] - Actif") {		
+					var strItemPK = oitemPItem.getPrimaryKey();
+					//
+					out.writeln(strItemPK);
+					//
+					for(var k=0;k<aAttributeFinalList.size();k++) {
+						var strAttrFullPath = aAttributeFinalList[k];
+						var aTemp = strAttrFullPath.parseDelim("/");
+						//
+						if(aTemp.size()==2) {
+							var strAttrListNiv1 = aTemp[1];
+							checkEmptyValueForRequiredAttr(oitemPItem,strAttrListNiv1,logOut,"PItem");
+						}
+						if(aTemp.size()==3) {
+							var strAttrListNiv1 = aTemp[1];
+							var strAttrListNiv2 = aTemp[2];
+							//
+							var oItemGroupingEnList = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemPItem,strAttrListNiv1);
+							if(oItemGroupingEnList!=null) {
+								for(var l=0;l<oItemGroupingEnList.size();l++) {
+									var oItemGroupingEn = oItemGroupingEnList[l];
+									if(oItemGroupingEn!=null) {
+										checkEmptyValueForRequiredAttr(oitemPItem,concat(strAttrListNiv1,"#",l,"/",strAttrListNiv2),logOut,"PItem");
+									}
+								}
+							}
+						}
+					}
+				//}
+			}
+		}
+	}
+}
+logOut.save(logPath);

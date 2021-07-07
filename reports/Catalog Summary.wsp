@@ -1,0 +1,40 @@
+<%
+var catalogName = inputs["Catalog_Name"];
+%>
+<html>
+<body>
+<h2>Catalog: <%=catalogName%></h2>
+<%
+var ctg = getCtgByName(catalogName);
+var versions = ctg.getCatalogVersionSummary();
+var i = 0;
+while (i< versions.size())
+{
+    var version = versions[i];
+    var itemCount = ctg.getCatalogItemCountInVersion(version);
+%>
+<table border=0 bgcolor=#ccbbb1 width=100%><tr><td><font color=#000000>
+Version: <b><%=version.getVersionName()%></b>
+</font></td></tr>
+<tr bgcolor=#eeede1><td>
+Number of items: <font color=#000000><b><%=itemCount%></b></font>
+<ul>
+<%
+    var ctgtrees = ctg.getCatalogCategoryTrees();
+    var j=0;
+    while(j<ctgtrees.size())
+    {
+        var ctgtree = ctgtrees[j];
+        var catctgveritemCount = ctg.getCategorizedItemCountInVersion(version, ctgtree);
+%>
+<li>The number of items categorized in <font color=#662222><%=ctgtree.getCategoryTreeName()%></font> is <font color=#000000><%=catctgveritemCount%></font>
+<%
+        j = j + 1;
+    }
+%>
+</ul>
+</td></tr></table><p>
+<%
+    i = i + 1;
+}
+%>

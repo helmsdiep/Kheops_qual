@@ -1,0 +1,70 @@
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+
+var oKey;
+var catalogName;
+var ctgs = getCatalogNamesList();
+
+forEachHmElement(ctgs,oKey,catalogName) {
+	logDebug("CTG : "+catalogName);
+	var oCatalog = getCtgByName(catalogName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+
+	var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+	var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+		
+	var oProdItem;
+	forEachItemSetElement(oProdItemSet,oProdItem) {
+		var oitemGTINEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oProdItem,"01AC0042-GTIN");
+		if (oitemGTINEn!=null) {
+			var strGTIN = checkString(oitemGTINEn.getEntryNodeValue(),"");
+			if(strGTIN!="") {
+				var oitembarCodeTypeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oProdItem,"01AC0041-barCodeType");
+				if (oitembarCodeTypeEn!=null) {	
+					var strbarCodeType = checkString(oitembarCodeTypeEn.getEntryNodeValue(),"");
+					if(strbarCodeType=="") {
+						oitembarCodeTypeEn.setEntryNodeValue("[50] - Marqué par un code à barres EAN 13 ou EAN 8");
+						oProdItem.saveCtgItem();
+						logDebug("ITM : "+oProdItem.getPrimaryKey());
+					}
+				}
+			}
+		}
+	}	
+}		
+			
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logDebug("Fin Traitement");

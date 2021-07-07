@@ -1,0 +1,4 @@
+var envObjList = new EnvObjectList();
+envObjList.addAllObjectsToExport("CATALOG_CONTENT");
+var result = exportEnv(envObjList, "export_20131209_103700.zip");
+out.println("result: " + result);

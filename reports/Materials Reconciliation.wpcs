@@ -1,0 +1,472 @@
+function getSAPItemEXP(hmGlobals, item, log){
+    return getScriptByPath("/scripts/triggers/Siniat.SAP.Utils").getFunctionByName("getSAPItem").invoke(hmGlobals, item, log);
+}
+
+function fillHeaderHashmap(hmHeader){
+	hmHeader[0] = "Catalog";
+	hmHeader[1] = "ZZERPCODE";
+	hmHeader[2] = "01AC0044-ERPCode";
+	hmHeader[3] = "MATNR";
+	hmHeader[4] = "01AC0664-MaterialNumber";
+	hmHeader[5] = "BISMT";
+	hmHeader[6] = "01AC0740-OldMaterialNumber";
+	hmHeader[7] = "BEGRU";
+	hmHeader[8] = "01AC0667-AuthorisationGroup";
+	hmHeader[9] = "BREIT";
+	hmHeader[10] = "BRGEW";
+	hmHeader[11] = "BSTME";
+	hmHeader[12] = "06DN0674-PurchasingUnit";
+	hmHeader[13] = "PRDHA";
+	hmHeader[14] = "12BI0666-ProductHierarchy";
+	hmHeader[15] = "EAN11";
+	hmHeader[16] = "EKWSL";
+	hmHeader[17] = "02FR0673-PurchasingValueKey";
+	hmHeader[18] = "VHART";
+	hmHeader[19] = "06DN0675-PackagingMaterialType";
+	hmHeader[20] = "HOEHE";
+	hmHeader[21] = "LAENG";
+	hmHeader[22] = "MAGRV";
+	hmHeader[23] = "06DN0672-MaterialGroupPackaging";
+	hmHeader[24] = "MATKL";
+	hmHeader[25] = "02FR0660-MaterialGroup";
+	hmHeader[26] = "MEINS";
+	hmHeader[27] = "06DN0661-BaseUnitOfMeasure";
+	hmHeader[28] = "MSTAE";
+	hmHeader[29] = "01AC0670-XPlantMatlStatus";
+	hmHeader[30] = "MSTAV";
+	hmHeader[31] = "10GC0677-XDistrChanStatus";
+	hmHeader[32] = "MSTDE";
+	hmHeader[33] = "01AC0671-XPlantMatlStatusValidFrom";
+	hmHeader[34] = "MSTDV";
+	hmHeader[35] = "06DN0708-PlantMaterialStatusValidFrom";
+	hmHeader[36] = "MTART";
+	hmHeader[37] = "01AC0659-MaterialType";
+	hmHeader[38] = "MTPOS_MARA";
+	hmHeader[39] = "06DN0669-GenItemCatGroup";
+	hmHeader[40] = "NTGEW";
+	hmHeader[41] = "06DN0799-netWeight";
+	hmHeader[42] = "NUMTP";
+	hmHeader[43] = "TRAGR";
+	hmHeader[44] = "06DN0676-TransportationGroup";
+	hmHeader[45] = "VOLUM";
+	hmHeader[46] = "ZZMTOSCEN";
+	hmHeader[47] = "MAKTX";
+	hmHeader[48] = "VABME";
+	hmHeader[49] = "06DN0777-VariablePurchaseOrderUnitValue";
+}
+
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// @param hmGlobals - log context
+/// @param xlsExcelBook - new Excelfile
+/// @param strExcelSheetName - Naam van de sheet
+/// @param hmColumns - HashMap with all the columnnames
+//:PRFUNCTION void createHeadersInExcelFile(HashMap hmGlobal, String strXLSName, String strExcelSheetName, HashMaphmColumns)
+function createHeadersInExcelFile(hmGlobals, xlsExcelBook, strExcelSheetName, hmColumns){
+	var sProcessName = "PIM.Export.createHeadersInExcelFile";
+	
+	//Imports from other scriptlibraries
+	var log = hmGlobals["LOGGER"];
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		var xlsSheet = xlsExcelBook.createExcelSheet(strExcelSheetName);
+		var xlsRow = xlsSheet.createRow(0); 
+		var intKey = null;
+		var strColumnName = "";
+		forEachHmElement(hmColumns, intKey, strColumnName){
+			var xlsCell = xlsRow.createExcelCell(toInteger(intKey));
+			xlsCell.setCellType("STRING");
+			xlsCell.setStringCellValue(strColumnName);
+		}
+		return xlsSheet;
+	}
+	if (sErrMsg != null) {
+		throwError(sProcessName
+			+ ", sErrMsg: " + sErrMsg);
+	}
+	log.loggerDebug("*** Finished process " + sProcessName + " ***");
+	return null;
+}
+
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// @param hmGlobals - log context
+/// @param excelSheet - Naam van de sheet
+/// @param hmColumns - HashMap with all the columnnames
+//:PRFUNCTION void addRowToExcelFile(HashMap hmGlobals, Sheet excellSheet, HashMaphmColumns)
+function addRowToExcelFile(hmGlobals, excelSheet, hmColumns){
+	var sProcessName = "PIM.Export.addRowToExcelFile";
+	
+	//Imports from other scriptlibraries
+	var log = hmGlobals["LOGGER"];
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		
+		var intRowCount = excelSheet.getNbRows();
+		var xlsRow = excelSheet.createRow(intRowCount);
+		var intKey = null;
+		var strColumnValue = "";
+		
+		forEachHmElement(hmColumns, intKey, strColumnValue){
+			var xlsCell = xlsRow.createExcelCell(toInteger(intKey));
+			xlsCell.setCellType("STRING");
+			xlsCell.setStringCellValue(strColumnValue);
+		}
+		
+		return excelSheet;
+	}
+	if (sErrMsg != null) {
+		throwError(sProcessName
+			+ ", sErrMsg: " + sErrMsg);
+	}
+	log.loggerDebug("*** Finished process " + sProcessName + " ***");
+	return excelSheet;
+}
+
+//EntryNode getEn(hmGlobals,item,String)
+//Return the entry node 
+//Parameters
+//-hmGlobals : global variable to call the function getEntryNodeForAttributePath
+//-item : item (generic)
+//-String : name of the attribute
+//Returns EntryNode
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getProductItem(item, strItemType){
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    if(strItemType == "Pitem2"){
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Pitem1") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Bunit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    return itmProdItem;
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+var hmCatalog = [];
+hmCatalog["010"] = "C010-Plaques de plâtre - Gypsum plasterBoards";
+hmCatalog["015"] = "C015-Cloisons - Honeycomb Partitions";
+hmCatalog["020"] = "C020-Doublages - Composite panels";
+hmCatalog["025"] = "C025-Profilés - Metal profiles";
+hmCatalog["030"] = "C030-Acc plafonds - Ceiling accessories";
+hmCatalog["035"] = "C035-Acc ouvrages verticaux - Partition accessories";
+hmCatalog["040"] = "C040-Acc finition - Finishing accessories";
+hmCatalog["045"] = "C045-Vis - Fasteners";
+hmCatalog["050"] = "C050-Salsi acc cloisons - Honeycomb partitions accessories";
+hmCatalog["055"] = "C055-Salsi acc finition - Finishing accessories";
+hmCatalog["060"] = "C060-Salsi vis - Fasteners";
+hmCatalog["065"] = "C065-Enduits - Jointing compounds";
+hmCatalog["070"] = "C070-Liants - Adhesives";
+hmCatalog["075"] = "C075-Colles - Adhesives";
+hmCatalog["080"] = "C080-Salsi enduits poudres - Powder compounds";
+hmCatalog["085"] = "C085-Salsi enduits pâtes - Ready-mix compounds";
+hmCatalog["090"] = "C090-Salsi liants - Adhesives";
+hmCatalog["095"] = "C095-Salsi colles - Adhesives";
+hmCatalog["100"] = "C100-Salsi enduits préparation support - Pre-painting compounds";
+hmCatalog["105"] = "C105-Salsi enduits techniques - Technical compounds";
+hmCatalog["110"] = "C110-Panneaux isolant - Insulating panels";
+hmCatalog["115"] = "C115-Styrodur";
+hmCatalog["120"] = "C120-Entrevous -";
+hmCatalog["130"] = "C130-Rehausses -";
+hmCatalog["135"] = "C135-Plâtres - Gypsum plasters";
+hmCatalog["140"] = "C140-Salsi plâtres - Gypsum plasters";
+hmCatalog["145"] = "C145-Carreaux de plâtre - Gypsum blocks";
+hmCatalog["150"] = "C150-Gypse - Gypsum rock";
+hmCatalog["155"] = "C155-Outils mesure&traçage - Measurement tools";
+hmCatalog["160"] = "C160-Outils manutention - Handling Tools";
+hmCatalog["165"] = "C165-Outils façonnage - Shaping tools";
+hmCatalog["170"] = "C170-Outils travail du métal - Tools for metal";
+hmCatalog["175"] = "C175-Outillage électroportatif - Electrical tools";
+hmCatalog["180"] = "C180-Outils finition - Finishing tools";
+hmCatalog["185"] = "C185-Outillage général - Other Tools";
+hmCatalog["190"] = "C190-Pièces détachées machines à projeter - Spare parts for spraying machines";
+hmCatalog["195"] = "C195-Services";
+hmCatalog["200"] = "C200-Produits financiers - Financial products";
+hmCatalog["205"] = "C205-Services industriels - Industrial services";
+hmCatalog["210"] = "C210-Produits&consommables industriels - Industrial products";
+hmCatalog["215"] = "C215-Services&produits généraux - Other services&products";
+hmCatalog["300"] = "C300-Primitifs doublages - Insulating panels for Composite panels";
+hmCatalog["305"] = "C305-Panneaux isolants - Insulating panels";
+hmCatalog["310"] = "C310-Blocs - Polystyrene blocks";
+hmCatalog["315"] = "C315-Colles&Enduits internes - Internal adhesives&compounds";
+hmCatalog["320"] = "C320-Plâtres internes - Internal Gypsum plasters";
+hmCatalog["400"] = "C400-Artifices&Explosifs - Explosives";
+hmCatalog["405"] = "C405-Energies";
+hmCatalog["410"] = "C410-Polyethylene";
+hmCatalog["415"] = "C415-Fournitures pour fabrication -";
+hmCatalog["420"] = "C420-Marquage - Ink and solvents";
+hmCatalog["425"] = "C425-Ajouts - Additives";
+hmCatalog["430"] = "C430-Billes - Polystyrene beads";
+hmCatalog["435"] = "C435-Parements plaques de plâtre -";
+hmCatalog["440"] = "C440-Papiers - Paper";
+hmCatalog["441"] = "C441-Papiers Essais - Paper test";
+hmCatalog["442"] = "C442-Papiers Réseaux - Honeycomb Paper";
+hmCatalog["445"] = "C445-Acc papiers - Paper accessories";
+hmCatalog["450"] = "C450-Papiers recyclés - Recycled paper";
+hmCatalog["455"] = "C455-Produits nettoyant&chaufferie - Cleaning products";
+hmCatalog["460"] = "C460-Solutions mères&premix - Premixes";
+hmCatalog["465"] = "C465-Carreaux internes - Internal gypsum blocks";
+hmCatalog["470"] = "C470-Gypse mat 1ère - Gypsum rock raw material";
+hmCatalog["475"] = "C475-Papiers internes - Internal paper";
+hmCatalog["480"] = "C480-Colles mat 1ère - Glues";
+hmCatalog["485"] = "C485-Acier - Steel";
+hmCatalog["500"] = "C500-Etiquettes - Labels";
+hmCatalog["505"] = "C505-Bandes gommées - End tapes";
+hmCatalog["510"] = "C510-Cartons d emballage - Packaging cardboard";
+hmCatalog["515"] = "C515-Cales - Bearers";
+hmCatalog["520"] = "C520-Cerclage -";
+hmCatalog["525"] = "C525-Sacherie - Bags";
+hmCatalog["530"] = "C530-Big bags";
+hmCatalog["535"] = "C535-Palets";
+hmCatalog["540"] = "C540-Récipients - Small containers";
+hmCatalog["600"] = "C600-Prestia Plâtre formulé automatique - Auto formulated gypsum";
+hmCatalog["605"] = "C605-Prestia Plâtre formulé manuel - Manual formulated gypsum";
+hmCatalog["610"] = "C610-Prestia Plâtre non formulé - Non formulated gypsum";
+hmCatalog["650"] = "C650-LCL Liants - Adhesives";
+hmCatalog["655"] = "C655-LCL Adjuvants - Additives";
+hmCatalog["660"] = "C660-LCL Billes PSE - Polystyrene beads";
+hmCatalog["665"] = "C665-LCL Outillage - Tools";
+hmCatalog["670"] = "C670-LCL Accessoires marketing - Marketing accessories";
+hmCatalog["690"] = "C690-Noble Perlite";
+hmCatalog["700"] = "C700-Platec Acc finition - Finishing accessories";
+hmCatalog["705"] = "C705-Platec Acc ouvr verticaux - Partition accessories";
+hmCatalog["710"] = "C710-Platec Enduits - Jointing compounds";
+hmCatalog["715"] = "C715-Platec Outillage - Tools";
+hmCatalog["730"] = "C730-Platec Prestations - Services";
+hmCatalog["999"] = "C999-Produits génériques - Generic products";
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+var log = getLogger("JmsLog");
+hmGlobals["LOGGER"]=getLogger("JmsLog");
+
+//Create the header information for the Excel
+var hmHeader = [];
+fillHeaderHashmap(hmHeader);
+var xlsMaterial = new ExcelBook();
+var sheetMaterial = createHeadersInExcelFile(hmGlobals, xlsMaterial, "ZMDM_MATERIAL", hmHeader);
+log.loggerDebug("*** Headers created... ***");
+
+//Get the information from the item and put it in the
+var hmExcelValues = [];
+var rdrMaterials = new Reader("public_html/XFER/Reconciliation/ZMDM_MATERIAL.csv");
+var parser = newDelimParser(rdrMaterials, ";");
+
+//Get the inputvalue
+var catalogName = inputs["Catalog_Name"];
+var strSelectedCatalogCode = substring(catalogName, 1, 4);
+
+//skip two lines
+var attrs = parser.splitLine();
+attrs = parser.splitLine();
+log.loggerDebug("Skipped two lines in the import  :  " + attrs[0]);
+var bDone = false;
+while(!bDone)
+{
+    attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone)
+    {
+        var itemAttrs = [];
+        itemAttrs["COMB_KEY"] = checkString(attrs[0], "");
+		itemAttrs["ZZERPCODE"] = checkString(attrs[1], "");
+		
+		itemAttrs["MATNR"] = checkString(attrs[2], ""); //01AC0664-MaterialNumber
+		itemAttrs["BISMT"] = checkString(attrs[3], ""); //01AC0740-OldMaterialNumber
+		itemAttrs["BEGRU"] = checkString(attrs[4], ""); //01AC0667-AuthorisationGroup but only on product level??
+		itemAttrs["BREIT"] = checkString(attrs[5], ""); //04CP0118-PItemWidth
+		itemAttrs["BRGEW"] = checkString(attrs[6], ""); //04CP0215-grossWeight
+		itemAttrs["BSTME"] = checkString(attrs[7], ""); //06DN0674-PurchasingUnit
+		itemAttrs["PRDHA"] = checkString(attrs[8], ""); //12BI0666-ProductHierarchy
+		itemAttrs["EAN11"] = checkString(attrs[9], ""); //01AC0042-GTIN TODO not to be synchronized
+		itemAttrs["EKWSL"] = checkString(attrs[10], ""); //02FR0673-PurchasingValueKey
+		itemAttrs["VHART"] = checkString(attrs[11], ""); //06DN0675-PackagingMaterialType
+		itemAttrs["HOEHE"] = checkString(attrs[12], ""); //04CP0082-RealThickness TODO not to be synchronized
+		itemAttrs["LAENG"] = checkString(attrs[13], ""); //04CP0116-Depth
+		itemAttrs["MAGRV"] = checkString(attrs[14], ""); //06DN0672-MaterialGroupPackaging
+		itemAttrs["MATKL"] = checkString(attrs[15], ""); //02FR0660-MaterialGroup
+		itemAttrs["MEINS"] = checkString(attrs[16], ""); //06DN0661-BaseUnitOfMeasure
+		itemAttrs["MSTAE"] = checkString(attrs[17], ""); //01AC0670-XPlantMatlStatus
+		itemAttrs["MSTAV"] = checkString(attrs[18], ""); //10GC0677-XDistrChanStatus
+		itemAttrs["MSTDE"] = checkString(attrs[19], ""); //01AC0671-XPlantMatlStatusValidFrom 
+		itemAttrs["MSTDV"] = checkString(attrs[20], ""); //06DN0708-PlantMaterialStatusValidFrom 
+		itemAttrs["MTART"] = checkString(attrs[21], ""); //01AC0659-MaterialType
+		itemAttrs["MTPOS_MARA"] = checkString(attrs[22], ""); //06DN0669-GenItemCatGroup
+		itemAttrs["NTGEW"] = checkString(attrs[23], ""); //04CP0213-netWeight
+		itemAttrs["NUMTP"] = checkString(attrs[24], ""); //01AC0668-EANCategory
+		itemAttrs["TRAGR"] = checkString(attrs[25], ""); //06DN0676-TransportationGroup
+		itemAttrs["VOLUM"] = checkString(attrs[26], ""); //04CP0217-RoughVolume
+		
+		var strVABME = checkString(attrs[28], "");
+		if(strVABME.length() < 2){
+			itemAttrs["VABME"] = "0" + strVABME;
+		}
+		else{
+			itemAttrs["VABME"] = strVABME;
+		}
+		itemAttrs["MAKTX"] = "";
+		itemAttrs["ZZMTOSCEN"] = checkString(attrs[27], "");
+		
+		itemAttrs["desc_en"] = checkString(attrs[45], "");
+		itemAttrs["desc_fr"] = checkString(attrs[46], "");
+		
+		if(itemAttrs["ZZERPCODE"] != ""){
+			var strCatalogCode = substring(itemAttrs["ZZERPCODE"], 1, 4);
+			if(strCatalogCode == strSelectedCatalogCode){
+				hmExcelValues[0] = "C" + strCatalogCode;
+				log.loggerDebug("strCatalogCode : " + hmExcelValues[0]);
+				hmExcelValues[1] = itemAttrs["ZZERPCODE"];
+				hmExcelValues[3] = itemAttrs["MATNR"];
+				hmExcelValues[5] = itemAttrs["BISMT"];
+				hmExcelValues[7] = itemAttrs["BEGRU"];
+				hmExcelValues[9] = itemAttrs["BREIT"];
+				hmExcelValues[11] = itemAttrs["BSTME"];
+				hmExcelValues[13] = itemAttrs["PRDHA"];
+				hmExcelValues[15] = itemAttrs["EAN11"];
+				hmExcelValues[16] = itemAttrs["EKWSL"];
+				hmExcelValues[18] = itemAttrs["VHART"];
+				hmExcelValues[20] = itemAttrs["HOEHE"];
+				hmExcelValues[21] = itemAttrs["LAENG"];
+				hmExcelValues[22] = itemAttrs["MAGRV"];
+				hmExcelValues[24] = itemAttrs["MATKL"];
+				hmExcelValues[26] = itemAttrs["MEINS"];
+				hmExcelValues[28] = itemAttrs["MSTAE"];
+				hmExcelValues[30] = itemAttrs["MSTAV"];
+				hmExcelValues[32] = itemAttrs["MSTDE"];
+				hmExcelValues[34] = itemAttrs["MSTDV"];
+				hmExcelValues[36] = itemAttrs["MTART"];
+				hmExcelValues[38] = itemAttrs["MTPOS_MARA"];
+				hmExcelValues[40] = itemAttrs["NTGEW"];
+				hmExcelValues[42] = itemAttrs["NUMTP"];
+				hmExcelValues[43] = itemAttrs["TRAGR"];
+				hmExcelValues[45] = itemAttrs["VOLUM"];
+				hmExcelValues[46] = itemAttrs["ZZMTOSCEN"];
+				hmExcelValues[47] = itemAttrs["MAKTX"];
+				hmExcelValues[48] = itemAttrs["VABME"];
+				
+				log.loggerDebug("Item : " + itemAttrs["ZZERPCODE"]);
+				var ctgProcessingCatalog = getCtgByName(hmCatalog[strCatalogCode]);
+				
+				//var ctrcategoryTree = getCategoryTreeByName("H000-Typology");
+				var itmProcessingItem = ctgProcessingCatalog.getEntryByPrimaryKey(itemAttrs["ZZERPCODE"]);
+				if(itmProcessingItem != null){
+				
+					var strItemType= getItemType(itmProcessingItem, hmGlobals);
+					
+					var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+					var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+					var specItemSpec = getSpecByName(strSecSpecName);
+					//set all the attributes
+					//All types of products (item, bunit and prod)
+					hmExcelValues[2] =	checkString(itmProcessingItem.getEntryAttrib("SC000-GlobPrim/01AC0044-ERPCode"), "");
+					hmExcelValues[6] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0740-OldMaterialNumber"), "");
+					hmExcelValues[8] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0667-AuthorisationGroup"), "");
+					hmExcelValues[27] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0661-BaseUnitOfMeasure"), "");
+					hmExcelValues[29] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0670-XPlantMatlStatus"), "");
+					hmExcelValues[38] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0668-EANCategory"), "");
+					hmExcelValues[4] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "");
+					var dateXPMSV = itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0671-XPlantMatlStatusValidFrom");
+					if(dateXPMSV != null){
+						hmExcelValues[33] = dateXPMSV.formatDate("yyyyMMdd");
+					}
+					
+					hmExcelValues[10] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/04CP0118-PItemWidth"), "");
+					//Bunit of Pitem
+					if(strItemType != "Prod"){
+						hmExcelValues[17] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/02FR0673-PurchasingValueKey"), "");
+						hmExcelValues[19] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0675-PackagingMaterialType"), "");
+						hmExcelValues[23] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0672-MaterialGroupPackaging"), "");
+						hmExcelValues[31] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/10GC0677-XDistrChanStatus"), "");
+						var dateXDCSTVF = itmProcessingItem.getEntryAttrib(strSecSpecName + "/10GC0678-XDistrChanStatusValidFrom");
+						if(dateXDCSTVF != null){
+							hmExcelValues[35] = dateXDCSTVF.formatDate("yyyyMMdd");
+						}
+						hmExcelValues[39] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0669-GenItemCatGroup"), "");
+						hmExcelValues[44] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0676-TransportationGroup"), "");
+						hmExcelValues[49] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0777-VariablePurchaseOrderUnitValue"), "");
+						hmExcelValues[12] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0674-PurchasingUnit"), "");
+					}
+					
+					//Bunit
+					if(strItemType == "Bunit"){
+						hmExcelValues[14] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/12BI0666-ProductHierarchy"), "");
+						hmExcelValues[25] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/02FR0660-MaterialGroup"), "");
+						hmExcelValues[37] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0659-MaterialType"), "");
+					}
+					
+					
+					//Prod
+					if(strItemType == "Prod"){
+						hmExcelValues[14] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/12BI0666-ProductHierarchy"), "");
+						hmExcelValues[25] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/02FR0660-MaterialGroup"), "");
+						hmExcelValues[37] =	checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/01AC0659-MaterialType"), "");
+					}
+	
+					//Get the Product belonging to this item
+					var itmProdItem = getProductItem(itmProcessingItem, strItemType);
+					var itmBUnitItem = null;
+					var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+					if(strItemType == "Pitem1"){
+						itmBUnitItem = itmProcessingItem.getItemUsingEntryRelationshipAttrib(sAttribPath);
+					}
+					else if(strItemType == "Pitem2"){
+						itmBUnitItem = itmProcessingItem.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+					}
+					if(itmBUnitItem != null){
+						var catBUnitProcessingItem = itmBUnitItem.getCtgItemCategories("H000-Typology")[0];
+						var strBUnitSecSpecName = catBUnitProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+						var specBUnitSpec = getSpecByName(strBUnitSecSpecName);
+						hmExcelValues[14] =	checkString(itmBUnitItem.getEntryAttrib(strBUnitSecSpecName + "/12BI0666-ProductHierarchy"), "");
+						hmExcelValues[25] =	checkString(itmBUnitItem.getEntryAttrib(strBUnitSecSpecName + "/02FR0660-MaterialGroup"), "");
+						hmExcelValues[37] =	checkString(itmBUnitItem.getEntryAttrib(strBUnitSecSpecName + "/01AC0659-MaterialType"), "");
+					}
+					
+					
+					if(itmProdItem != null){
+						var catProdProcessingItem = itmProdItem.getCtgItemCategories("H000-Typology")[0];
+						var strProdSecSpecName = catProdProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+						var specProdSpec = getSpecByName(strProdSecSpecName);
+						hmExcelValues[14] =	checkString(itmProdItem.getEntryAttrib(strProdSecSpecName + "/12BI0666-ProductHierarchy"), "");
+						hmExcelValues[25] =	checkString(itmProdItem.getEntryAttrib(strProdSecSpecName + "/02FR0660-MaterialGroup"), "");
+						hmExcelValues[37] =	checkString(itmProdItem.getEntryAttrib(strProdSecSpecName + "/01AC0659-MaterialType"), "");
+					}
+					
+					
+				}
+			sheetMaterial = addRowToExcelFile(hmGlobals, sheetMaterial, hmExcelValues);
+			}
+		}
+    }
+}
+
+xlsMaterial.saveToDocStore("public_html/reconciliation/material/zmdmmaterial_" + strSelectedCatalogCode + ".xls", true);

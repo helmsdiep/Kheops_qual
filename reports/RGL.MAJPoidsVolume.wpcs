@@ -1,0 +1,199 @@
+var logPath = "/majmasse/maj-weight-and-volume-units-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+	//
+	var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+	var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+	//
+	var oitemBUnit;
+	forEachItemSetElement(oBUnitItemSet,oitemBUnit) {
+		if(!oitemBUnit.isEntryCheckedOut()) {
+			var strItemPK = oitemBUnit.getPrimaryKey();
+			//
+			var btosave=false;
+			// 04CP0215-grossWeight
+			var ogrossWeightEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0215-grossWeight");
+			if(ogrossWeightEn!=null) {
+				var GrossWeightValue = ogrossWeightEn.getEntryNodeValue();
+				if(GrossWeightValue!=null) {
+					var oGrossWeightUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0216-grossWeightUnit");
+					if(oGrossWeightUnitEn!=null) {
+						var strGrossWeightUnit = checkString(oGrossWeightUnitEn.getEntryNodeValue(),"");
+						if(strGrossWeightUnit=="") {
+							oGrossWeightUnitEn.setEntryNodeValue("[KGM] - Kilogramme");
+							btosave=true;
+						}
+					}
+				}
+			}
+			// 04CP0217-RoughVolume
+			var oRoughVolumeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0217-RoughVolume");
+			if(oRoughVolumeEn!=null) {
+				var RoughVolumeValue = oRoughVolumeEn.getEntryNodeValue();
+				if(RoughVolumeValue!=null) {
+					var oRoughVolumeUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0218-RoughVolumeUnit");
+					if(oRoughVolumeUnitEn!=null) {
+						var strRoughVolumeUnit = checkString(oRoughVolumeUnitEn.getEntryNodeValue(),"");
+						if(strRoughVolumeUnit=="") {
+							oRoughVolumeUnitEn.setEntryNodeValue("[MTQ] - Mètre cube");
+							btosave=true;
+						}
+					}
+				}
+			}		
+			// 04CP0213-netWeight
+			var onetWeightEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0213-netWeight");
+			if(onetWeightEn!=null) {
+				var netWeightValue = onetWeightEn.getEntryNodeValue();
+				if(netWeightValue!=null) {
+					var onetWeightUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemBUnit,"04CP0214-netWeightUnit");
+					if(onetWeightUnitEn!=null) {
+						var strnetWeightUnit = checkString(onetWeightUnitEn.getEntryNodeValue(),"");
+						if(strnetWeightUnit=="") {
+							onetWeightUnitEn.setEntryNodeValue("[KGM] - Kilogramme");
+							btosave=true;
+						}
+					}
+				}
+			}		
+			//
+			if(btosave==true) {
+				logOut.writeln(strItemPK);
+				var test = oitemBUnit.saveCtgItem();
+				logOut.writeln(test);
+			}
+		}
+	}
+	
+	var oPItemCategory = oCategoryTree.getEntryByPrimaryKey("PItem");
+	var oPItemItemSet = oPItemCategory.getItemSetForCategory(oCatalog);
+	//
+	var oitemPItem;
+	forEachItemSetElement(oPItemItemSet,oitemPItem) {
+		if(!oitemPItem.isEntryCheckedOut()) {
+			var strItemPK = oitemPItem.getPrimaryKey();
+			//
+			var btosave=false;
+			// 04CP0215-grossWeight
+			var ogrossWeightEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0215-grossWeight");
+			if(ogrossWeightEn!=null) {
+				var GrossWeightValue = ogrossWeightEn.getEntryNodeValue();
+				if(GrossWeightValue!=null) {
+					var oGrossWeightUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0216-grossWeightUnit");
+					if(oGrossWeightUnitEn!=null) {
+						var strGrossWeightUnit = checkString(oGrossWeightUnitEn.getEntryNodeValue(),"");
+						if(strGrossWeightUnit=="") {
+							oGrossWeightUnitEn.setEntryNodeValue("[KGM] - Kilogramme");
+							btosave=true;
+						}
+					}
+				}
+			}
+			// 04CP0217-RoughVolume
+			var oRoughVolumeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0217-RoughVolume");
+			if(oRoughVolumeEn!=null) {
+				var RoughVolumeValue = oRoughVolumeEn.getEntryNodeValue();
+				if(RoughVolumeValue!=null) {
+					var oRoughVolumeUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0218-RoughVolumeUnit");
+					if(oRoughVolumeUnitEn!=null) {
+						var strRoughVolumeUnit = checkString(oRoughVolumeUnitEn.getEntryNodeValue(),"");
+						if(strRoughVolumeUnit=="") {
+							oRoughVolumeUnitEn.setEntryNodeValue("[MTQ] - Mètre cube");
+							btosave=true;
+						}
+					}
+				}
+			}		
+			// 04CP0213-netWeight
+			var onetWeightEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0213-netWeight");
+			if(onetWeightEn!=null) {
+				var netWeightValue = onetWeightEn.getEntryNodeValue();
+				if(netWeightValue!=null) {
+					var onetWeightUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitemPItem,"04CP0214-netWeightUnit");
+					if(onetWeightUnitEn!=null) {
+						var strnetWeightUnit = checkString(onetWeightUnitEn.getEntryNodeValue(),"");
+						if(strnetWeightUnit=="") {
+							onetWeightUnitEn.setEntryNodeValue("[KGM] - Kilogramme");
+							btosave=true;
+						}
+					}
+				}
+			}	
+			if(btosave==true) {
+				logOut.writeln(strItemPK);
+				var test = oitemPItem.saveCtgItem();
+				logOut.writeln(test);
+			}
+		}
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logOut.save(logPath);
+
+out.writeln("Fin Traitement");

@@ -1,0 +1,161 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM DocStore Volume Report
+//******************************************************************
+// CHANGE LOG
+// 2010-05-25 - Initial release
+//******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/DB Queries"
+
+function getLocalizedSystemMessage(message_name, locale_obj, english_message)
+{
+	var msg;
+	var errLog = getLogger("IBM MDMPIM DocStore Maintenance Script Function: getLocalizedSystemMessage");
+	var msgExp;
+	catchError (msgExp)
+	{
+		msg = getSystemMessageByName(message_name, locale_obj);
+	}
+	if (msgExp != null)
+	{
+		msg = english_message;
+		errLog.loggerError("*** No Localized Message *** " + message_name + " *** " + locale_obj + " *** " + checkString(msgExp,"[novalue]"));
+	}
+    return msg;
+}
+
+function getSingleObjectQueryResult (resultSet)
+{
+    if ( null != resultSet && resultSet.next() )
+    {
+        return resultSet.getColumnAt(1);
+    }
+
+    return null;
+}
+
+function getCompanyId(db_connection, company_code)
+{
+    var companyIdSQL = ""
+    + "\n" + "SELECT cmp_company_id "
+    + "\n" + "  FROM cmp "
+    + "\n" + " WHERE cmp_company_code = '" + company_code + "' "
+    + "\n";
+    // out.writeln(companyIdSQL);
+    return getSingleObjectQueryResult(db_connection.executeQuery(companyIdSQL));
+}
+
+function docStoreVolumeList(db_connection, company_id)
+{
+	var topDirectoryVolume = [];
+	var docStoreVolumeQuery = topDirectoryFiles(company_id);
+    //out.writeln(docStoreVolumeQuery);
+    var doc_store_volume_sql_resultset = db_connection.executeQuery(docStoreVolumeQuery);
+
+	var i;
+    for(i=0; doc_store_volume_sql_resultset.next(); i++)
+    {
+		topDirectoryVolume[i] = doc_store_volume_sql_resultset.getColumnAt(1) + "|" + doc_store_volume_sql_resultset.getColumnAt(2);
+		//out.writeln(topDirectoryVolume[i]);
+    }
+
+	return topDirectoryVolume;
+}
+
+function printDirVolumeReport(dirListing,msgDsvCol1,msgDsvCol2)
+{
+	var counter;
+	out.writeln("<table border='1'>");
+	out.writeln("<tr>");
+	out.writeln("<th>" + msgDsvCol1 + "</th>");
+	out.writeln("<th>" + msgDsvCol2 + "</th>");
+	out.writeln("</tr>");
+	for (counter = 0; counter < dirListing.size(); counter++)
+	{
+		var sDirInfo = dirListing[counter].parseDelim("|");
+		out.writeln("<tr>");
+		out.writeln("<td>" + sDirInfo[0] + "</td>");
+		out.writeln("<td align=center>" + sDirInfo[1] + "</td>");
+		out.writeln("</tr>");
+	}
+	out.writeln("</table>");
+}
+
+function subDirectoryVolumeReport(db_connection, company_id, dirListing, msgDsvSubD, msgDsvCol1, msgDsvCol2)
+{
+	var subDirectoryVolume = [];
+	var counter;
+	var levels;
+	//Loop over 3 high volume top-level directories for sub-directory report; (sub-directory depth = 1)
+	for (counter=0; counter < dirListing.size() && counter < 3; counter++)
+	{
+		var sDirInfo = dirListing[counter].parseDelim("|");
+		var subDirVolumeQuery = subDirectoryFiles(company_id,sDirInfo[0]);
+		var sub_dir_volume_resultset = db_connection.executeQuery(subDirVolumeQuery);
+		out.writeln("<h2>" + msgDsvSubD + sDirInfo[0] + "</h2>");
+		subDirectoryVolume = [];
+		var i;
+		for(i=0; sub_dir_volume_resultset.next(); i++)
+		{
+			subDirectoryVolume[i] = sub_dir_volume_resultset.getColumnAt(1) + "|" + sub_dir_volume_resultset.getColumnAt(2);
+			//out.writeln("<p> " + subDirectoryVolume + "</p>");
+		}				
+		printDirVolumeReport(subDirectoryVolume,msgDsvCol1,msgDsvCol2);
+	}
+}
+
+//********************************************************************************************
+//
+// Main
+//
+//********************************************************************************************
+var dbContext = getWPCDBContext();
+var dbConnection = dbContext.getWPCDBConnection();
+var sCompanyCode = getCompanyCode();
+var dftLoc = getDefaultLocale();
+// Messages for DocStore volume report
+var msgNoCmpId = getLocalizedSystemMessage("COMMON_INFO_NO_COMPANY_CODE",dftLoc,"Could not find company id for company code ");
+var msgDsvHead = getLocalizedSystemMessage("COMMON_INFO_DOCSVOL_REPT_HEADR",dftLoc,"DocStore volume report for company: ");
+var msgDsvHed1 = getLocalizedSystemMessage("COMMON_INFO_DOCSVOL_REPT_HEDR1",dftLoc,"Files in top level directories");
+var msgDsvComp = getLocalizedSystemMessage("COMMON_INFO_DOCSVOL_REPT_ENDED",dftLoc,"End of DocStore volume report");
+var msgDsvCol1 = getLocalizedSystemMessage("COMMON_INFO_DOCMAINTREPT_COLM1",dftLoc,"Directory name");
+var msgDsvCol2 = getLocalizedSystemMessage("COMMON_INFO_DOCSVOL_REPT_COLM2",dftLoc,"Number of files");
+var msgDsvSubD = getLocalizedSystemMessage("COMMON_INFO_DOCSVOL_REPT_SUBDR",dftLoc,"Files in sub-directories of directory: ");
+
+var excep;
+catchError (excep)
+{
+    var companyId = getCompanyId(dbConnection, sCompanyCode);
+
+    if ( companyId == null )
+    {
+        throwError (msgNoCmpId + " - " + sCompanyCode);
+    }
+	var topDirListing = docStoreVolumeList(dbConnection, companyId);
+    //out.writeln(topDirListing);
+	
+	out.writeln("<h1> " + msgDsvHead + sCompanyCode + " </h1>");
+	out.writeln("<h2>" + msgDsvHed1 + "</h2>");
+	printDirVolumeReport(topDirListing,msgDsvCol1,msgDsvCol2);
+	
+	//Retrieving and printing sub-directory info
+	subDirectoryVolumeReport(dbConnection, companyId, topDirListing, msgDsvSubD, msgDsvCol1, msgDsvCol2);
+	out.writeln("<p>" + msgDsvComp + "</p>");
+}
+
+if (excep != null)
+{
+    out.writeln ( "*** EXCEPTION = " + checkString(excep , "[novalue]") );
+}
+
+dbContext.releaseWPCDBConnection(dbConnection);

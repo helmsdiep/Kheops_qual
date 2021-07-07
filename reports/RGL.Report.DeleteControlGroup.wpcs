@@ -1,0 +1,63 @@
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // logDebug("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	out.writeln("ctgName="+ctgName);
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	//
+	forEachItemSetElement(isItemSet, itmProcessingItem){
+		var TargetSystemGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(itmProcessingItem,"99CTL200-TargetSystemGroup");
+		if(TargetSystemGroup!=null) {
+			for(var i=0;i<TargetSystemGroup.size();i++) {
+				var entemp = TargetSystemGroup[i];
+				var oTargetSystemIdEn = entemp.getEntryNode("99CTL210-TargetSystemId");
+				// var oTargetSystemIdEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"99CTL200-TargetSystemGroup#"+i+"/99CTL210-TargetSystemId");
+				if(oTargetSystemIdEn!=null) {
+					var strTargetSystemId=checkString(oTargetSystemIdEn.getEntryNodeValue(),"");
+					if(strTargetSystemId=="AS400" || strTargetSystemId=="BATIDATA" || strTargetSystemId=="JDE") {
+						entemp.deleteEntryNode();
+					}
+				}
+			}
+		}
+		itmProcessingItem.saveCtgItem();
+		out.writeln(itmProcessingItem.getPrimaryKey());
+	}
+}
+			
+			
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // logDebug("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}

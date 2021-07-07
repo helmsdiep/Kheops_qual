@@ -1,0 +1,240 @@
+function getEn(hmGlobals, item, sNodeName){
+	return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="1-Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="2-Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="3-Pitem level 1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="4-Pitem level 2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+function getItemSAPUnitValue(hmGlobals,item, en, attrname) {
+	var value = "";
+	var strCatalogCode = concat("C",substring(item.getCatalog().getCtgName(),1,4));
+	
+	out.writeln("strCatalogCode="+strCatalogCode);
+	
+	var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemLevel").invoke(item);
+	var strItemTypeL906 = "";
+	if(strItemType!=null && strItemType!="") {
+		if(strItemType=="1") {
+			strItemTypeL906 = "Prod";
+		}
+		else if (strItemType=="2") {
+			strItemTypeL906 = "Bunit";
+		}
+		else if (strItemType=="3") {
+			strItemTypeL906 = "Pitemlevel1";
+		}
+		else if (strItemType=="4") {
+			strItemTypeL906 = "Pitemlevel2";
+		}		
+	}
+	var oLkpSAPConversions = getCtgByName("L906-SAPConversionsMassUpdate");
+	//
+	var oProdItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(item,"Prod");
+	if(oProdItem!=null) {
+		var strProdErpCode = oProdItem.getPrimaryKey();
+		var strLkpEntryPrimaryKeyWithProdERPCode = concat("[",strCatalogCode," - ",strItemTypeL906," - ",strProdErpCode,"]");
+		//
+		var oLkpEntry = null;
+		oLkpEntry = oLkpSAPConversions.getEntryByPrimaryKey(strLkpEntryPrimaryKeyWithProdERPCode);
+		if (oLkpEntry==null) {
+			var strLkpEntryPrimaryKey = concat("[",strCatalogCode," - ",strItemTypeL906,"]");
+			oLkpEntry = oLkpSAPConversions.getEntryByPrimaryKey(strLkpEntryPrimaryKey);
+		}
+		if(oLkpEntry!=null) {
+			var strUnitValue = checkString(oLkpEntry.getEntryAttrib(concat("SL906-SAPConversionsMassUpdate/",attrname)),"");
+			//
+			if(strUnitValue!=null && strUnitValue!="") {
+				if(strUnitValue=="[PACKAGING] - Packaging") {
+					var oPackagingUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0399-SupportOfPacking");
+					if (oPackagingUnitEn!=null) {
+						var strUnitValue06DN0399 = checkString(oPackagingUnitEn.getEntryNodeValue(),"");
+						if(strUnitValue06DN0399!=null && strUnitValue06DN0399!="") {
+							var oLkpL195 = getCtgByName("L195-Type d emballage - Packing type");
+							var oL195Item = oLkpL195.getEntryByPrimaryKey(strUnitValue06DN0399);
+							if(oL195Item!=null) {
+								var strUnitSAPValue = oL195Item.getEntryAttrib("SL195-Packing_type/C06-SAP Code");
+								if(strUnitSAPValue!=null && strUnitSAPValue!="") {
+									value=strUnitSAPValue;				
+								}
+							}
+						}
+					}
+				}
+				else if(strUnitValue=="[PITEM1]-Pitem Level 1") {
+					var oPItem1Item = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem").invoke(hmGlobals,item);
+					var oPackagingUnitEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oPItem1Item,"06DN0399-SupportOfPacking");
+					if (oPackagingUnitEn!=null) {
+						var strUnitValue06DN0399 = checkString(oPackagingUnitEn.getEntryNodeValue(),"");
+						if(strUnitValue06DN0399!=null && strUnitValue06DN0399!="") {
+							var oLkpL195 = getCtgByName("L195-Type d emballage - Packing type");
+							var oL195Item = oLkpL195.getEntryByPrimaryKey(strUnitValue06DN0399);
+							if(oL195Item!=null) {
+								var strUnitSAPValue = oL195Item.getEntryAttrib("SL195-Packing_type/C06-SAP Code");
+								if(strUnitSAPValue!=null && strUnitSAPValue!="") {
+									value=strUnitSAPValue;				
+								}
+							}
+						}
+					}
+				}
+				else {
+					var oLkpL210 = getCtgByName("L210-Unités normées - normalized units");
+					var oL210Item = oLkpL210.getEntryByPrimaryKey(strUnitValue);
+					if(oL210Item!=null) {
+						var strUnitSAPValue = oL210Item.getEntryAttrib("SL210-normalized_units/C05-Code SAP");
+						if(strUnitSAPValue!=null && strUnitSAPValue!="") {
+							value=strUnitSAPValue;
+						}
+					}
+				}
+			}
+		}
+	}
+	return(value);
+}
+
+var logPath = "/test/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-UnitsErrors-20131104.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	out.writeln("ctgName="+ctgName);
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	//
+	forEachItemSetElement(isItemSet, item){
+		var strItemPK = item.getPrimaryKey();
+		var oShippingUnit = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0744-ShippingUnit");
+		var oStorageUnit = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0749-StorageUnit");
+		var oPricingUnit = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0752-PricingUnit");
+		var oManagementUnit = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0755-ManagementUnit");
+		var oAdditionalUnit1 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0758-AdditionalUnit1");
+		var oAdditionalUnit2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0761-AdditionalUnit2");
+		var oAdditionalUnit3 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0764-AdditionalUnit3");
+		var oAdditionalUnit4 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"06DN0808-AdditionalUnit4");
+		//
+		var strShippingUnitValue = getItemSAPUnitValue(hmGlobals,item, oShippingUnit, "C11-ShippingUnit");
+		if(strShippingUnitValue!=null && strShippingUnitValue!="") {
+			// out.writeln("strShippingUnitValue="+strShippingUnitValue);
+			//
+			if(oShippingUnit!=null) {
+				var strShippingUnit = checkString(oShippingUnit.getEntryNodeValue(),"");
+				if(strShippingUnit=="" && strShippingUnitValue!="") {
+					logOut.writeln(strItemPK+"-"+"Shipping");
+				}
+			}
+		}
+		var strStorageUnitValue = getItemSAPUnitValue(hmGlobals,item, oStorageUnit, "C06-StorageUnit");
+		if(strStorageUnitValue!=null && strStorageUnitValue!="") {
+			// out.writeln("strStorageUnitValue="+strStorageUnitValue);
+			//
+			if(oStorageUnit!=null) {
+				var strStorageUnit = checkString(oStorageUnit.getEntryNodeValue(),"");
+				if(strStorageUnit=="" && strStorageUnitValue!="") {
+					logOut.writeln(strItemPK+"-"+"Storage");
+				}
+			}
+		}	
+		var strPricingUnitValue = getItemSAPUnitValue(hmGlobals,item, oPricingUnit, "C10-PricingUnit");
+		if(strPricingUnitValue!=null && strPricingUnitValue!="") {
+			// out.writeln("strPricingUnitValue="+strPricingUnitValue);
+			//
+			if(oPricingUnit!=null) {
+				var strPricingUnit = checkString(oPricingUnit.getEntryNodeValue(),"");
+				if(strPricingUnit=="" && strPricingUnitValue!="") {
+					logOut.writeln(strItemPK+"-"+"Pricing");
+				}
+			}
+		}
+		var strManagementUnitValue = getItemSAPUnitValue(hmGlobals,item, oManagementUnit, "C07-ManagementUnit");
+		if(strManagementUnitValue!=null && strManagementUnitValue!="") {
+			// out.writeln("strManagementUnitValue="+strManagementUnitValue);
+			//
+			if(oManagementUnit!=null) {
+				var strManagementUnit = checkString(oManagementUnit.getEntryNodeValue(),"");
+				if(strManagementUnit=="" && strManagementUnitValue!="") {
+					logOut.writeln(strItemPK+"-"+"Management");	
+				}
+			}
+		}
+		var strAdditionalUnit1Value = getItemSAPUnitValue(hmGlobals,item, oAdditionalUnit1, "C13-AdditionalUnit1");
+		if(strAdditionalUnit1Value!=null && strAdditionalUnit1Value!="") {
+			// out.writeln("strAdditionalUnit1Value="+strAdditionalUnit1Value);
+			//
+			if(oAdditionalUnit1!=null) {
+				var strAdditionalUnit1 = checkString(oAdditionalUnit1.getEntryNodeValue(),"");
+				if(strAdditionalUnit1=="" && strAdditionalUnit1Value!="") {
+					logOut.writeln(strItemPK+"-"+"Add 1");		
+				}
+			}
+		}
+		var strAdditionalUnit2Value = getItemSAPUnitValue(hmGlobals,item, oAdditionalUnit2, "C14-AdditionalUnit2");
+		if(strAdditionalUnit2Value!=null && strAdditionalUnit2Value!="") {
+			// out.writeln("strAdditionalUnit2Value="+strAdditionalUnit2Value);
+			//
+			if(oAdditionalUnit2!=null) {
+				var strAdditionalUnit2 = checkString(oAdditionalUnit2.getEntryNodeValue(),"");
+				if(strAdditionalUnit2=="" && strAdditionalUnit2Value!="") {
+					logOut.writeln(strItemPK+"-"+"Add 2");		
+				}
+			}
+		}
+		var strAdditionalUnit3Value = getItemSAPUnitValue(hmGlobals,item, oAdditionalUnit3, "C15-AdditionalUnit3");
+		if(strAdditionalUnit3Value!=null && strAdditionalUnit3Value!="") {
+			// out.writeln("strAdditionalUnit3Value="+strAdditionalUnit3Value);
+			//
+			if(oAdditionalUnit3!=null) {
+				var strAdditionalUnit3 = checkString(oAdditionalUnit3.getEntryNodeValue(),"");
+				if(strAdditionalUnit3=="" && strAdditionalUnit3Value!="") {
+					logOut.writeln(strItemPK+"-"+"Add 3");		
+				}
+			}	
+		}
+		var strAdditionalUnit4Value = getItemSAPUnitValue(hmGlobals,item, oAdditionalUnit4, "C17-AdditionalUnit4");
+		if(strAdditionalUnit4Value!=null && strAdditionalUnit4Value!="") {
+			// out.writeln("strAdditionalUnit4Value="+strAdditionalUnit4Value);
+			//
+			if(oAdditionalUnit4!=null) {
+				var strAdditionalUnit4 = checkString(oAdditionalUnit4.getEntryNodeValue(),"");
+				if(strAdditionalUnit4=="" && strAdditionalUnit4Value!="") {
+					logOut.writeln(strItemPK+"-"+"Add 4");		
+				}
+			}	
+		}
+	}
+}
+
+logOut.save(logPath);

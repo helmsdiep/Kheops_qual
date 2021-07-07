@@ -1,0 +1,75 @@
+var logPath = "/test/zzzzzzzzzzzzzzzzzzzzzzzz-VariablePurchaseOrderUnitValue-20131025.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	//
+	forEachItemSetElement(isItemSet, oitem){
+		var strItemPK = oitem.getPrimaryKey();
+		var oitemVariablePurchaseOrderUnitValueEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"06DN0777-VariablePurchaseOrderUnitValue");
+		if(oitemVariablePurchaseOrderUnitValueEn!=null) {
+			var strVariablePurchaseOrderUnitValue = checkString(oitemVariablePurchaseOrderUnitValueEn.getEntryNodeValue(),"");
+			if(strVariablePurchaseOrderUnitValue=="01") {
+				logOut.writeln(strItemPK+"-Done");
+				oitemVariablePurchaseOrderUnitValueEn.setEntryNodeValue("1");
+				var test = oitem.saveCtgItem();
+				logOut.writeln(test);
+			}
+			else if(strVariablePurchaseOrderUnitValue=="02") {
+				logOut.writeln(strItemPK+"-Done");
+				oitemVariablePurchaseOrderUnitValueEn.setEntryNodeValue("2");
+				var test = oitem.saveCtgItem();
+				logOut.writeln(test);
+			}
+			else {
+				logOut.writeln(strItemPK+"-"+strVariablePurchaseOrderUnitValue);
+			}
+		}
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logOut.save(logPath);

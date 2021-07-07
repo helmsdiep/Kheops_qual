@@ -1,0 +1,112 @@
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+
+var logPath = "/test/zzzzzzzzzzzz-init-BUOM-BUnit-error-20131025-GO.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var strCategoryTreeName="H000-Typology";
+var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	var oCatalog = getCtgByName(ctgName);
+	
+	var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+	var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+
+	var oitem;
+	forEachItemSetElement(oBUnitItemSet,oitem) {
+		var strItemPK = oitem.getPrimaryKey();
+		var oBaseUnitOfMeasureEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"06DN0661-BaseUnitOfMeasure");
+		if(oBaseUnitOfMeasureEn!=null) {
+			var strBaseUnitOfMeasure = checkString(oBaseUnitOfMeasureEn.getEntryNodeValue(),"");
+			if(strBaseUnitOfMeasure=="") {
+				// logOut.writeln(strItemPK);
+				//
+				var strCatalogCode = concat("C",substring(oitem.getCatalog().getCtgName(),1,4));
+				var strItemType = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemLevel").invoke(oitem);
+				var strItemTypeL906 = "";
+				if(strItemType!=null && strItemType!="") {
+					if(strItemType=="1") {
+						strItemTypeL906 = "Prod";
+					}
+					else if (strItemType=="2") {
+						strItemTypeL906 = "Bunit";
+					}
+					else if (strItemType=="3") {
+						strItemTypeL906 = "Pitemlevel1";
+					}
+					else if (strItemType=="4") {
+						strItemTypeL906 = "Pitemlevel2";
+					}		
+				}
+				var oLkpSAPConversions = getCtgByName("L906-SAPConversionsMassUpdate");
+				//
+				var oProdItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oitem,"Prod");
+				if(oProdItem!=null) {
+					var strProdErpCode = oProdItem.getPrimaryKey();
+					var strLkpEntryPrimaryKeyWithProdERPCode = concat("[",strCatalogCode," - ",strItemTypeL906," - ",strProdErpCode,"]");
+					//
+					var oLkpEntry = null;
+					oLkpEntry = oLkpSAPConversions.getEntryByPrimaryKey(strLkpEntryPrimaryKeyWithProdERPCode);
+					if (oLkpEntry==null) {
+						var strLkpEntryPrimaryKey = concat("[",strCatalogCode," - ",strItemTypeL906,"]");
+						oLkpEntry = oLkpSAPConversions.getEntryByPrimaryKey(strLkpEntryPrimaryKey);
+					}
+					if(oLkpEntry!=null) {
+						var strBUOM = checkString(oLkpEntry.getEntryAttrib("SL906-SAPConversionsMassUpdate/C16-BaseUnitOfMeasureDefault"),"");
+						//
+						if(strBUOM!=null && strBUOM!="") {
+							oBaseUnitOfMeasureEn.setEntryNodeValue(strBUOM);
+							oitem.saveCtgItem();
+							logOut.writeln(strItemPK+"-"+strBUOM);
+							//
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+logOut.save(logPath);
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logDebug("Fin Traitement");

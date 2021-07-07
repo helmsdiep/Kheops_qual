@@ -1,0 +1,11 @@
+//
+// Export Papier - Export Kheops pour étiquetage 
+//
+
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.Papier")
+    .getFunctionByName("getFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);
+// outWriter.save("/test/EtiquettesPapiers_"+today().formatDate("yyyyMMdd_HHmmss")+".csv");
