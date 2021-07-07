@@ -1,0 +1,121 @@
+function log(sLevel, logContext, sMsg) {
+	if (logContext != null && logContext.log != null) {
+		logContext.log.invoke(sLevel, logContext, sMsg);
+	} else {
+    	getLogger(checkString(getCurrentUserName(), "default")).loggerDebug(sMsg);
+	}
+	if (logContext != null && logContext.out != null) { logContext.out.writeln(sLevel + " " + sMsg); }
+	getLogger("Lafarge.DataEntry").loggerInfo(sMsg);
+
+}
+
+/// @brief Saves the item and throws an exception if there are validation errors.
+/// @brief Helper function for saving items and throwing possible validation errors
+/// @param itm - catalog item
+/// @return void -
+//:PRFUNCTION void saveItem(Item itm)
+function saveItem(itm) {
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			log("ERROR", [], "Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			log("ERROR", [], "Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var logPath = "/test/zzzzzzzzzzzz-deleteinactiveplantatitemlevel-20131024-2.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	if(ctgName!="C010-Plaques de plâtre - Gypsum plasterBoards") {
+		logDebug("ctgName="+ctgName);
+		var oCatalog = getCtgByName(ctgName);
+		var isItemSet = oCatalog.getItemSetForCatalog();
+		var oitem;
+		forEachItemSetElement(isItemSet,oitem) {
+			var strItemPK = oitem.getPrimaryKey();
+			//
+			var strSecSpecName = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"01AC0014-invoiceName").getEntryNodeExactPath();
+			if(strSecSpecName!=null && strSecSpecName!="") {
+				strSecSpecName = substring(strSecSpecName,1);
+				strSecSpecName = checkString(substring(strSecSpecName,0,strSecSpecName.indexOf("/")), "");
+				if(strSecSpecName != ""){
+					var enRoot = oitem.getRootEntryNode();
+					var enPOSG = enRoot.getEntryNode(strSecSpecName + "/PlaceOfStorageGroup");
+					var hmenChildren = enPOSG.getEntryNodeChildren();
+					
+					forEachHmElement(hmenChildren, intCount, enChild){
+						var strPlant = "";
+						var enPlant = enChild.getEntryNode("/06DN0679-Plant");
+						if(enPlant != null){
+							strPlant = checkString(enPlant.getEntryNodeValue(), "");
+						}
+						var enPCenter = enChild.getEntryNode("/06DN0680-ProfitCentre");
+						if(enPCenter != null){
+							var strPCenter = checkString(enPCenter.getEntryNodeValue(), "");
+							if(strPCenter=="") {
+								logOut.writeln("Delete : " + strPlant + " From  :  " + strItemPK);
+								enChild.deleteEntryNode();
+							}
+						}
+					}
+					saveItem(oitem);
+				}
+			}
+		}
+	}
+}
+
+logOut.save(logPath);
+logDebug("Fin Traitement");
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}

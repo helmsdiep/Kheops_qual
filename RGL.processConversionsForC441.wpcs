@@ -1,0 +1,61 @@
+var logPath = "/majmasse/updateC441conversions-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var catalogname = "C441-Papiers Essais - Paper test";
+var oCatalog=getCtgByName(catalogname);
+var isItemSet = oCatalog.getItemSetForCatalog();
+var oitem;
+forEachItemSetElement(isItemSet,oitem) {
+	if(!oitem.isEntryCheckedOut()) {
+		var strItemPK = oitem.getPrimaryKey();
+		logOut.writeln("strItemPK="+strItemPK);
+		//
+		getScriptByPath("/scripts/triggers/LG.Library.SAP.Conversions").getFunctionByName("applyConversions").invoke(oitem);
+		//
+		var test = oitem.saveCtgItem();
+		logOut.writeln(test);
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logOut.save(logPath);
+
+logDebug("Fin Traitement");

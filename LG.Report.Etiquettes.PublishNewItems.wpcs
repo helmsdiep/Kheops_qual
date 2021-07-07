@@ -1,0 +1,153 @@
+function getCatalogCodeList(){
+	var catalogcodelist = [];
+	catalogcodelist[0]="C010";
+	catalogcodelist[1]="C015";
+	catalogcodelist[2]="C020";
+	catalogcodelist[3]="C025";
+	catalogcodelist[4]="C110";
+	catalogcodelist[5]="C120";
+	catalogcodelist[6]="C130";
+	catalogcodelist[7]="C440";
+	catalogcodelist[8]="C441";
+	return catalogcodelist;
+}
+
+function saveItem(itm,hmGlobals) {
+	var log=hmGlobals["LOGGER"];
+	//
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			log.loggerDebug("ERROR", [], "Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			log.loggerDebug("ERROR", [], "Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"]=getLogger("default");
+var script = getScriptByPath("/scripts/triggers/LG.Business.Utils");
+
+var strCategoryTreeName="H000-Typology";
+var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+var oPItemCategory = oCategoryTree.getEntryByPrimaryKey("PItem");
+
+var acatalogcodelist = getCatalogCodeList();
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	if(acatalogcodelist.containsValue(substring(ctgName,0,4))){
+		var oCatalog = getCtgByName(ctgName);
+		//
+		hmGlobals["LOGGER"].loggerInfo("Processing catalog " + ctgName);
+		//
+		var oBunitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+		var oBUnitItem;
+		forEachItemSetElement(oBunitItemSet,oBUnitItem) {
+			if(!oBUnitItem.isEntryCheckedOut()) {
+				var strItemPK = oBUnitItem.getPrimaryKey();
+				
+				//
+				hmGlobals["LOGGER"].loggerInfo("START - BUNIT - strItemPK="+strItemPK);
+				//
+				var strStatusPublishingDBLabelling="";
+				var oItemStatusPublishingDBLabellingEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oBUnitItem,"01AC0809-StatusPublishingDBLabelling");
+				if(oItemStatusPublishingDBLabellingEn!=null) {
+					strStatusPublishingDBLabelling = checkString(oItemStatusPublishingDBLabellingEn[0].getEntryNodeValue(),"");
+				}
+				//
+				var strMaterialNumber="";
+				var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oBUnitItem,"01AC0664-MaterialNumber");
+				if(oItemMaterialNumberEn!=null) {
+					strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+				}
+				//
+				var strPublishedIntoSAP="";
+				var oItemPublishedIntoSAPEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oBUnitItem,"01AC0775-PublishedIntoSAP");
+				if(oItemPublishedIntoSAPEn!=null) {
+					strPublishedIntoSAP = checkString(oItemPublishedIntoSAPEn[0].getEntryNodeValue(),"");
+				}
+				//
+				if(checkString(getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oBUnitItem),"")=="ACTIVE" && strStatusPublishingDBLabelling=="true" && strPublishedIntoSAP=="true" && strMaterialNumber!="") {
+					oItemStatusPublishingDBLabellingEn[0].setEntryNodeValue(false);
+					//
+					var result = [];
+					result = script.getFunctionByName("checkBusinessRules").invoke(hmGlobals, oBUnitItem);
+					if (result.size()<1) {
+						logDebug("BUNIT - Before publish - strItemPK="+strItemPK);
+						//
+						getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(oBUnitItem,null);
+						//
+						logDebug("BUNIT - Before saving - strItemPK="+strItemPK);
+						//
+						saveItem(oBUnitItem,hmGlobals);
+						//
+						logDebug("BUNIT - After saving - strItemPK="+strItemPK);
+					}
+				}
+				hmGlobals["LOGGER"].loggerInfo("END - BUNIT - strItemPK="+strItemPK);
+			}
+		}	
+
+		var oPItemItemSet = oPItemCategory.getItemSetForCategory(oCatalog);
+		var oPItemItem;
+		forEachItemSetElement(oPItemItemSet,oPItemItem) {
+			if(!oPItemItem.isEntryCheckedOut()) {
+				var strItemPK = oPItemItem.getPrimaryKey();
+				if(strItemPK!="K010I56731") {
+					//
+					hmGlobals["LOGGER"].loggerInfo("START - PITEM - strItemPK="+strItemPK);
+					//
+					var strStatusPublishingDBLabelling="";
+					var oItemStatusPublishingDBLabellingEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oPItemItem,"01AC0809-StatusPublishingDBLabelling");
+					if(oItemStatusPublishingDBLabellingEn!=null) {
+						strStatusPublishingDBLabelling = checkString(oItemStatusPublishingDBLabellingEn[0].getEntryNodeValue(),"");
+					}
+					//
+					var strMaterialNumber="";
+					var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oPItemItem,"01AC0664-MaterialNumber");
+					if(oItemMaterialNumberEn!=null) {
+						strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+					}
+					//
+					var strPublishedIntoSAP="";
+					var oItemPublishedIntoSAPEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oPItemItem,"01AC0775-PublishedIntoSAP");
+					if(oItemPublishedIntoSAPEn!=null) {
+						strPublishedIntoSAP = checkString(oItemPublishedIntoSAPEn[0].getEntryNodeValue(),"");
+					}
+					//
+					if(checkString(getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oPItemItem),"")=="ACTIVE" && strStatusPublishingDBLabelling=="true" && strPublishedIntoSAP=="true" && strMaterialNumber!="") {
+						oItemStatusPublishingDBLabellingEn[0].setEntryNodeValue(false);
+						//
+						var result = [];
+						result = script.getFunctionByName("checkBusinessRules").invoke(hmGlobals, oPItemItem);
+						if (result.size()<1) {
+							logDebug("PITEM - Before publish - strItemPK="+strItemPK);
+							//
+							getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(oPItemItem,null);
+							//
+							logDebug("PITEM - Before saving - strItemPK="+strItemPK);
+							//
+							saveItem(oPItemItem,hmGlobals);
+							//
+							logDebug("PITEM - After saving - strItemPK="+strItemPK);
+						}
+					}
+					hmGlobals["LOGGER"].loggerInfo("END - PITEM - strItemPK="+strItemPK);
+				}
+			}
+		}
+	}
+}
+

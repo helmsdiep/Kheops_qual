@@ -1,0 +1,76 @@
+var logPath = "/test/zzzzzzzzzzzz-checklkptable-error-20140925.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	logDebug("ctgName="+ctgName);
+	var oCatalog = getCtgByName(ctgName);
+	var isItemSet = oCatalog.getItemSetForCatalog();
+	var oitem;
+	forEachItemSetElement(isItemSet,oitem) {
+		var strItemPK = oitem.getPrimaryKey();
+		var enflat = oitem.getFlatEntryNodes();
+		for(var i=0;i<enflat.size();i++) {
+			var en = enflat[i];
+			var strExactPath = en.getEntryNodeExactPath();
+			if(strExactPath!="/" 
+			&& !(strExactPath.endsWith("02FR0658-ACERMICertificateReference"))
+			&& !(strExactPath.endsWith("03FN0068-ProductFunction"))
+			&& !(strExactPath.endsWith("03FN0069-ProductActivity"))
+			&& !(strExactPath.endsWith("03FN0070-Use"))
+			&& !(strExactPath.endsWith("04CP0076-LabellingType"))
+			&& !(strExactPath.endsWith("04CP0077-LabellingColour"))
+			&& !(strExactPath.endsWith("04CP0078-LabellingPoint"))
+			&& !(strExactPath.endsWith("04CP0219-ProductBOM"))
+			&& !(strExactPath.endsWith("04CP0158-TypeBoard"))
+			&& !(strExactPath.endsWith("04CP0168-AddedCoating"))
+			&& !(strExactPath.endsWith("04CP0231-BeamCompatibilityCode"))
+			&& !(strExactPath.endsWith("04CP0233-Familly"))
+			&& !(strExactPath.endsWith("04CP0221-ChemicalComposition"))
+			&& !(strExactPath.endsWith("04CP0226-Material"))
+			&& !(strExactPath.endsWith("04CP0192-PrintLocation"))
+			&& !(strExactPath.endsWith("04CP0210-GrippingSystem"))
+			&& !(strExactPath.endsWith("04CP0236-Energy"))
+			&& !(strExactPath.endsWith("05PC0311-ORFireResistance"))
+			&& !(strExactPath.endsWith("05PC0313-ORSoundAbsorption"))
+			&& !(strExactPath.endsWith("05PG0341-TechnicalNoteRef"))
+			&& !(strExactPath.endsWith("05PG0339-UseReference"))
+			&& !(strExactPath.endsWith("05PG0338-TechnicalSpecifications"))
+			&& !(strExactPath.endsWith("05PG0344-InternalSpecRef"))
+			&& !(strExactPath.endsWith("06DN0436-handlingInstructions"))
+			&& !(strExactPath.endsWith("06DN0711-StorageLocation"))
+			&& !(strExactPath.endsWith("07MO0441-ProductMarket"))
+			&& !(strExactPath.endsWith("07MO0442-ProductUse"))
+			&& !(strExactPath.endsWith("07MO0443-CompatibleWetBuilding"))
+			&& !(strExactPath.endsWith("07MO0337-CompatibilitySupport"))
+			&& !(strExactPath.endsWith("07MO0446-AspectType"))
+			&& !(strExactPath.endsWith("07MO0451-ModeOfApplication"))
+			&& !(strExactPath.endsWith("07MO0452-ModeOfMixing"))
+			&& !(strExactPath.endsWith("07MO0481-CompatibleSupports"))
+			&& !(strExactPath.endsWith("07MO0482-ManifestlyIncompatibleSupports"))
+			&& !(strExactPath.endsWith("12BI0665-Classification"))
+			) {
+				var nodetemp = en.getNodeFromEntryNode();
+				var bisgroup = nodetemp.isNodeGrouping();
+				var strnodetype = nodetemp.getNodeAttributeValue("TYPE");
+				if(bisgroup==false && strnodetype=="LOOKUP_TABLE") {
+					if(en.getEntryNodeValue()=="") {
+						logOut.writeln("strItemPK="+strItemPK);
+						logOut.writeln("strExactPath="+strExactPath);
+					}
+				}
+			}
+		}
+	}
+}
+
+logOut.save(logPath);
+logDebug("Fin Traitement");

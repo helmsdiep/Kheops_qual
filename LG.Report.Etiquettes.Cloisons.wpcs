@@ -1,0 +1,11 @@
+//
+// Export Cloisons - Export Kheops pour étiquetage 
+//
+
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.CloisonsEtiquettes")
+    .getFunctionByName("getCloisonsEtiquettesFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);
+// outWriter.save("/test/CloisonsEtiquettes_"+today().formatDate("yyyyMMdd_HHmmss")+".csv");

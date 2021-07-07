@@ -1,0 +1,10 @@
+//
+// Export Doublages - Export Kheops pour étiquetage 
+//
+
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.Doublage").getFunctionByName("getFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);
+// outWriter.save("/test/DoublagesEtiquettes_"+today().formatDate("yyyyMMdd_HHmmss")+".csv");

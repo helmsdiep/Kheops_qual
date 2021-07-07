@@ -1,0 +1,176 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM Profile Data Maintenance
+//******************************************************************
+// CHANGE LOG
+// 2010-03-11 - Initial release
+//******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/DB Queries"
+#include "scripts/IBM MDMPIM Data Maintenance/Code Library"
+
+function deleteProfileTables(db_connection,company_id,start_date,end_date)
+{
+	var deleteCounts = [];
+
+	var deletePsd = deletePsdQuery(start_date,end_date,company_id);
+	deleteCounts[0] = db_connection.executeUpdate(deletePsd);
+	db_connection.commit();
+
+	var deletePsi = deletePsiQuery(start_date,end_date,company_id);
+	deleteCounts[1] = db_connection.executeUpdate(deletePsi);
+	db_connection.commit();
+
+	var deletePpr = deletePprQuery(start_date,end_date,company_id);
+	deleteCounts[2] = db_connection.executeUpdate(deletePpr);
+	db_connection.commit();
+
+	var deletePpi = deletePpiQuery(start_date,end_date,company_id);
+	deleteCounts[3] = db_connection.executeUpdate(deletePpi);
+	db_connection.commit();
+
+	return deleteCounts;
+}
+
+function printProfileDataMaintenanceReport(dirListing, strTabName, strRowCont)
+{
+	out.writeln("<table border='1'>");
+	out.writeln("<tr>");
+	out.writeln("<th>" + strTabName + "</th>");
+	out.writeln("<th>" + strRowCont + "</th>");
+	out.writeln("</tr>");
+
+	out.writeln("<tr>");
+	out.writeln("<td> TPFM_PSD_SCHEDULE_DETAIL </td>");
+	out.writeln("<td align=center>" + dirListing[0] + "</td>");
+	out.writeln("</tr>");
+
+	out.writeln("<tr>");
+	out.writeln("<td> TPFM_PSI_PROFILE_SCHEDULE_INFO </td>");
+	out.writeln("<td align=center>" + dirListing[1] + "</td>");
+	out.writeln("</tr>");
+
+	out.writeln("<tr>");
+	out.writeln("<td> TPFM_PPR_PROFILE </td>");
+	out.writeln("<td align=center>" + dirListing[2] + "</td>");
+	out.writeln("</tr>");
+
+	out.writeln("<tr>");
+	out.writeln("<td> TPFM_PPI_PROFILE_INFO </td>");
+	out.writeln("<td align=center>" + dirListing[3] + "</td>");
+	out.writeln("</tr>");	
+
+	out.writeln("</table>");
+}
+
+//********************************************************************************************
+//
+// Main
+//
+//********************************************************************************************
+var sCompanyCode = getCompanyCode();
+var dftLoc = getDefaultLocale();
+var dbContext = getWPCDBContext();
+var dbConnection = dbContext.getWPCDBConnection();
+var myLog = getLogger("IBM MDMPIM Profile Data Maintenance");
+var lookupTable = "IBM MDMPIM Data Maintenance Lookup";
+var lookupKey = "Performance Profile";
+var processedEntries = [];
+var resultCounts = [];
+// Messages for profile data maintenance
+var msgPrf4Cmp = getLocalizedSystemMessage("COMMON_INFO_PROFILE_DATA_MAINT",dftLoc,"Profile data maintenance for company: ");
+var msgEndDate = getLocalizedSystemMessage("COMMON_INFO_PROF_DATA_END_DATE",dftLoc,"Deleting profile data older than date: ");
+var msgBetwDts = getLocalizedSystemMessage("COMMON_INFO_PROF_DATA_BETWDATE",dftLoc,"Deleting profile data between dates: ");
+var msgPrfTrnc = getLocalizedSystemMessage("COMMON_INFO_PROF_DATA_TRUNCATE",dftLoc,"Profiling data truncated");
+var msgPrfComp = getLocalizedSystemMessage("COMMON_INFO_PROF_DATA_COMPLETE",dftLoc,"Profile data maintenance completed");
+var msgRowCont = getLocalizedSystemMessage("COMMON_INFO_PROF_DATA_ROW_CONT",dftLoc,"Profile data rows");
+// Common messages
+var msgNoCmpId = getMsgNoCmpId(dftLoc);
+var msgRunDate = getMsgRunDate(dftLoc);
+var msgTabName = getMsgTabName(dftLoc);
+
+myLog.loggerInfo("------------ Start of Profile Data Maintenance script ------------");
+out.writeln("<html>");
+out.writeln("<h1> " + msgPrf4Cmp + sCompanyCode + " </h1>");
+var printDt = today().formatDate("yyyy-MM-dd HH:mm:ss");
+out.writeln("<h2> " + msgRunDate + printDt + " </h2>");
+
+var excep;
+catchError (excep)
+{
+    var companyId = getCompanyId(dbConnection, sCompanyCode);
+
+    if ( companyId == null )
+    {
+        throwError (msgNoCmpId + " - " + sCompanyCode);
+    }
+	
+	myLog.loggerInfo("Company ID: " + companyId);	
+	var processedEntries = validateDataMaintenanceLookup(lookupTable,lookupKey);
+	
+	//out.writeln(processedEntries);
+	if ( processedEntries[0] == "Success" )
+	{
+		resultCounts = deleteProfileTables(dbConnection,companyId,processedEntries[1],processedEntries[2]);
+		
+		if ( processedEntries[1] == "1111-11-11 11:11:11" )
+		{
+			out.writeln("<h3> "+ msgEndDate + processedEntries[2] + " </h3>");
+			myLog.loggerInfo(msgEndDate + processedEntries[2]);
+		}
+		else
+		{
+			out.writeln("<h3> " + msgBetwDts + processedEntries[1] + " & " + processedEntries[2] + " </h3>");
+			myLog.loggerInfo(msgBetwDts + processedEntries[1] + " & " + processedEntries[2]);
+		}
+		printProfileDataMaintenanceReport(resultCounts,msgTabName,msgRowCont);
+	}
+	else
+	{
+		if ( processedEntries[0] == "ZeroDays" )
+		{
+			var truncatePsd = truncateTable("TPFM_PSD_SCHEDULE_DETAIL");
+			resultCounts[0] = dbConnection.executeUpdate(truncatePsd);
+			dbConnection.commit();
+			
+			var truncatePsi = truncateTable("TPFM_PSI_PROFILE_SCHEDULE_INFO");
+			resultCounts[1] = dbConnection.executeUpdate(truncatePsi);
+			dbConnection.commit();
+			
+			var truncatePpr = truncateTable("TPFM_PPR_PROFILE");
+			resultCounts[2] = dbConnection.executeUpdate(truncatePpr);
+			dbConnection.commit();
+			
+			var truncatePpi = truncateTable("TPFM_PPI_PROFILE_INFO");
+			resultCounts[3] = dbConnection.executeUpdate(truncatePpi);
+			dbConnection.commit();
+			out.writeln("<h3>" + msgPrfTrnc + "</h3>");
+		}
+		else
+		{
+			throwError ("Check Lookup Table Entries");
+		}
+	}
+}
+
+if (excep != null)
+{
+    out.writeln ( "*** EXCEPTION = " + checkString(excep , "[novalue]") );
+    myLog.loggerError("*** EXCEPTION = " + checkString(excep , "[novalue]") );
+}
+else
+{
+	dbContext.releaseWPCDBConnection(dbConnection);
+	myLog.loggerInfo("------------ End of Profile data maintenance script ------------");
+	out.writeln("<p>" + msgPrfComp + "</p>");	
+	out.writeln("</html>");
+}

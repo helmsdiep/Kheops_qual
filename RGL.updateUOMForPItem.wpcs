@@ -1,0 +1,80 @@
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var logPath = "/test/zzzzzzzzzzzz-init-BUOM-PItem-error-20131025-GO.txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var oKey;
+var catalogName;
+var ctgs = getCatalogNamesList();
+
+forEachHmElement(ctgs,oKey,catalogName) {
+	logDebug("CTG : "+catalogName);
+	var oCatalog = getCtgByName(catalogName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+
+	var oPItemCategory = oCategoryTree.getEntryByPrimaryKey("PItem");
+	var oPItemItemSet = oPItemCategory.getItemSetForCategory(oCatalog);
+		
+	var oPItemItem;
+	forEachItemSetElement(oPItemItemSet,oPItemItem) {
+		var oBUnitItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oPItemItem,"BUnit");
+		var oitemBaseUnitOfMeasureen = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oPItemItem,"06DN0661-BaseUnitOfMeasure");
+		if (oitemBaseUnitOfMeasureen!=null) {
+			var strBaseUnitOfMeasure = checkString(oitemBaseUnitOfMeasureen.getEntryNodeValue(),"");
+			if(strBaseUnitOfMeasure=="") {
+				var oitemBUnitBaseUnitOfMeasureen = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oBUnitItem,"06DN0661-BaseUnitOfMeasure");
+				if (oitemBUnitBaseUnitOfMeasureen!=null) {
+					var strBUnitBaseUnitOfMeasure = checkString(oitemBUnitBaseUnitOfMeasureen.getEntryNodeValue(),"");				
+					if(strBUnitBaseUnitOfMeasure!="") {
+						oitemBaseUnitOfMeasureen.setEntryNodeValue(strBUnitBaseUnitOfMeasure);
+						oPItemItem.saveCtgItem();
+						logOut.writeln("ITM : "+oPItemItem.getPrimaryKey());
+					}
+				}
+			}
+		}
+	}	
+}		
+
+logOut.save(logPath);
+		
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logDebug("Fin Traitement");

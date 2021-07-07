@@ -1,0 +1,141 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM Estimate Old Versions Script
+//******************************************************************
+// CHANGE LOG
+// 2010-08-06 - Initial release
+//******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/Old Version Script Functions"
+//******************************************************************
+//
+// Main
+//
+//******************************************************************
+var sCompanyCode = getCompanyCode();
+var dftLoc = getDefaultLocale();
+var dbContext = getWPCDBContext();
+var dbConnection = dbContext.getWPCDBConnection();
+var myLog = getLogger("IBM MDMPIM Estimate Old Versions");
+var lookupTable = "IBM MDMPIM Data Maintenance Lookup";
+var lookupKey = "Old Versions";
+var processedEntries = [];
+var resultCounts = [];
+var minmaxVersions = [];
+var minmaxItemId = [];
+var printFlag = 1;
+var ctgId;
+var ctgName;
+// Messages for estimate old version
+var msgEst4Cmp = getLocalizedSystemMessage("COMMON_INFO_ESTIMATE_CMP_VERSIONS",dftLoc,"Estimate Old Versions for Company: ");
+var msgEstComp = getLocalizedSystemMessage("COMMON_INFO_ESTIMATE_COMPLETED",dftLoc,"Estimate Old Versions completed");
+var msgRowCont = getLocalizedSystemMessage("COMMON_INFO_ROW_COUNT",dftLoc,"Old Version Rows");
+// Messages common for both Delete and Estimate scripts
+var msgRunDate = getMsgRunDate(dftLoc);
+var msgNoCmpId = getMsgNoCmpId(dftLoc);
+var msgNoVersn = getMsgNoVersn(dftLoc);
+var msgEndDate = getMsgEndDate(dftLoc);
+var msgBetwDts = getMsgBetwDts(dftLoc);
+var msgCtgName = getMsgCtgName(dftLoc);
+var msgTabName = getMsgTabName(dftLoc);
+
+myLog.loggerInfo("------------ Start of Estimate Old Versions script ------------");
+out.writeln("<html>");
+out.writeln("<h1> " + msgEst4Cmp + sCompanyCode + " </h1>");
+var printDt = today().formatDate("yyyy-MM-dd HH:mm:ss");
+out.writeln("<h2> " + msgRunDate + printDt + " </h2>");
+
+var excep;
+catchError (excep)
+{
+    var companyId = getCompanyId(dbConnection, sCompanyCode);
+
+    if ( companyId == null )
+    {
+        throwError (msgNoCmpId + " - " + sCompanyCode);
+    }
+	
+	myLog.loggerInfo("Company ID: " + companyId);	
+	var processedEntries = validateDataMaintenanceLookup(lookupTable,lookupKey,dftLoc);
+	
+	//out.writeln(processedEntries);
+	if ( processedEntries[0] == "Success" || processedEntries[0] == "ZeroDays" )
+	{
+		//Write headers; If ZeroDays, all old data to be deleted (no need for special header)
+		if ( processedEntries[0] == "Success" )
+		{
+			if ( processedEntries[1] == "1111-11-11 11:11:11" )
+			{
+				out.writeln("<h3> "+ msgEndDate + processedEntries[2] + " </h3>");
+				myLog.loggerInfo(msgEndDate + processedEntries[2]);
+			}
+			else
+			{
+				out.writeln("<h3> " + msgBetwDts + processedEntries[1] + " & " + processedEntries[2] + " </h3>");
+				myLog.loggerInfo(msgBetwDts + processedEntries[1] + " & " + processedEntries[2]);
+			}
+		}
+		//Get min & max version id to use in queries
+		minmaxVersions = getMinMaxVersion(dbConnection,companyId,processedEntries[1],processedEntries[2]);
+		if ( toString(minmaxVersions[0]) == "0" || toString(minmaxVersions[1]) == "0" )
+		{
+			out.writeln("<h3> "+ msgNoVersn + " </h3>");
+			myLog.loggerInfo(msgNoVersn);
+			printFlag = 0;
+		}
+		else
+		{
+			ctgId = processedEntries[3];
+			ctgName = processedEntries[4];	
+			if ( ctgId != "0" )
+			{
+				out.writeln("<h3> "+ msgCtgName + ctgName + " </h3>");
+				myLog.loggerInfo(msgCtgName + ctgName);					
+			}
+			//Get min & max item ids to use in item related queries
+			minmaxItemId = getMinMaxItemIds(dbConnection,companyId,ctgId);
+			if ( toString(minmaxItemId[0]) == "0" || toString(minmaxItemId[1]) == "0" )
+			{
+				out.writeln("<h3> "+ msgNoVersn + " </h3>");
+				myLog.loggerInfo(msgNoVersn);
+				printFlag = 0;
+			}
+			
+			myLog.loggerInfo(" Catalog ID: " + ctgId);
+			myLog.loggerInfo(" Minimum and Maximum Version ID " + minmaxVersions);
+			myLog.loggerInfo(" Minimum and Maximum Item ID " + minmaxItemId);
+		}
+		if (printFlag == 1)
+		{
+		  resultCounts = estimateOldVersions(dbConnection,companyId,ctgId,minmaxVersions,minmaxItemId,myLog);
+			myLog.loggerInfo(" Row Counts " + resultCounts);
+			printOldVersionsReport(ctgId,resultCounts,msgTabName,msgRowCont);
+		}
+	}
+	else
+	{
+		throwError ("Check Lookup Table Entries");
+	}
+}
+
+if (excep != null)
+{
+    out.writeln ( "*** EXCEPTION = " + checkString(excep , "[novalue]") );
+    myLog.loggerError("*** EXCEPTION = " + checkString(excep , "[novalue]") );
+}
+else
+{
+	dbContext.releaseWPCDBConnection(dbConnection);
+	myLog.loggerInfo("------------ End of Estimate Old Versions script ------------");
+	out.writeln("<p> " + msgEstComp + " </p>");	
+	out.writeln("</html>");
+}

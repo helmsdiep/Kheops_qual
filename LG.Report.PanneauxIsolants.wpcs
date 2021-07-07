@@ -1,0 +1,11 @@
+//
+// Export Panneaux Isolants - Export Kheops pour étiquetage 
+//
+
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.PanneauxIsolants")
+    .getFunctionByName("getFullCSV"). invoke();
+outWriter.writeln(str);
+out.writeln(str);
+//  outWriter.save("/test/PanneauxIsolants._"+today().formatDate("yyyyMMdd_HHmmss")+".csv");

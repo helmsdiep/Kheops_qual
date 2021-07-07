@@ -1,0 +1,348 @@
+//
+// Demande TMA100153 "Mise en place d'une procédure quotidienne de désactivation de fiches articles." créée par Christophe Breuil le 13/09/2010
+//
+
+var MAX_DEACTIVATE_CNT = 100;
+var itemsToPublish = [];
+var itemsToPublishCnt = 0;
+var itemsFailed = [];
+var reportbuffer = createOtherOut("", "UTF-8");
+
+var LVL_PITEM2 = "pItem2";
+var LVL_PITEM1 = "pItem1";
+var LVL_BUNIT = "BUnit";
+var LVL_PROD = "Prod";
+
+var CONDITIONS = [];
+CONDITIONS[LVL_PITEM2] = " item['SC000-GlobPrim/99CTL100-ParentItem'].pk like '%I%' ";
+CONDITIONS[LVL_PITEM1] = " item['SC000-GlobPrim/99CTL100-ParentItem'].pk like '%B%' ";
+CONDITIONS[LVL_BUNIT]  = " item['SC000-GlobPrim/99CTL100-ParentItem'].pk like '%P%' ";
+CONDITIONS[LVL_PROD]   = " item['SC000-GlobPrim/99CTL100-ParentItem'] is null ";
+
+// @param txt the debug information
+function debug(txt){
+    // out.writeln(txt);
+    logDebug(txt);
+}
+
+// @param txt the report information
+function report(txt){
+    reportbuffer.writeln(txt);
+    out.writeln(txt);
+}
+
+function getSimpleValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getSimpleValue").invoke(oitem, nodeName);
+}
+
+function getLkpValue(oItem,nodeName,lkpColumn) {
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getLkpValue").invoke(oItem,nodeName,lkpColumn);
+}
+
+function getDateValue(oitem, nodeName){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+    .getFunctionByName("getDateValue").invoke(oitem, nodeName, "dd/MM/yy");
+}
+
+function getEn(oItem, sAttrPath){
+    var aNodes = oItem.getRootEntryNode().getEntryNodeChildren();
+    var i;
+    var sAttrName = sAttrPath.substring(sAttrPath.lastIndexOf("/")+1);
+    sAttrName = sAttrName.parseDelim("#",0);
+    for (i= 0; i<aNodes.size(); i++) {
+        var spec = getSpecByName(aNodes[i].getEntryNodePath());
+        if (spec.getSpecAttribNames().containsValue(sAttrName) || sAttrName.endsWith("Group")) {
+            var e;
+            catchError(e) {
+                return aNodes[i].getEntryNode(sAttrPath);
+            }
+            if(e!=null) {
+            }
+        }
+    }
+    return null;
+}
+
+// @param currItemPk primary key of current item that may be de-activated
+// @param ctgName  name of the current item catalog
+// @param specName spec of the current item catalog
+// @return the sub-item blocking the de-activation (child still active), or null if there is no blocking item
+function getBlockingChildPk(currItemPk, ctgName, specName){
+    var queryString = "select item.pk  from catalog('" + ctgName
+    + "') where item['SC000-GlobPrim/99CTL100-ParentItem'].pk = '" + currItemPk +"' "
+    + " AND item['" + specName + "/01AC0548-Status'] = '[ACTIVE] - Actif' ";
+    
+    // debug("getBlockingChildPk "+queryString);
+    var query = new SearchQuery(queryString);
+    var resultset = query.execute();
+    if (resultset.next()) {
+        return resultset.getString(1);
+    }
+    return null;
+}
+
+// @param oitem the invalid item to deactivate
+function deactivateItem(oitem){
+    debug(oitem.getPrimaryKey()+" => DEACTIVATE");
+    
+    getEn(oitem, "01AC0548-Status"        ).setEntryNodeValue("[INACTIVE] - Inactif");
+    getEn(oitem, "01AC0007-BlockedDate"   ).setEntryNodeValue(today());
+    getEn(oitem, "01AC0004-LastUpdate"    ).setEntryNodeValue(today());
+    getEn(oitem, "01AC0008-BlockedUser"   ).setEntryNodeValue("Automatique fin validité");
+    getEn(oitem, "01AC0003-LastUpdateUser").setEntryNodeValue("Automatique fin validité");
+    getEn(oitem, "01AC0009-UnblockedDate" ).setEntryNodeValue(null);
+    getEn(oitem, "01AC0010-UnblockedUser" ).setEntryNodeValue("");
+    oitem.saveCtgItem(); 
+}
+
+function isInCatalog(currItemPk, ctgName, specName){
+	var octg = getCtgByName(ctgName);
+	var oitem = octg.getEntryByPrimaryKey(currItemPk);
+    var ChannelOfDistributionGroup = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"ChannelOfDistributionGroup");
+	var ii;
+    for(ii=0;ii<ChannelOfDistributionGroup.size();ii++) {
+		var fIsInCatalog = getSimpleValue(oitem,"ChannelOfDistributionGroup#"+ ii +"/06DN0346-IsInCatalog");
+		if(fIsInCatalog==true) { 
+			return true; 
+		}
+	}
+	return false;
+}
+
+// return true if the max MAX_DEACTIVATE_CNT is reached
+function maxReached(){
+    return itemsToPublishCnt > MAX_DEACTIVATE_CNT -1;
+}
+
+// check invalid items to deactivate in a catalog at a specific level
+// @param ctg name of the catalog to ckeck
+// @param level the level of the items to check : prod, bunit...
+// @return true if the process must go on (MAX_DEACTIVATE_CNT not reached)
+function checkInvalidItems(ctg, level){
+    if (maxReached()){
+        return false;
+    }
+    var specName=ctg.getCatalogSpec().getSpecName();
+    
+    var queryString =
+    "SELECT item.pk  from catalog('" + ctg.getCtgName() + "') "+
+    " WHERE item['" + specName + "/01AC0548-Status'] = '[ACTIVE] - Actif' "+
+    " AND   item['SC000-GlobPrim/06DN0427-ValidToDate']  < date('" + today() + "', '" + getDateOutputFormat() + "')" +
+    " AND     "+CONDITIONS[level] +
+    " ORDER BY item['SC000-GlobPrim/06DN0427-ValidToDate'] ASC'" // older items first
+    ;
+	
+    var query = new SearchQuery(queryString);
+    var resultset = query.execute();
+    // debug("checkInvalidItems "+ctg+" - "+level+" = "+queryString);
+    // debug("resultset size:"+resultset.size ());
+    while (resultset.next()) {
+        var currItemPk = resultset.getString(1);
+		//
+		// out.writeln("currItemPk="+currItemPk);
+		//
+		var bIsInCatalog = isInCatalog(currItemPk, ctg.getCtgName(), specName);
+		//
+        var blockingChildPk = getBlockingChildPk(currItemPk, ctg.getCtgName(), specName);
+        if (blockingChildPk==null && bIsInCatalog==false){
+            var currItem = ctg.getEntryByPrimaryKey(currItemPk);
+            deactivateItem(currItem);
+            itemsToPublish.add(currItemPk);
+            itemsToPublishCnt++;
+          } 
+		  else if (bIsInCatalog) {
+			debug(currItemPk+" => FAILED because is in catalog");
+            var failed = [];
+            failed.add(currItemPk);
+			failed.add(bIsInCatalog);
+			failed.add("");
+            itemsFailed.add(failed);
+		  }
+		  else {
+            debug(currItemPk+" => FAILED because of "+blockingChildPk);
+            var failed = [];
+            failed.add(currItemPk);
+			failed.add(bIsInCatalog);
+            failed.add(blockingChildPk);
+            itemsFailed.add(failed);
+        }
+        if (maxReached()){
+            return false;
+        }
+    }
+    return true;
+}
+
+// check invalid items to deactivate in a catalog
+// @param ctg  name of the catalog to ckeck
+function checkCtg(ctg){
+    debug("checkCtg "+ctg);
+    
+    // 1. deactivate ctg triggers
+    var optionstodesactivate=[];
+    optionstodesactivate[0]="ALL";
+    ctg.disableContainerProcessingOptions(optionstodesactivate);
+    var scriptnameTemp=[];
+    scriptnameTemp[0]="";
+    ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+    ctg.saveCatalog();
+    
+    // 2. check for each level
+    var e;
+    catchError(e) {
+        checkInvalidItems(ctg, LVL_PITEM2);
+        checkInvalidItems(ctg, LVL_PITEM1);
+        checkInvalidItems(ctg, LVL_BUNIT);
+        checkInvalidItems(ctg, LVL_PROD);
+    }
+    if (e!=null) {debug(e);}
+    
+    // 3. reactivate ctg triggers
+    var scriptnameTemp2=[];
+    scriptnameTemp2[0]="LG.Catalog.PreProc";
+    ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+    ctg.saveCatalog();
+}
+
+// publish modified items to webmethods
+// @param ctg the catalog of the modified item
+// @param items the array of items to publish
+function publishItems(ctg, items){
+    debug("itemsToPublish "+items);
+    for(var i=0;i<items.size();i++) {
+        debug("Publish "+items[i]);
+        var itm = ctg.getEntryByPrimaryKey(items[i]);
+        getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(itm,null);
+        sleep("5000"); // milliseconds
+    }
+}
+
+// get fields on an item to build the report
+// @param itemPk primarey key of the item
+function getItemReportInfo(itemPk){
+    var oitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemFromPKey").invoke(itemPk);
+    var info = [];
+    info["type"]= getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType").invoke(oitem);
+    info["ref"] = oitem.getPrimaryKey() + " / " + getSimpleValue(oitem,"01AC0664-MaterialNumber");
+    info["lib"] = getSimpleValue(oitem,"01AC0012-LongName").replace( ";", " ");
+    info["date"]= getDateValue(oitem,"06DN0427-ValidToDate" );
+    return info;
+}
+
+// generate a report of items that could not be deactivated
+// @param failures items that could not be deactivated
+function generateFailReport(failures){
+    report("LISTE DES REJETS");
+    var report = "Type Fiche rejet;Ref Article;Libelle long;Fin validite;Est au catalogue;";
+    report = report + "Type Fiche cause;Ref Article;Fin validite;Cause\r\n";
+    for(var i=0; i<failures.size(); i++) {
+      var e;
+      var reportLine;
+      catchError(e) {
+        var echec = getItemReportInfo(failures[i][0]);
+        reportLine = echec["type"] + ";"+echec["ref"] + ";"+echec["lib"] + ";"+echec["date"] + ";";
+
+		var causeLib = "Cause inconnue" ;
+		
+		var isInCatalogCause = failures[i][1];
+		if(isInCatalogCause==true) {
+			reportLine = reportLine + "vrai" + ";" + "" + ";"+ "" + ";"+ "" + ";";
+			causeLib = "Impossible de désactiver l'article car il est au catalogue";
+		}
+		else {
+			reportLine = reportLine + "faux" + ";";
+		}
+		
+        var causeItem = failures[i][2];
+		if(causeItem!="") {
+			var cause = getItemReportInfo(causeItem);
+			reportLine = reportLine + cause["type"] + ";"+cause["ref"] + ";"+cause["date"] + ";";
+			if (cause["date"]==""){
+				causeLib = "La fiche rattachee n'a pas de date de fin de validite" ;
+			} 
+			else { 
+			  var validToDate = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemFromPKey").invoke(causeItem).getRootEntryNode().getEntryNode("SC000-GlobPrim/06DN0427-ValidToDate");
+			  if ( validToDate.getEntryNodeValue().isDateBefore(today())){
+				causeLib = "La fiche rattachee n'a pas ete desactivee" ;
+			  } else {
+				causeLib = "La fiche rattachee a une date de fin de validite non echue" ;
+			  }
+			}
+		}
+        report = report +reportLine+causeLib+ "\r\n";
+      }
+      if (e!=null) {debug(reportLine+" failed=>"+e);}
+    }
+    debug("\r\n"+report+"--------------");
+    // to output console
+    report(report);
+    // report("-------");
+    //
+}
+
+// generate a report of items that have been be deactivated
+// @param success items that have been be deactivated
+function generateSuccesReport(success){
+    for(var i=0;i<success.size();i++) {
+        var info = getItemReportInfo(success[i]);
+        report(info["type"] + ";"+info["ref"] + ";"+info["lib"] + ";"+info["date"]);
+    }
+}
+
+
+//
+//
+//
+
+debug("go!");
+var error;
+
+report("LISTE DES DESACTIVATIONS");
+report("Type Fiche;Ref Article;Libelle long;Fin validite");
+
+// treat catalogs one by one
+var ctgs = getCatalogNamesList();
+var oKey;
+var ctgName;
+forEachHmElement(ctgs,oKey,ctgName) {
+   // if(ctgName !="C010-Plaques de plâtre - Gypsum plasterBoards") {continue;}
+	if (ctgName.startsWith("C")) {
+	  catchError(error) {	
+		var ctg = getCtgByName(ctgName);
+		checkCtg(ctg);
+		if (itemsToPublish.size()>0){
+		  publishItems(ctg, itemsToPublish); // send to webmethods
+		  generateSuccesReport(itemsToPublish);
+		  itemsToPublish = [];
+		}
+	  }
+	  if (error!=null) {debug(error);}
+	  if (maxReached()){
+		break;
+	  }
+	}
+}
+// generateSuccesReport
+if (itemsToPublishCnt<1) {
+    debug("no items deactivated");
+    report("Aucune desactivation.");
+}
+
+// generate rejects report
+if (itemsFailed.size()>0) {
+  error=null;
+  catchError(error) {
+    generateFailReport(itemsFailed);
+  }
+  if (error!=null) {debug(error);}
+} else {
+    debug("no items fail");
+    report("Aucun rejet.");
+}
+
+// var timestamp = today().formatDate("yyyyMMdd_HHmmss");
+// reportbuffer.save("/test/LG.Report.ExpiredDeactivation_"+timestamp+".csv");
+
+debug("done, "+itemsToPublishCnt+" items deactivated.");

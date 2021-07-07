@@ -1,0 +1,118 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// Job Data Maintenance
+//******************************************************************
+// CHANGE LOG
+// 2012-03-07 - Initial release
+//******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/DB Queries"
+#include "scripts/IBM MDMPIM Data Maintenance/Code Library"
+
+function deleteCompletedSchedules(db_connection,company_id,start_date,end_date)
+{
+	var deleteCounts = [];
+
+	var deleteScc = deleteSccQuery(start_date,end_date,company_id);
+	deleteCounts[0] = db_connection.executeUpdate(deleteScc);
+	
+	var deleteSch = deleteSchQuery(start_date,end_date,company_id);
+    deleteCounts[1] = db_connection.executeUpdate(deleteSch);
+    
+	db_connection.commit();
+    
+	return deleteCounts;
+}
+
+function printJobDataMaintenanceReport(dirListing, strDelMesg)
+{
+	out.writeln(" " + strDelMesg + " : " + dirListing[0] + " ");
+}
+
+//********************************************************************************************
+//
+// Main
+//
+//********************************************************************************************
+var sCompanyCode = getCompanyCode();
+var dftLoc = getDefaultLocale();
+var dbContext = getWPCDBContext();
+var dbConnection = dbContext.getWPCDBConnection();
+var myLog = getLogger("IBM Job Data Maintenance");
+var lookupTable = "IBM MDMPIM Data Maintenance Lookup";
+var lookupKey = "Job History";
+var processedEntries = [];
+var resultCounts = [];
+// Messages for Job data maintenance
+var msgJob4Cmp = getLocalizedSystemMessage("COMMON_INFO_JOB_DATA_MAINT",dftLoc,"Job data maintenance for company: ");
+var msgEndDate = getLocalizedSystemMessage("COMMON_INFO_JOB_DATA_END_DATE",dftLoc,"Deleting completed job schedules older than date: ");
+var msgBetwDts = getLocalizedSystemMessage("COMMON_INFO_JOB_DATA_BETWDATE",dftLoc,"Deleting completed job schedules between dates: ");
+var msgJobComp = getLocalizedSystemMessage("COMMON_INFO_JOB_DATA_COMPLETE",dftLoc,"Job data maintenance completed");
+var msgDelCont = getLocalizedSystemMessage("COMMON_INFO_JOB_DATA_DEL_MESG",dftLoc,"Total job schedules deleted");
+// Common messages
+var msgNoCmpId = getMsgNoCmpId(dftLoc);
+var msgRunDate = getMsgRunDate(dftLoc);
+
+myLog.loggerInfo("------------ Start of Job Data Maintenance script ------------");
+out.writeln("<html>");
+out.writeln("<h1> " + msgJob4Cmp + sCompanyCode + " </h1>");
+var printDt = today().formatDate("yyyy-MM-dd HH:mm:ss");
+out.writeln("<h2> " + msgRunDate + printDt + " </h2>");
+
+var excep;
+catchError (excep)
+{
+    var companyId = getCompanyId(dbConnection, sCompanyCode);
+
+    if ( companyId == null )
+    {
+        throwError (msgNoCmpId + " - " + sCompanyCode);
+    }
+	
+	myLog.loggerInfo("Company ID: " + companyId);	
+	var processedEntries = validateDataMaintenanceLookup(lookupTable,lookupKey);
+	
+	//out.writeln(processedEntries);
+	if ( processedEntries[0] == "Success" )
+	{
+		resultCounts = deleteCompletedSchedules(dbConnection,companyId,processedEntries[1],processedEntries[2]);
+		
+		if ( processedEntries[1] == "1111-11-11 11:11:11" )
+		{
+			out.writeln("<h3> "+ msgEndDate + processedEntries[2] + " </h3>");
+			myLog.loggerInfo(msgEndDate + processedEntries[2]);
+		}
+		else
+		{
+			out.writeln("<h3> " + msgBetwDts + processedEntries[1] + " & " + processedEntries[2] + " </h3>");
+			myLog.loggerInfo(msgBetwDts + processedEntries[1] + " & " + processedEntries[2]);
+		}
+		printJobDataMaintenanceReport(resultCounts,msgDelCont);
+	}
+	else
+	{
+		throwError ("Check Lookup Table Entries");
+	}
+}
+
+if (excep != null)
+{
+    out.writeln ( "*** EXCEPTION = " + checkString(excep , "[novalue]") );
+    myLog.loggerError("*** EXCEPTION = " + checkString(excep , "[novalue]") );
+}
+else
+{
+	dbContext.releaseWPCDBConnection(dbConnection);
+	myLog.loggerInfo("------------ End of Job data maintenance script ------------");
+	out.writeln("<p>" + msgJobComp + "</p>");	
+	out.writeln("</html>");
+}

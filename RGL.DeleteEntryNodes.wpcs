@@ -1,0 +1,173 @@
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// @param sLevel - logging level: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+/// @param logContext - log context
+/// @param sMsg - logging message
+//:PRFUNCTION void log(String sLevel, LogContext logContext, String sMsg)
+function log(sLevel, logContext, sMsg) {
+	if (logContext != null && logContext.log != null) {
+		logContext.log.invoke(sLevel, logContext, sMsg);
+	} else {
+    	getLogger(checkString(getCurrentUserName(), "default")).loggerDebug(sMsg);
+	}
+	if (logContext != null && logContext.out != null) { logContext.out.writeln(sLevel + " " + sMsg); }
+	getLogger("Lafarge.DataEntry").loggerInfo(sMsg);
+
+}
+
+//EntryNode getEn(hmGlobals,item,String)
+//Return the entry node 
+//Parameters
+//-hmGlobals : global variable to call the function getEntryNodeForAttributePath
+//-item : item (generic)
+//-String : name of the attribute
+//Returns EntryNode
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+/// @brief Saves the item and throws an exception if there are validation errors.
+/// @brief Helper function for saving items and throwing possible validation errors
+/// @param itm - catalog item
+/// @return void -
+//:PRFUNCTION void saveItem(Item itm)
+function saveItem(itm) {
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			log("ERROR", [], "Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			log("ERROR", [], "Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+logDebug("Debut Traitement");
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+
+var strCatName;
+forEachHmElement(ctgs,oKey,strCatName) {
+	logDebug("strCatName="+strCatName);
+	
+	var catCataglog = getCtgByName(strCatName);
+	var lkpPOSG = getLkpByName("L098-Lieux - Places");
+
+	var isItemSet = catCataglog.getItemSetForCatalog();
+
+	forEachItemSetElement(isItemSet, itmProcessingItem){
+		var strItemType = getItemType(itmProcessingItem, hmGlobals);
+		if(itmProcessingItem != "Prod"){
+			if(!itmProcessingItem.isEntryCheckedOut()){
+				
+				var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+				var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(catCataglog)[0].getSpecName();
+				var strCode = itmProcessingItem.getEntryAttrib("SC000-GlobPrim/01AC0044-ERPCode");
+				var strBaseUnit = itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0661-BaseUnitOfMeasure");
+				if(checkString(strBaseUnit, "") == ""){
+					itmProcessingItem.setEntryAttrib(strSecSpecName + "/06DN0661-BaseUnitOfMeasure", "");
+				}
+				
+				//See if the plant is already in the list
+				var strPlantNumber = null;
+				var intCount = null;
+						
+				var enRoot = itmProcessingItem.getRootEntryNode();
+				var enPOSG = enRoot.getEntryNode(strSecSpecName + "/PlaceOfStorageGroup");
+				var hmenChildren = enPOSG.getEntryNodeChildren();
+				
+				forEachHmElement(hmenChildren, intCount, enChild){
+					var strPlantNumber = checkString(enChild.getEntryNode("/06DN0679-Plant").getEntryNodeValue(), "");
+					if(strPlantNumber == ""){
+						var strPOS = checkString(enChild.getEntryNode("/06DN0358-PlaceOfStorage").getEntryNodeValue(), "");
+						out.writeln(strPOS + "  " + strCode);
+						var strNewPlantCode = checkString(lookup(lkpPOSG, strPOS, "C04-SAP Plant of storage"), "empty");
+						if(strNewPlantCode == "empty"){
+							out.writeln("Delete : " + strPOS + " From  :  " + strCode);
+							enChild.deleteEntryNode();
+						}
+					}
+				}
+				saveItem(itmProcessingItem);
+			}
+		}
+		else{
+			var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+			var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(catCataglog)[0].getSpecName();
+			var strBaseUnit = itmProcessingItem.getEntryAttrib(strSecSpecName + "/06DN0661-BaseUnitOfMeasure");
+			if(checkString(strBaseUnit, "") == ""){
+				itmProcessingItem.setEntryAttrib(strSecSpecName + "/06DN0661-BaseUnitOfMeasure", "");
+			}
+			saveItem(itmProcessingItem);
+			
+		}
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logDebug("Fin Traitement");
