@@ -1,0 +1,8 @@
+var attribPath = inputs["Attribute Path"];
+var attribValue = "" + entry.getEntryAttrib(attribPath);
+var myRe = new RE(inputs["Replace Pattern"]);
+var newAttribValue = attribValue;
+var replaceStr = inputs["Replace String"];
+newAttribValue = myRe.substitute(attribValue, checkString(replaceStr,"",false));
+entry.setEntryAttrib(attribPath, newAttribValue);
+

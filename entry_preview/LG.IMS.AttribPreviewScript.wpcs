@@ -1,0 +1,4 @@
+forEachEntrySetElement(entrySet, entry)
+{
+    out.writeln(getScriptByPath("/scripts/reports/LG.IMS.Interface").getFunctionByName("getExportScriptForAttribute").invoke(entry));
+}

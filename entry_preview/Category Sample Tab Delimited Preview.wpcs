@@ -1,0 +1,36 @@
+var view = container.getCtgViewByName(getCurrentCtgViewName());
+var attribNames = view.getCtgViewAttribsList();
+
+out.write("<PRE>");
+
+if (category_tree != null)
+{
+    out.write("Category Path\tCategory Code\t");
+}
+
+for ( var j=0; j<attribNames.size(); j++)
+{
+    out.write((j>0 ? "\t" : ""));
+    out.write(attribNames[j]);
+}
+out.write("\r\n");
+
+var entry;
+forEachEntrySetElement(entrySet, entry)
+{
+    if (category_tree != null)
+    {
+        out.write(entry.getFullPaths("/", false, true)[0]);
+        out.write("\t");
+        out.write(entry.getCategoryCode());
+        out.write("\t");
+    }
+
+    for ( var j=0; j<attribNames.size(); j++)
+    {
+        out.write((j > 0 ? "\t" : ""));
+        out.write(checkString(entry.previewEntryAttrib(attribNames[j]), ""));
+    }
+    out.write("\r\n");
+}
+out.write("</PRE>");

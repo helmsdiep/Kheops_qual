@@ -1,0 +1,15 @@
+
+out.writeln("<p>Adding items for GDSN export...</p>");
+out.write("<ul>");
+forEachEntrySetElement(entrySet, entry){
+    var key=entry.getPrimaryKey();
+    var ctgCode=substring(entry.getEntryContainer().getCtgName(),1,4);
+    var sel=getSelectionByName("gdsn_C"+ctgCode);
+    sel.addEntryToSelection(entry);
+    sel.saveSelection();
+    out.writeln("<li>Item " + key + " successfully added to GDSN Selection</li>"); 
+}
+out.write("</ul>");
+
+
+out.writeln("<p>Done !</p>");

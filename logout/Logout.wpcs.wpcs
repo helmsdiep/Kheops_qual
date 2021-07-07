@@ -1,0 +1,22 @@
+// initialize the trigger script functions
+var ldapUtil            = getScriptByPath("scripts/triggers/LDAPLibrary.wpcs");
+var closeLdapContext    = ldapUtil.getFunctionByName("closeLdapContext");
+var libraryLogger       = getScriptByPath("scripts/triggers/LdapLibraryLogger.wpcs");
+
+
+// Logger functions
+var log         = libraryLogger.getFunctionByName("log");
+var logger_name = "ldap";  // Log file will be created under logs folder (ldap.log). Needs configuration in etc/default/log.xml
+var logoutError = null;
+catchError(logoutError)
+{
+    log.invoke("INFO" , " loginuser >>  " + checkString(loginuser.getUserName() + loginuser.getUserCompanyCode()  , " is null " ),logger_name);
+    if( userldapctx!= null)
+    {
+        closeLdapContext.invoke(userldapctx);
+    }
+}
+if(logoutError != null)
+{
+    log.invoke("ERROR" , " ERROR! in logout script " + logoutError,logger_name);
+}

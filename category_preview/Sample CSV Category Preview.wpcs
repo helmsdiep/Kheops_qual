@@ -1,0 +1,56 @@
+var pathList = [];
+var processHeader = true;
+var pathListBuilt = false;
+
+var output = "<PRE>";
+
+if(processHeader)
+{
+    var nameList = entry.getEntryAttribsList();
+    processHeader = false;
+
+    for( var j=0; j<nameList.size(); j++)
+    {
+        var tempString = escapeForCSV(nameList[j]);
+        output = output + tempString;
+
+        if(j<nameList.size()-1)
+        {
+            output = output + ",";
+        }
+    }
+    out.writeln(output);
+    output = "";
+}
+
+if(pathListBuilt)
+{
+    for( var i=0; i<pathList.size(); i++)
+    {
+        var tempString = escapeForCSV(checkString(entry.previewEntryAttrib(pathList[i]), ""));
+        output = output + tempString;
+
+        if(i<pathList.size()-1)
+        {
+            output = output + ",";
+        }
+    }        
+}
+else
+{
+    pathList = entry.getEntryAttribsList();
+    pathListBuilt = true;
+
+    for( var i=0; i<pathList.size(); i++)
+    {
+        var tempString = escapeForCSV(checkString(entry.previewEntryAttrib(pathList[i]), ""));
+        output = output + tempString;
+
+        if(i<pathList.size()-1)
+        {
+            output = output + ",";
+        }
+    }        
+}
+output = output + "</PRE>";
+out.writeln(output);

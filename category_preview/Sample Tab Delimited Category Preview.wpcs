@@ -1,0 +1,50 @@
+var pathList = [];
+var processHeader = true;
+var pathListBuilt = false;
+
+var output = "<PRE>";
+
+if(processHeader)
+{
+    var nameList = entry.getEntryAttribsList();
+    processHeader = false;
+
+    for( var j=0; j<nameList.size(); j++)
+    {
+        output = output + nameList[j];
+        if(j<nameList.size()-1)
+        {
+            output = output + "\t";
+        }
+    }
+    out.writeln(output);
+    output = "";
+}
+
+if(pathListBuilt)
+{
+    for( var i=0; i<pathList.size(); i++)
+    {
+        output = output + checkString(entry.previewEntryAttrib(pathList[i]), "");
+        if(i<pathList.size()-1)
+        {
+            output = output + "\t";
+        }
+    }        
+}
+else
+{
+    pathList = entry.getEntryAttribsList();
+    pathListBuilt = true;
+
+    for( var i=0; i<pathList.size(); i++)
+    {
+        output = output + checkString(entry.previewEntryAttrib(pathList[i]), "");
+        if(i<pathList.size()-1)
+        {
+            output = output + "\t";
+        }
+    }        
+}
+output = output + "</PRE>";
+out.writeln(output);

@@ -1,0 +1,47 @@
+var view = container.getCtgViewByName(getCurrentCtgViewName());
+var attribNames = view.getCtgViewAttribsList();
+
+out.write("<script src=\"/js/tools.js\"></script>");
+out.write("<table border=1>");
+out.write(  "<tr>");
+
+if (category_tree != null)
+{
+    out.write("<td><b>Category Path</b></td>");
+    out.write("<td><b>Category Code</b></td>");
+}
+
+for ( var j=0; j<attribNames.size(); j++)
+{
+    out.write("<td><b>" + escapeForHTML(attribNames[j]) + "</b></td>");
+}
+out.write(  "</tr>");
+
+var entry;
+var e;
+forEachEntrySetElement(entrySet, entry)
+{
+    out.write("<tr>");
+
+    if (category_tree != null)
+    {
+        out.write("<td>");
+        out.write(entry.getFullPaths("/", false, true)[0]);
+        out.write("</td>");
+        out.write("<td>");
+        out.write(entry.getCategoryCode());
+        out.write("</td>");
+    }
+
+    for ( var j=0; j<attribNames.size(); j++)
+    {
+        out.write("<td>");
+        catchError(e)
+        {
+            out.write(entry.displayEntryAttrib(attribNames[j]));
+        }
+        out.write("</td>");
+    }
+    out.write("</tr>");
+}
+out.write("</table>");

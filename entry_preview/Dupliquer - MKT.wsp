@@ -1,0 +1,79 @@
+<%
+var hmResults = [];
+hmResults = getScriptByPath("/scripts/triggers/LG.Library.Actions").getFunctionByName("cloneEntrySet").invoke(catalog,entrySet,"MKT");
+%>
+
+<link rel=stylesheet href='/css/pa_prof.css' type='text/css'/>
+<link rel=stylesheet href='/css/pa_prof_font_en_US.css' type='text/css'/>
+
+
+
+<style>
+body { font-size:8pt;  }
+td { font-size:8pt; }
+textarea { font-size:8pt; }
+input { font-size:8pt; }
+select { font-size:8pt; }
+.form { font-size:8pt; }
+.tablebean_even { font-size:8pt; }
+.tablebean_odd_product { font-size:8pt; }
+.formfixed { font-size:8pt; }
+.module_list { font-size:8pt; }
+.wizard_current { font-size:9pt; }
+.wizard_before { font-size:9pt; }
+.wizard_after { font-size:9pt; }
+.module_button { font-size:7pt; }
+.module_button_over { font-size:7pt; }
+.module_button_down { font-size:7pt; }
+.table_search_cell { font-size:7pt; }
+.table_search_form { font-size:7pt; }
+</style>
+
+<script>
+function browseNewItem(url) {
+    if (window.parent != null && window.parent.opener != null) {
+        var frm_right = window.parent.opener;
+        if (frm_right != null) {
+            frm_right.location.href = url;
+        }
+    }
+    window.close();
+}
+
+</script>
+<table border=0 cellPadding=0 cellSpacing=0 class='tablebean'>
+  <tr>
+    <td colspan=3>
+      <table width='100%' border='0' cellSpacing='0' cellpadding='0' bgcolor='#000000' background='/images/newlook/leftnav_header_background.gif'>
+        <tr>
+          <td width='20' valign='middle'><img border=0 src=/images/newlook/header_dots_prof.gif   height=16  
+width=16   ></td>
+          <td noWrap width=100% ><font color='#ffffff'>&nbsp;&nbsp;<b>Resultat Duplication</b>&nbsp;</font></td>
+        </tr>
+        <tr>
+          <td colspan=2 bgcolor='#ffffff'></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <table width='100%' border='0' cellpadding='1' cellSpacing='0' class='sub_tablebean'>
+        <tr bgcolor=#b4b4b4>
+          <td class=tablebean_tablebean_headereven><font color=#000000><b>&nbsp;ERPCode</b></font></td>
+          <td class=tablebean_tablebean_headereven><font color=#000000><b>&nbsp;Description</b></font></td>
+          <td class=tablebean_tablebean_headereven><font color=#000000><b>&nbsp;Status</b></font></td> 
+       </tr>
+<%    for (i=0; i<hmResults.size(); i++) {      %>
+        <tr bgcolor=#e4e4e4>  
+          <td class=tablebean_even><a href='javascript:browseNewItem("<%=hmResults[i]["url"]%>");'><%=hmResults[i]["pk"]%></a>&nbsp;</td>
+          <td class=tablebean_even><%=hmResults[i]["desc"]%>&nbsp;</td>
+          <td class=tablebean_even><%=hmResults[i]["status"]%>&nbsp;</td>
+        </tr>  
+<%    }     %>
+      </table>
+    </td>  
+  </tr>
+</table>
+<br>
+<input type=button value='Fermer la fenêtre' onclick='parent.window.close(); this.disabled'>

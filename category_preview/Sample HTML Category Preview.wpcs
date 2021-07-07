@@ -1,0 +1,53 @@
+var pathList = [];
+var processHeader = true;
+var pathListBuilt = false;
+
+var output = "<script src=\"/js/tools.js\"></script><br><table border=1>";
+
+output = output + "<tr>";
+
+if(processHeader)
+{
+    var nameList = entry.getEntryAttribsList();
+    processHeader = false;
+
+    for( var j=0; j<nameList.size(); j++)
+    {
+        output = output + "<th>" + escapeForHTML(nameList[j]) + "</th>";
+    }
+
+    output = output + "</tr><tr>";
+}
+
+var e;
+
+if(pathListBuilt)
+{
+    for( var i=0; i<pathList.size(); i++)
+    {
+        output = output + "<td>";
+        catchError(e)
+        {
+            output = output + entry.displayEntryAttrib(pathList[i]);            
+        }
+        output = output + "</td>";
+    }        
+}
+else
+{
+    pathList = entry.getEntryAttribsList();
+    pathListBuilt = true;
+    for( var i=0; i<pathList.size(); i++)
+    {
+        output = output + "<td>";
+        catchError(e)
+        {
+            output = output + entry.displayEntryAttrib(pathList[i]);
+        }
+        output = output + "</td>";
+    }
+}
+output = output + "</tr>";
+
+output = output + "</table>";
+out.println(output);
