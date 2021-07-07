@@ -1,0 +1,8 @@
+//
+// Export Marketing - Promat
+//
+
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/Siniat.Library.CreateExports").getFunctionByName("createMarketingReport").invoke();
+outWriter.writeln(str);
+out.writeln(str);

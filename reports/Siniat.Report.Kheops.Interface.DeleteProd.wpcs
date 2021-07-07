@@ -1,0 +1,9 @@
+//
+// Delete Prod Items no child
+//
+var errorList = getScriptByPath("/scripts/triggers/Siniat.Kheops.Interface.DeleteProd").getFunctionByName("deleteProdNoChild").invoke();
+if(errorList!=null && errorList.size()>0) {
+	for(var i=0;i<errorList.size();i++) {
+		logDebug(errorList[i]);
+	}
+}

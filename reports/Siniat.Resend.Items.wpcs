@@ -1,0 +1,17 @@
+//
+// InfoSphere MDM Collaboration Server Script
+//
+
+var e;
+
+out.writeln("*** Resend Item ***");
+catchError(e) {
+  var processResendItem=getScriptByPath("/scripts/import/Import.CSV.and.publish.Item").getFunctionByName("ResendItems");
+  out.writeln("*** Resend Item ***");
+  processResendItem.invoke(" ");
+}
+
+if (e!=null){
+  out.writeln(e);
+  logDebug(e);
+}

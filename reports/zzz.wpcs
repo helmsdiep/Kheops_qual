@@ -1,0 +1,13 @@
+logDebug("File name: XFER/MAT_XML/archive/O_100_DE_976534900.xml");
+var xmlDoc=new XmlDocument("file://XFER/MAT_XML/archive/O_100_DE_976534900.xml");
+logDebug("OK");
+
+createOtherOut("file://XFER/MAT_XML/testronan2.txt");
+logDebug("Create Other Out OK");
+
+var matfilelistDoc = new Reader("file://XFER/MAT_XML/O_100_DE_964969900-2.xml");
+logDebug("Reader OK");
+
+//logDebug("File name: XFER/MAT_XML/archive/O_100_DE_791635900.xml");
+//var xmlDoc=new XmlDocument("file://XFER/MAT_XML/archive/O_100_DE_791635900.xml");
+//logDebug("OK");

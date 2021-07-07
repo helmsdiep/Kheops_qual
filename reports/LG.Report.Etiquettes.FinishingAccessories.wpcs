@@ -1,0 +1,7 @@
+//
+// Export FinishingAccessories - Export Kheops pour étiquetage 
+//
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.FinishingAccessories").getFunctionByName("getFullCSV").invoke();
+outWriter.writeln(str);
+out.writeln(str);

@@ -1,0 +1,6 @@
+//
+// Import SAP data / External Products catalog / Manual processing
+//
+var logOut = createOtherOut("file://XFER/MAT_XML/run-unitaire.txt");
+logOut.writeln("PROCESS SAP DATA IMPORT");
+logOut.save("file://XFER/MAT_XML/run-unitaire.txt");

@@ -1,0 +1,143 @@
+var logPath = "/majmasse/update-intrastatcode-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	strCatalogCode=substring(ctgName,1,4);
+	out.writeln("ctgName="+ctgName);
+	logDebug("ctgName="+ctgName);
+	//
+	var oCatalog = getCtgByName(ctgName);
+	//
+	var strCategoryTreeName="H000-Typology";
+	var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+	//
+	var oProdCategory = oCategoryTree.getEntryByPrimaryKey("Prod");
+	var oProdItemSet = oProdCategory.getItemSetForCategory(oCatalog);
+	//
+	var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+	var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+	//
+	var oProdItem;
+	forEachItemSetElement(oProdItemSet,oProdItem) {
+		var strItemPK = oProdItem.getPrimaryKey();
+
+		logDebug("strItemPK="+strItemPK);
+
+		// Invoice Name
+		var strIntrastatCode = "";
+		var strIntrastatCodeNew = "";
+		var btosave=false;
+		var oIntrastatCodeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oProdItem,"06DN0774-IntrastatCode");
+		if(oIntrastatCodeEn!=null) {
+			strIntrastatCode = checkString(oIntrastatCodeEn.getEntryNodeValue(),"");
+		}
+
+		if(strIntrastatCode!=null) {
+			if(strIntrastatCode!="" && strIntrastatCode.length()>8) {
+				strIntrastatCodeNew = substring(strIntrastatCode,0,8);
+				oIntrastatCodeEn.setEntryNodeValue(strIntrastatCodeNew);
+				btosave=true;
+			}
+		}
+		if(btosave==true) {
+			logOut.writeln(strItemPK+"-"+strIntrastatCode+"-"+strIntrastatCodeNew);
+			// out.writeln(strItemPK+"-"+strIntrastatCode+"-"+strIntrastatCodeNew);
+			var test = oProdItem.saveCtgItem();
+			logOut.writeln(test);
+		}
+	}
+	//
+	var oBUnitItem;
+	forEachItemSetElement(oBUnitItemSet,oBUnitItem) {
+		var strItemPK = oBUnitItem.getPrimaryKey();
+
+		logDebug("strItemPK="+strItemPK);
+
+		// Invoice Name
+		var strIntrastatCode = "";
+		var strIntrastatCodeNew = "";
+		var btosave=false;
+		var oIntrastatCodeEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oBUnitItem,"06DN0774-IntrastatCode");
+		if(oIntrastatCodeEn!=null) {
+			strIntrastatCode = checkString(oIntrastatCodeEn.getEntryNodeValue(),"");
+		}
+
+		if(strIntrastatCode!=null) {
+			if(strIntrastatCode!="" && strIntrastatCode.length()>8) {
+				strIntrastatCodeNew = substring(strIntrastatCode,0,8);
+				oIntrastatCodeEn.setEntryNodeValue(strIntrastatCodeNew);
+				btosave=true;
+			}
+		}
+		if(btosave==true) {
+			logOut.writeln(strItemPK+"-"+strIntrastatCode+"-"+strIntrastatCodeNew);
+			// out.writeln(strItemPK+"-"+strIntrastatCode+"-"+strIntrastatCodeNew);
+			var test = oBUnitItem.saveCtgItem();
+			logOut.writeln(test);
+		}
+	}
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+logOut.save(logPath);
+
+out.writeln("Fin Traitement");

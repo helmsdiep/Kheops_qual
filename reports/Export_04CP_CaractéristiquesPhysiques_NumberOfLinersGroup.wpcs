@@ -1,0 +1,847 @@
+//
+// Export Données Onglet Appellation Commerciale
+//
+// Création : Mélanie Vandersteen 
+// Date création : 26/11/2014
+//
+
+//	FONCTION QUI INITIALISE LA HASH MAP DE VARIABLES GLOBALES
+function initGlobals(){
+	//On déclare la hash map
+    var hmGlobals = [];
+	//On récupère des fonctions qui sont stockées dans des librairies de fonctions,
+	//Elles seront utiles plus tard dans le programme
+	//On les stocke dans une hash map de variables globales
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+    hmGlobals["FN_GET_ENTRY_NODE_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeAtLevel");
+    hmGlobals["FN_GET_PARENT_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentAtLevel");
+    hmGlobals["FN_GET_STATUS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+	//Recupere la constant kheops "QUOT" de la table L902-KheopsConstants et la stocke dans la variable globale
+    hmGlobals["QUOT"] = lookupValues(getLkpByName("L902-KheopsConstants"),"QUOT")[0];
+    return hmGlobals;
+}
+
+//	FONCTION QUI RETOURNE LE PARENT D'UN ITEM	
+function getParentItem(hmGlobals,item){
+	//On retourne l'objet item situé à l'adresse contenue dans la varible globale "PARENT_RELATIONSHIP_FIELD"
+	return item.getItemUsingEntryRelationshipAttrib(hmGlobals["PARENT_RELATIONSHIP_FIELD"]);
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS-GRANDS PARENTS D'UN ITEM	(tous les ancètres de l'item)
+function getParentsItem(hmGlobals,item,hmParents){
+	//Ajoute l'item/parent/grandparent à la hashmap de Parents (selon l'étape de récursivité sur la fonction)
+	hmParents.add(item);
+	//On appelle la fonction getParentItem décrite ci dessus et qui retourne le parent d'un item 
+	//on stocke le résultat dans parent
+	var parent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);
+	if(parent!=null) {//Si il y a un parent on effectue une récursivité avec comme argument parent (pour trouver les grand-parents)
+		return(getParentsItem(hmGlobals,parent,hmParents));
+	}
+	else {//sinon on retourne hmParents
+		return(hmParents);
+	}
+}
+
+//	FONCTION QUI RETOURNE LE TYPE D'UN ITEM	
+//La méthode associée à la variable hmGlobals["FN_GET_ITEM_TYPE"] (ici il s'agit de getItemType())
+//est exécutée sur l'objet item passé en parametres via la fonction invoke()
+function getType(hmGlobals,item){
+	return hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS DE L'ITEM A UN NIVEAU DONNE (PROD, BUNIT, PITEM...)
+function getParentAtLevel(hmGlobals,item,iLevel) {
+	if(iLevel==0) {//Si le niveau pour récupérere la valeur de l'attribut est au niveau courant on retourne l'item
+		return(item);
+	}
+	else {//On appelle la fonction getParentItem décrite ci dessus et qui retourne le parent d'un item 
+		//on stocke le résultat dans parentItem
+		var parentItem = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);
+		if(parentItem==null) {//si l'item n'a pas de parent
+			return(null);//on retourne null
+		}
+		else {//sinon on recherche les parents au niveau supérieur (PROD, BUNIT, PITEM...) par recursivite
+			return(getParentAtLevel(hmGlobals,parentItem,iLevel+1));
+		}
+	}
+}
+
+//	FONCTION QUI RETOURNE LE NOEUD (attribut de l'item) EN FONCTION DU CHEMIN 
+//la méthode associée à la variable hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] (ici il s'agit de getEntryNodesFromAttrPath())
+//est exécutée sur item et sNodeName via la fonction invoke()
+function getEn(hmGlobals, item, sNodeName){
+	return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+//	FONCTION QUI RETOURNE LA VALEUR DU NOEUD (valeur attribut de l'item) EN FONCTION DU CHEMIN 
+//Idem fonction précédente sauf que l'on récupère la valeur correspondand au noeud spécifié
+function getValue(hmGlobals, item, sNodeName){
+	return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+//	FONCTION QUI RETOURNE LE PARENT DE PLUS HAUT NIVEAU		
+function getHigherParent(hmGlobals , hmParents, sAttrPath){
+	var i;
+	for(i=0;i<hmParents.size();i++) {//On boucle sur la hashmap de parents
+		if(getEn(hmGlobals,hmParents[i],sAttrPath)!=null) {//Si la valeur de l'attribut du noeud parent n'est pas nul
+			return(hmParents[i]);//On retourne le noeud parent
+		}
+	}
+	return(null);
+}
+
+//	FONCTION QUI RECUPERE L'ITEM A UN NIVEAU DONNE
+function getItemAtLevel(hmGlobals,item,sLevel){
+	if (item==null) {//Si l'item n'existe pas, on retourne la valeur null
+		return null;
+	}
+	else
+	{
+		if (getType(hmGlobals,item)==sLevel) //Si le type de l'item correspond au niveau demandé, on retourne l'item
+		{
+			return item;
+		}
+		
+		var oParent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);//Sinon on récupère le parent de l'item
+		return getItemAtLevel(hmGlobals,oParent,sLevel);//Et on regarde si il correspond au niveau demandé par recursivité
+	}
+}
+
+//	FONCTION QUI RECUPERE LA PLUS GRANDE CLEF DE LA HASH MAP (= taille max de la hashmap pour pouvoir boucler dessus)
+function getMaxHm(hm) {
+	var oKey;
+	var oValue;
+	var max = 0;
+	forEachHmElement(hm,oKey,oValue) {//Pour chaque couple (Okey, oValue) de la hash map
+		if(toInteger(oKey)>max) {//Si la conversion en int de oKey est supérieure a max
+			max = toInteger(oKey);//On place la valeur de oKey dans max
+		}	
+	}	
+	return(max);//On retourne la clef la plus grande de la hashmap
+}
+
+//	FONCTION QUI CONSTRUIT LE FICHIER CSV
+function buildSAPCSV(hmGlobals,hm) {
+	var i;
+	var csv = "";
+	var val ="";
+	for(i=1;i<getMaxHm(hm);i++) {//Pour chaque valeur inférieure à la valeur max de la hashmap
+		if(hm[i]==null) {//Si la valeur contenue dans la hashmap est a NULL
+			val = "";//La variable val prend pour valeur ""(vide)
+		}
+		else {//Sinon on copie la valeur de la hashmap dans val
+			val = toString(hm[i]);
+			if(val.contains("null")==true) {//Si val contient la chaine de caractères null
+				val = "";//La variable val pren pour valeur ""(vide)
+			}
+		}
+		//csv = csv  + escapeForCSV(val) + ",";
+		//On remplit la variable csv avec les différentes valeurs en respectant la syntaxe du format
+		//Exemple : "val1","val2","val3"...
+		csv = csv  + hmGlobals["QUOT"] + val + hmGlobals["QUOT"] + ";";
+	}
+	//On réitère l'opération pour la dernière valeur de la hashmap (valeur max) car non prise en compe dans la boucle for (i<MaxHm(hm))
+	if(hm[i]==null) {
+			val = "";
+		}
+		else {
+			val = toString(hm[i]);
+			if(val.contains("null")==true) {
+				val = "";
+			}
+		}
+	//csv = csv + escapeForCSV(val);
+	csv = csv  + hmGlobals["QUOT"] + val + hmGlobals["QUOT"];
+	return(csv);//On renvoie la variable csv qui respecte le format du meme nom
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+// FONCTION QUI RECUPERE LA OU LES VALEURS D'UN ATTRIBUT (champr de la matrice Kheops) POUR UN ITEM DONNE 
+function tech(hmGlobals,item,sAttrName,sGroupingName,sLkpName,iLkpRow,sAttrNameGroupingKey,sAttrValGroupingKey,iLevel) {
+//- hmGlobals : tableau de variables globales
+//- item : item
+//- sAttrName : nom de l'attribut (ex : "06DN0346-IsInCatalog")
+//- sGroupingName : nom du grouping (ex : "ChannelOfDistributionGroup")
+//- sLkpName : nom de la lookup table (ex : "L103-Marque ciale Detenteur - Brand name")
+//- iLkpRow : numéro de la colonne de la lookup table (ex : 2)
+//- sAttrNameGroupingKey : nom de l’attribut clé du grouping 
+//- sAttrValGroupingKey : valeur de l’attribut clé du grouping 
+//- iLevel : niveau où récupérer la valeur de l'attribut (de -2 à 4)
+	
+	var val = [];//tableau des valeurs de sAttrName si c'est un grouping ou un multivalué
+	var en;
+	var sKey;
+	
+	//Si on veut la valeur de sAttrName à un niveau différent de celui sur lequel on est
+	//On remplace l'item item par celui du niveau désiré  
+	if(iLevel!=null) {
+		//0 ou null = valeur de l'attribut de l'item au niveau courant,
+		//1 = valeur de l'attribut de l'item au niveau Prod,
+		//2 = valeur de l'attribut de l'item au niveau BUnit,
+		//3 = valeur de l'attribut de l'item au niveau Pitem1,
+		//4 = valeur de l'attribut de l'item au niveau Pitem2,
+		//-1 = valeur de l'attribut de l'item au niveau du parent,
+		//-2 = valeur de l'attribut de l'item au niveau du grand parent
+		var sLevel = "";
+		if(iLevel ==1 ){//Si le niveau est a 1, sLevel prend la valeur "Prod"
+			sLevel = "Prod";
+		}
+		else if (iLevel == 2) {//Si le niveau est a 2, sLevel prend la valeur "BUnit"
+			sLevel = "BUnit";
+		}
+		else if (iLevel == 3) {//Si le niveau est a 3, sLevel prend la valeur "PItem"
+			sLevel = "PItem";
+		}
+		else if (iLevel < 0) {//Si le niveau est inférieur a 0, on récupère l'attribut chez le parent, grand-parent de l'item
+			//item = hmGlobals["FN_GET_PARENT_AT_LEVEL"].invoke(hmGlobals,item,iLevel);
+			item = getParentAtLevel(hmGlobals,item,iLevel);
+		}
+		if(sLevel!="") {//Si la variable sLevel n'est pas vide, on récupère l'item au niveau demandé
+			item = getItemAtLevel(hmGlobals,item,sLevel);
+		}
+	}
+	
+	//---------------------------------------------------------------------------------------------------------------------
+	
+	//Si on est dans un grouping
+	if(checkString(sGroupingName,"")!=""){
+		var myGroup = getEn(hmGlobals,item,sGroupingName);
+		if(myGroup!=null) {
+			var i;
+			//On parcourt le grouping sGroupingName
+			for(i=0;i<myGroup.size();i++) {
+				//Si on veut récupérer les valeurs de sAttrName sur une occcurrence spéciale
+				if(checkString(sAttrNameGroupingKey,"")!="" && checkString(sAttrValGroupingKey,"") != "") {
+					//Recherche de l'occurrence tel que sAttrNameGroupingKey = sAttrValGroupingKey
+					if(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrNameGroupingKey)==sAttrValGroupingKey) {						
+						en = getEn(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+						if(en!=null) {
+							//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+							if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+								var j;
+								for(j=0;j<en.size();j++) {
+									//sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+									sKey = en[j].getEntryNodeValue();
+									if(sKey!=null) {
+										val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+									}
+								}
+							}
+							//Si on veut simplement la valeur de l'attribut de sAttrName
+							else {
+								var j;
+								for(j=0;j<en.size();j++) {
+									//val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+									val.add(en[j].getEntryNodeValue());
+								}		
+							}
+						}
+					}
+				}
+				//Si on veut récupérer les valeurs de sAttrName sur toutes les occurrences
+				else {
+					en = getEn(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+					if(en!=null) {
+						//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+						if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+							var j;
+							for(j=0;j<en.size();j++) {
+								//sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+								sKey = en[j].getEntryNodeValue();
+								if(sKey!=null) {
+									val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+								}
+							}	
+						}
+						//Si on veut simplement la valeur de l'attribut de sAttrName
+						else {
+							var j;
+							for(j=0;j<en.size();j++) {
+								//val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+								val.add(en[j].getEntryNodeValue());
+							}	
+						}
+					}
+				}
+			}
+		}
+	}
+	//Si on n'est pas dans un grouping
+	else {
+		en = getEn(hmGlobals,item,sAttrName);
+		if(en!=null) {
+			//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+			if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+				var j;
+				for(j=0;j<en.size();j++) {
+					sKey = en[j].getEntryNodeValue();
+					if(sKey!=null) {
+						val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+					}
+				}	
+			}
+			//Si on veut simplement la valeur de l'attribut de sAttrName
+			else {
+				var j;
+				for(j=0;j<en.size();j++) {
+					val.add(en[j].getEntryNodeValue());
+				}	
+			}	
+		}
+	}
+	
+	//out.writeln(en);
+	//out.writeln(val);
+	
+	//-----------------------------------------------------------------------------------------------------------------------
+	
+	//CHAINE FINALE DE L'ATTRIBUT
+	var myStr = ""; 
+	if(val.size()==0) {//Si val est vide myStr prend ma valeur null
+		myStr = "null";
+	}
+	if(val.size()==1) {//Si val contient 1 valeur on convertit la valeur en string et on la place dans myStr
+		myStr = toString(val[0]);
+	}
+	if(val.size()>1) {//Si val contient plus d'une valeur
+		var i;
+		for(i=0;i<val.size()-1;i++) {//On boucle sur les valeurs contenues dans val[]
+			myStr = myStr + toString(val[i]) + "@#@";//On les copie dans myStr en les separant par @#@
+		}
+		myStr = myStr + toString(val[i]);//on copie la derniere valeur (val.size()) dans myStr car elle n'est pas prise en compte dans la boucle (i<val.size())
+	}
+	return(myStr);
+}
+
+//FONCTION QUI RECUPERE L'ENSEMBLE DES CHAMPS QUI DECRIVENT UN ITEM 
+//De nombreuses conditions ternaires sont mises en oeuvre afin de respecter les regles de gestions 
+//associees aux differents champs 
+function getHmItemBatidataValues(hmGlobals,item, i){
+	var hmParents = [];
+	hmParents = getParentsItem(hmGlobals,item,hmParents);//Remplissage de la hashmap avec les parents de l'item 
+	var hmItemValues = [];
+	var type = getType(hmGlobals,item);//Recuperation du type de l'item
+	var status = hmGlobals["FN_GET_STATUS"].invoke(item);//Recuperation du statut de l'item
+    // Récupération du parent
+	var parentItem = item.getItemUsingEntryRelationshipAttrib("SC000-GlobPrim/99CTL100-ParentItem");
+	// Récupération du nom du catalogue de l'item
+	var ctgName = item.getCatalog().getCtgName();
+	var ctgCode = substring(ctgName,1,4);
+	var validToDate = getValue(hmGlobals,item,"06DN0427-ValidToDate");
+	var effectiveDate = getValue(hmGlobals,item,"06DN0425-effectiveDate");
+	var effectiveDateReformat = effectiveDate.formatDate("dd/MM/yyyy");
+	var validToDateReformat = validToDate.formatDate("dd/MM/yyyy");
+	var MaterialType = "";
+	var BaseUnitOfMeasure = "";	
+	
+	hmItemValues[1] = ctgCode;
+	hmItemValues[2] = status;
+	var erpcode = tech(hmGlobals,item,"01AC0044-ERPCode");
+	hmItemValues[3] = erpcode;
+	hmItemValues[4] = tech(hmGlobals,item,"01AC0664-MaterialNumber");
+	hmItemValues[4] = replaceString(hmItemValues[4],"0000000000000","");
+	hmItemValues[4] = replaceString(hmItemValues[4],"000000000000","");
+	hmItemValues[4] = replaceString(hmItemValues[4],"00000000000","");	
+	hmItemValues[5] = tech(hmGlobals,item,"01AC0740-OldMaterialNumber");
+	hmItemValues[6] = tech(hmGlobals,item,"01AC0014-invoiceName");	
+	hmItemValues[7] = tech(hmGlobals,item,"01AC0012-LongName");		
+	if (type == "BUnit" || type == "Prod") {
+		MaterialType = tech(hmGlobals,item,"01AC0659-MaterialType");
+	} else {
+		MaterialType = tech(hmGlobals,item,"01AC0659-MaterialType","","","","","",2);
+	}				
+	hmItemValues[8] = MaterialType;	
+	hmItemValues[9] = tech(hmGlobals,item,"01AC0775-PublishedIntoSAP");
+	hmItemValues[10] = tech(hmGlobals,item,"01AC0670-XPlantMatlStatus");
+	hmItemValues[11] = type;		
+	
+//A REMPLIR 
+	hmItemValues[12] =  tech(hmGlobals,item,"04CP0075-MarkingOnTheProduct","","","","","",1);
+	hmItemValues[13] =  tech(hmGlobals,item,"04CP0076-LabellingType","","","","","",1);
+	hmItemValues[14] =  tech(hmGlobals,item,"04CP0077-LabellingColour","","","","","",1);
+	if (type == "Prod" || type == "BUnit") {
+		hmItemValues[15] =  tech(hmGlobals,item,"04CP0078-LabellingPoint");
+	} else {
+		hmItemValues[15] =  tech(hmGlobals,item,"04CP0078-LabellingPoint","","","","","",2);
+	}
+	hmItemValues[16] =  tech(hmGlobals,item,"04CP0079-IsFixingLabels","","","","","",1);
+	hmItemValues[17] =  tech(hmGlobals,item,"04CP0080-CommercialThickness","","","","","",1);
+	hmItemValues[18] =  tech(hmGlobals,item,"04CP0081-CommercialThicknessUnits","","","","","",1);
+	hmItemValues[19] =  tech(hmGlobals,item,"04CP0082-RealThickness","","","","","",1);
+	hmItemValues[20] =  tech(hmGlobals,item,"04CP0083-ThicknessTolerance","","","","","",1);
+	hmItemValues[21] =  tech(hmGlobals,item,"04CP0084-RealThicknessUnits","","","","","",1);
+	hmItemValues[22] =  tech(hmGlobals,item,"04CP0085-CommercialBoardThickness","","","","","",1);
+	hmItemValues[23] =  tech(hmGlobals,item,"04CP0086-CommercialBoardThicknessUnits","","","","","",1);
+	hmItemValues[24] =  tech(hmGlobals,item,"04CP0087-RealBoardThickness","","","","","",1);
+	hmItemValues[25] =  tech(hmGlobals,item,"04CP0088-RealBoardThicknessUnits","","","","","",1);
+	hmItemValues[26] =  tech(hmGlobals,item,"04CP0089-InsulationThickness","","","","","",1);
+	hmItemValues[27] =  tech(hmGlobals,item,"04CP0090-InsulationThicknessUnits","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[28] =  tech(hmGlobals,item,"04CP0091-Thickness","","","","","",2);
+		hmItemValues[29] =  tech(hmGlobals,item,"04CP0092-ThicknessUnits","","","","","",2);
+	}
+	hmItemValues[30] =  tech(hmGlobals,item,"04CP0093-InternalBoardCommercialThickness","","","","","",1);
+	hmItemValues[31] =  tech(hmGlobals,item,"04CP0094-InternalBoardCommercialThicknessUnits","","","","","",1);
+	hmItemValues[32] =  tech(hmGlobals,item,"04CP0095-Width","","","","","",1);
+	//hmItemValues[33] =  tech(hmGlobals,item,"04CP0095-Width");
+	hmItemValues[34] =  tech(hmGlobals,item,"04CP0096-WidthTolerance","","","","","",1);
+	//hmItemValues[35] =  tech(hmGlobals,item,"04CP0096-WidthTolerance");
+	hmItemValues[36] =  tech(hmGlobals,item,"04CP0097-WidthUnit","","","","","",1);
+	//hmItemValues[37] =  tech(hmGlobals,item,"04CP0097-WidthUnit");
+	if (type != "Prod") {
+		hmItemValues[38] =  tech(hmGlobals,item,"04CP0100-Diameter","","","","","",2);
+		hmItemValues[39] =  tech(hmGlobals,item,"04CP0101-DiameterUnits","","","","","",2);
+		hmItemValues[40] =  tech(hmGlobals,item,"04CP0103-Length","","","","","",2);
+		hmItemValues[41] =  tech(hmGlobals,item,"04CP0104-LengthUnits","","","","","",2);
+		hmItemValues[42] =  tech(hmGlobals,item,"04CP0105-SurfaceArea","","","","","",2);
+		hmItemValues[43] =  tech(hmGlobals,item,"04CP0106-SurfaceAreaUnits","","","","","",2);
+		hmItemValues[44] =  tech(hmGlobals,item,"04CP0107-BItemHeight","","","","","",2);
+		hmItemValues[45] =  tech(hmGlobals,item,"04CP0108-BItemHeightUnits","","","","","",2);
+		hmItemValues[46] =  tech(hmGlobals,item,"04CP0109-ValveDimension","","","","","",2);
+		hmItemValues[47] =  tech(hmGlobals,item,"04CP0110-BaseWidth","","","","","",2);
+		hmItemValues[48] =  tech(hmGlobals,item,"04CP0111-BaseWidthUnits","","","","","",2);
+		hmItemValues[49] =  tech(hmGlobals,item,"04CP0112-BaseLength","","","","","",2);
+		hmItemValues[50] =  tech(hmGlobals,item,"04CP0113-BaseLengthUnits","","","","","",2);
+	}
+	if (type == "PItem") {
+		hmItemValues[51] =  tech(hmGlobals,item,"04CP0114-Height");
+		hmItemValues[52] =  tech(hmGlobals,item,"04CP0115-HeightUnits");
+		hmItemValues[53] =  tech(hmGlobals,item,"04CP0116-Depth");
+		hmItemValues[54] =  tech(hmGlobals,item,"04CP0117-DepthUnits");
+		hmItemValues[55] =  tech(hmGlobals,item,"04CP0118-PItemWidth");
+	}
+	hmItemValues[56] =  tech(hmGlobals,item,"04CP0119-CasingHeight","","","","","",1);
+	if (type == "PItem") {
+		hmItemValues[57] =  tech(hmGlobals,item,"04CP0120-PItemWidthUnits");
+	}
+	if (type != "Prod") {
+		hmItemValues[58] =  tech(hmGlobals,item,"04CP0121-CompatibleBeamMaxiHeelThickness","","","","","",2);
+		hmItemValues[59] =  tech(hmGlobals,item,"04CP0122-BeamHeelThicknessAtEdge","","","","","",2);
+		hmItemValues[60] =  tech(hmGlobals,item,"04CP0123-BeamHeelThicknessAtCenter","","","","","",2);
+		hmItemValues[61] =  tech(hmGlobals,item,"04CP0124-BeamHeelThicknessForUP","","","","","",2);
+		hmItemValues[62] =  tech(hmGlobals,item,"04CP0125-CompatibleBeamMiniTotalHeight","","","","","",2);
+		hmItemValues[63] =  tech(hmGlobals,item,"04CP0126-WidthBetweenBeamCenters","","","","","",2);
+		hmItemValues[64] =  tech(hmGlobals,item,"04CP0127-CompatibleBeamMaxiHeelWidth","","","","","",2);
+		hmItemValues[65] =  tech(hmGlobals,item,"04CP0128-CompatibleBeamMiniHeelWidth","","","","","",2);
+		hmItemValues[66] =  tech(hmGlobals,item,"04CP0129-BeamHeelWidthForUP","","","","","",2);
+	}
+	hmItemValues[67] =  tech(hmGlobals,item,"04CP0130-ThicknessExcludingStrip","","","","","",1);
+	hmItemValues[68] =  tech(hmGlobals,item,"04CP0131-StripThickness","","","","","",1);
+	hmItemValues[69] =  tech(hmGlobals,item,"04CP0132-StripWidth","","","","","",1);
+	hmItemValues[70] =  tech(hmGlobals,item,"04CP0133-WidthExcludingStrip","","","","","",1);
+	hmItemValues[71] =  tech(hmGlobals,item,"04CP0134-MiniHeightHeartBeam","","","","","",1);
+	hmItemValues[72] =  tech(hmGlobals,item,"04CP0135-MetalThickness","","","","","",1);
+	hmItemValues[73] =  tech(hmGlobals,item,"04CP0136-MetalThicknessTolerance","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[74] =  tech(hmGlobals,item,"04CP0137-LabelFormat","","","","","",2);
+		hmItemValues[75] =  tech(hmGlobals,item,"04CP0138-BellowsWidth","","","","","",2);
+		hmItemValues[76] =  tech(hmGlobals,item,"04CP0139-PolyethyleneThickness","","","","","",2);
+	}
+	hmItemValues[77] =  tech(hmGlobals,item,"04CP0140-MeanWingHeight","","","","","",1);
+	hmItemValues[78] =  tech(hmGlobals,item,"04CP0141-MeanWingHeightUnits","","","","","",1);
+	hmItemValues[79] =  tech(hmGlobals,item,"04CP0142-WingHeight1","","","","","",1);
+	hmItemValues[80] =  tech(hmGlobals,item,"04CP0143-WingHeightUnits1","","","","","",1);
+	hmItemValues[81] =  tech(hmGlobals,item,"04CP0144-WingHeight2","","","","","",1);
+	hmItemValues[82] =  tech(hmGlobals,item,"04CP0145-WingHeightUnits2","","","","","",1);
+	hmItemValues[83] =  tech(hmGlobals,item,"04CP0146-Section","","","","","",1);
+	hmItemValues[84] =  tech(hmGlobals,item,"04CP0147-SectionUnits","","","","","",1);
+	hmItemValues[85] =  tech(hmGlobals,item,"04CP0148-MiniHeight","","","","","",1);
+	hmItemValues[86] =  tech(hmGlobals,item,"04CP0149-MiniHeightUnits","","","","","",1);
+	hmItemValues[87] =  tech(hmGlobals,item,"04CP0150-MaxiHeight","","","","","",1);
+	hmItemValues[88] =  tech(hmGlobals,item,"04CP0151-MaxiHeightUnits","","","","","",1);
+	hmItemValues[89] =  tech(hmGlobals,item,"04CP0152-BodyDiameter","","","","","",1);
+	hmItemValues[90] =  tech(hmGlobals,item,"04CP0153-BodyDiameterUnits","","","","","",1);
+	hmItemValues[91] =  tech(hmGlobals,item,"04CP0154-HeadDiameter","","","","","",1);
+	hmItemValues[92] =  tech(hmGlobals,item,"04CP0155-HeadDiameterUnits","","","","","",1);
+	//hmItemValues[93] =  tech(hmGlobals,item,"04CP0156-PaperGrammage");
+	
+	if (type != "Prod") {
+		hmItemValues[94] =  tech(hmGlobals,item,"04CP0156-PaperGrammage","","","","","",2);
+		hmItemValues[95] =  tech(hmGlobals,item,"04CP0157-WoodVolume","","","","","",2);
+	}
+	hmItemValues[96] =  tech(hmGlobals,item,"04CP0158-TypeBoard","","","","","",1);
+	hmItemValues[97] =  tech(hmGlobals,item,"04CP0159-TypeHeartBoard","","","","","",1);
+	hmItemValues[98] =  tech(hmGlobals,item,"04CP0160-LongitudinalEdgeType","","","","","",1);
+	hmItemValues[99] =  tech(hmGlobals,item,"04CP0161-FrontFacingType","","","","","",1);
+	hmItemValues[100] =  tech(hmGlobals,item,"04CP0162-BackFacingType","","","","","",1);
+	hmItemValues[101] =  tech(hmGlobals,item,"04CP0163-FrontFacingColour","","","","","",1);
+	hmItemValues[102] =  tech(hmGlobals,item,"04CP0164-BackFacingColour","","","","","",1);
+	hmItemValues[103] =  tech(hmGlobals,item,"04CP0165-TransverseEdgeType","","","","","",1);
+	hmItemValues[104] =  tech(hmGlobals,item,"04CP0166-FrontInternalCoating","","","","","",1);
+	hmItemValues[105] =  tech(hmGlobals,item,"04CP0167-BackInternalCoating","","","","","",1);
+	hmItemValues[106] =  tech(hmGlobals,item,"04CP0168-AddedCoating","","","","","",1);
+	hmItemValues[107] =  tech(hmGlobals,item,"04CP0169-VapourSeal","","","","","",1);
+	hmItemValues[108] =  tech(hmGlobals,item,"04CP0170-Perforation","","","","","",1);
+	//hmItemValues[109] =  tech(hmGlobals,item,"04CP0170-Perforation");
+	hmItemValues[110] =  tech(hmGlobals,item,"04CP0171-PerforationLayout","","","","","",1);
+	hmItemValues[111] =  tech(hmGlobals,item,"04CP0172-InsulationType","","","","","",1);
+	//hmItemValues[112] =  tech(hmGlobals,item,"04CP0172-InsulationType");
+	hmItemValues[113] =  tech(hmGlobals,item,"04CP0173-EPSAccordingToNF","","","","","",1);
+	hmItemValues[114] =  tech(hmGlobals,item,"04CP0174-SurfaceAspect","","","","","",1);
+	hmItemValues[115] =  tech(hmGlobals,item,"04CP0175-Base","","","","","",1);
+	hmItemValues[116] =  tech(hmGlobals,item,"04CP0176-Profil","","","","","",1);
+	hmItemValues[117] =  tech(hmGlobals,item,"04CP0177-Strip","","","","","",1);
+	hmItemValues[118] =  tech(hmGlobals,item,"04CP0178-ProfileRaising","","","","","",1);
+	hmItemValues[119] =  tech(hmGlobals,item,"04CP0179-ChamferRaising","","","","","",1);
+	hmItemValues[120] =  tech(hmGlobals,item,"04CP0180-ChamferDescription","","","","","",1);
+	hmItemValues[121] =  tech(hmGlobals,item,"04CP0181-colourCode","","","","","",1);
+	//hmItemValues[122] =  tech(hmGlobals,item,"04CP0181-colourCode");
+	hmItemValues[123] =  tech(hmGlobals,item,"04CP0182-colourCodeAgency","","","","","",1);
+	//hmItemValues[124] =  tech(hmGlobals,item,"04CP0182-colourCodeAgency");
+	hmItemValues[125] =  tech(hmGlobals,item,"04CP0183-Colouration","","","","","",1);
+	hmItemValues[126] =  tech(hmGlobals,item,"04CP0184-Shape","","","","","",1);
+	hmItemValues[127] =  tech(hmGlobals,item,"04CP0185-HeadShape","","","","","",1);
+	hmItemValues[128] =  tech(hmGlobals,item,"04CP0186-PointType","","","","","",1);
+	hmItemValues[129] =  tech(hmGlobals,item,"04CP0187-ThreadType","","","","","",1);
+	hmItemValues[130] =  tech(hmGlobals,item,"04CP0188-Galvanised","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[131] =  tech(hmGlobals,item,"04CP0189-PaperPresentation","","","","","",2);
+		hmItemValues[132] =  tech(hmGlobals,item,"04CP0190-PaperQuality","","","","","",2);
+		hmItemValues[133] =  tech(hmGlobals,item,"04CP0191-PrePrinted","","","","","",2);
+		hmItemValues[134] =  tech(hmGlobals,item,"04CP0192-PrintLocation","","","","","",2);
+	}
+	hmItemValues[135] =  tech(hmGlobals,item,"04CP0193-PaperType","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[136] =  tech(hmGlobals,item,"04CP0194-NumberPrintColours","","","","","",2);
+		hmItemValues[137] =  tech(hmGlobals,item,"04CP0195-NumberLidPrintColours","","","","","",2);
+	}
+	hmItemValues[138] =  tech(hmGlobals,item,"04CP0196-PaletType","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[139] =  tech(hmGlobals,item,"04CP0197-CoverType","","","","","",2);
+		
+	hmItemValues[140] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0198-NumberOfLiners","","","","","",2);
+	hmItemValues[141] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0199-LinerGrammage","","","","","",2);
+	hmItemValues[142] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0200-LinerPorosity","","","","","",2);
+	hmItemValues[143] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0201-LinerPerforated","","","","","",2);
+	hmItemValues[144] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0202-LinerColour","","","","","",2);
+	hmItemValues[145] =  tech(hmGlobals,item,"NumberOfLinersGroup#"+i+"/04CP0203-FirstLinerKPE","","","","","",2);
+	
+		hmItemValues[146] =  tech(hmGlobals,item,"04CP0204-TypeOfFreeFilm","","","","","",2);
+		hmItemValues[147] =  tech(hmGlobals,item,"04CP0205-FreeFilmThickness","","","","","",2);
+		hmItemValues[148] =  tech(hmGlobals,item,"04CP0206-TypeOfValves","","","","","",2);
+		hmItemValues[148] =  tech(hmGlobals,item,"04CP0207-PositionOfTheValve","","","","","",2);
+		hmItemValues[150] =  tech(hmGlobals,item,"04CP0208-Handle","","","","","",2);
+		hmItemValues[151] =  tech(hmGlobals,item,"04CP0209-HandleMaterial","","","","","",2);
+		hmItemValues[152] =  tech(hmGlobals,item,"04CP0210-GrippingSystem","","","","","",2);
+		hmItemValues[153] =  tech(hmGlobals,item,"04CP0211-BigBagBaseType","","","","","",2);
+		hmItemValues[154] =  tech(hmGlobals,item,"04CP0212-InnerLiner","","","","","",2);
+		hmItemValues[155] =  tech(hmGlobals,item,"04CP0213-netWeight");
+		hmItemValues[156] =  tech(hmGlobals,item,"04CP0214-netWeightUnit");
+		hmItemValues[157] =  tech(hmGlobals,item,"04CP0215-grossWeight");
+		hmItemValues[158] =  tech(hmGlobals,item,"04CP0216-grossWeightUnit");
+		hmItemValues[159] =  tech(hmGlobals,item,"04CP0217-RoughVolume");
+		hmItemValues[160] =  tech(hmGlobals,item,"04CP0218-RoughVolumeUnit");
+	}
+	
+	hmItemValues[161] =  tech(hmGlobals,item,"04CP0219-ProductBOM","","","","","",1);
+	hmItemValues[162] =  tech(hmGlobals,item,"04CP0220-ProductEquipement","","","","","",1);
+	hmItemValues[163] =  tech(hmGlobals,item,"04CP0221-ChemicalComposition","","","","","",1);
+	//hmItemValues[164] =  tech(hmGlobals,item,"04CP0221-ChemicalComposition");
+	hmItemValues[165] =  tech(hmGlobals,item,"04CP0222-ProductFormula","","","","","",1);
+	hmItemValues[166] =  tech(hmGlobals,item,"04CP0223-ProductType","","","","","",1);
+	hmItemValues[167] =  tech(hmGlobals,item,"04CP0224-SteelType","","","","","",1);
+	hmItemValues[168] =  tech(hmGlobals,item,"04CP0225-SteelAspect","","","","","",1);
+	if (type == "Prod" || type == "BUnit") {
+		hmItemValues[169] =  tech(hmGlobals,item,"04CP0226-Material");
+	} 
+	else {
+		hmItemValues[169] =  tech(hmGlobals,item,"04CP0226-Material","","","","","",2);
+	}
+	hmItemValues[170] =  tech(hmGlobals,item,"04CP0227-PaletMakeUp","","","","","",1);
+	hmItemValues[171] =  tech(hmGlobals,item,"04CP0228-PaletHandlingPoints","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[172] =  tech(hmGlobals,item,"04CP0229-FibreType","","","","","",2);
+		hmItemValues[174] =  tech(hmGlobals,item,"04CP0231-BeamCompatibilityCode","","","","","",2);
+	}
+	if (type == "Prod" || type == "BUnit") {
+		hmItemValues[173] =  tech(hmGlobals,item,"04CP0230-GypsumBlockType");
+	} 
+	else {
+		hmItemValues[173] =  tech(hmGlobals,item,"04CP0230-GypsumBlockType","","","","","",2);
+	}		
+	hmItemValues[175] =  tech(hmGlobals,item,"04CP0232-Characteristics","","","","","",1);
+	hmItemValues[176] =  tech(hmGlobals,item,"04CP0233-Familly","","","","","",1);
+	hmItemValues[177] =  tech(hmGlobals,item,"04CP0234-Granulometry","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[178] =  tech(hmGlobals,item,"04CP0235-TreatedForExport","","","","","",2);
+	}
+	hmItemValues[179] =  tech(hmGlobals,item,"04CP0236-Energy","","","","","",1);
+	if (type == "Prod" || type == "BUnit") {
+		hmItemValues[180] =  tech(hmGlobals,item,"04CP0237-Voltage");
+		hmItemValues[181] =  tech(hmGlobals,item,"04CP0238-UsefulOutput");
+		hmItemValues[182] =  tech(hmGlobals,item,"04CP0239-RotationalSpeed");
+		hmItemValues[183] =  tech(hmGlobals,item,"04CP0242-ScheduleAgreement");
+	} 
+	else {
+		hmItemValues[180] =  tech(hmGlobals,item,"04CP0237-Voltage","","","","","",2);
+		hmItemValues[181] =  tech(hmGlobals,item,"04CP0238-UsefulOutput","","","","","",2);
+		hmItemValues[182] =  tech(hmGlobals,item,"04CP0239-RotationalSpeed","","","","","",2);
+		hmItemValues[183] =  tech(hmGlobals,item,"04CP0242-ScheduleAgreement","","","","","",2);
+	}	
+	hmItemValues[184] =  tech(hmGlobals,item,"04CP0240-BladeDiameter","","","","","",1);
+	if (type != "Prod") {
+		hmItemValues[185] =  tech(hmGlobals,item,"04CP0241-DuctileRetractable","","","","","",2);
+		hmItemValues[186] =  tech(hmGlobals,item,"04CP0560-WebDiameter","","","","","",2);
+		hmItemValues[187] =  tech(hmGlobals,item,"04CP0561-CoreType","","","","","",2);
+		hmItemValues[188] =  tech(hmGlobals,item,"04CP0562-RealingHand","","","","","",2);
+	}
+
+	hmItemValues[189] =  tech(hmGlobals,item,"04CP0563-PaperClass","","","","","",1);
+	hmItemValues[190] =  tech(hmGlobals,item,"04CP0566-SpacingInMm","","","","","",1);
+
+	hmItemValues[191] =  tech(hmGlobals,item,"04CP0572-BeamHealWidth","","","","","",1);
+	if (type == "PItem") {
+		hmItemValues[192] =  tech(hmGlobals,item,"04CP0577-MsgNbrForMarkingPallet");
+	}
+	hmItemValues[193] =  tech(hmGlobals,item,"04CP0581-WingBack","","","","","",1);
+	hmItemValues[194] =  tech(hmGlobals,item,"04CP0650-MethodOfManufacture","","","","","",1);
+			
+//--------------------------------------------------------------------------------------------------------------------------
+	return(hmItemValues);
+	
+//------------------------------------------------------------------------------------------------------------------------------
+
+}
+
+
+var hmGlobals = initGlobals();//Initialisation du tableau de variables globales
+var ctgs = getCatalogNamesList();//La variable ctgs contient la liste des catalogues disponibles
+
+var hmEntete = [];
+hmEntete.add("");
+hmEntete.add("ctgCode");
+hmEntete.add("status");
+hmEntete.add("erpcode");
+hmEntete.add("MaterialNumber");
+hmEntete.add("OldMaterialNumber");
+hmEntete.add("invoiceName");
+hmEntete.add("LongName");
+hmEntete.add("MaterialType;");
+hmEntete.add("PublishedIntoSAP");
+hmEntete.add("XPlantMatlStatus");
+hmEntete.add("type");
+
+//A REMPLIR 
+hmEntete.add("MarkingOnTheProduct");
+hmEntete.add("LabellingType");
+hmEntete.add("LabellingColour");
+hmEntete.add("LabellingPoint");
+hmEntete.add("IsFixingLabels");
+hmEntete.add("CommercialThickness");
+hmEntete.add("CommercialThicknessUnits");
+hmEntete.add("RealThickness");
+hmEntete.add("ThicknessTolerance");
+hmEntete.add("RealThicknessUnits");
+hmEntete.add("CommercialBoardThickness");
+hmEntete.add("CommercialBoardThicknessUnits");
+hmEntete.add("RealBoardThickness");
+hmEntete.add("RealBoardThicknessUnits");
+hmEntete.add("InsulationThickness");
+hmEntete.add("InsulationThicknessUnits");
+hmEntete.add("Thickness");
+hmEntete.add("ThicknessUnits");
+hmEntete.add("InternalBoardCommercialThickness");
+hmEntete.add("InternalBoardCommercialThicknessUnits");
+hmEntete.add("Width");
+hmEntete.add("Width");
+hmEntete.add("WidthTolerance");
+hmEntete.add("WidthTolerance");
+hmEntete.add("WidthUnit");
+hmEntete.add("WidthUnit");
+hmEntete.add("Diameter");
+hmEntete.add("DiameterUnits");
+hmEntete.add("Length");
+hmEntete.add("LengthUnits");
+hmEntete.add("SurfaceArea");
+hmEntete.add("SurfaceAreaUnits");
+hmEntete.add("BItemHeight");
+hmEntete.add("BItemHeightUnits");
+hmEntete.add("ValveDimension");
+hmEntete.add("BaseWidth");
+hmEntete.add("BaseWidthUnits");
+hmEntete.add("BaseLength");
+hmEntete.add("BaseLengthUnits");
+hmEntete.add("Height");
+hmEntete.add("HeightUnits");
+hmEntete.add("Depth");
+hmEntete.add("DepthUnits");
+hmEntete.add("PItemWidth");
+hmEntete.add("CasingHeight");
+hmEntete.add("PItemWidthUnits");
+hmEntete.add("CompatibleBeamMaxiHeelThickness");
+hmEntete.add("BeamHeelThicknessAtEdge");
+hmEntete.add("BeamHeelThicknessAtCenter");
+hmEntete.add("BeamHeelThicknessForUP");
+hmEntete.add("CompatibleBeamMiniTotalHeight");
+hmEntete.add("WidthBetweenBeamCenters");
+hmEntete.add("CompatibleBeamMaxiHeelWidth");
+hmEntete.add("CompatibleBeamMiniHeelWidth");
+hmEntete.add("BeamHeelWidthForUP");
+hmEntete.add("ThicknessExcludingStrip");
+hmEntete.add("StripThickness");
+hmEntete.add("StripWidth");
+hmEntete.add("WidthExcludingStrip");
+hmEntete.add("MiniHeightHeartBeam");
+hmEntete.add("MetalThickness");
+hmEntete.add("MetalThicknessTolerance");
+hmEntete.add("LabelFormat");
+hmEntete.add("BellowsWidth");
+hmEntete.add("PolyethyleneThickness");
+hmEntete.add("MeanWingHeight");
+hmEntete.add("MeanWingHeightUnits");
+hmEntete.add("WingHeight1");
+hmEntete.add("WingHeightUnits1");
+hmEntete.add("WingHeight2");
+hmEntete.add("WingHeightUnits2");
+hmEntete.add("Section");
+hmEntete.add("SectionUnits");
+hmEntete.add("MiniHeight");
+hmEntete.add("MiniHeightUnits");
+hmEntete.add("MaxiHeight");
+hmEntete.add("MaxiHeightUnits");
+hmEntete.add("BodyDiameter");
+hmEntete.add("BodyDiameterUnits");
+hmEntete.add("HeadDiameter");
+hmEntete.add("HeadDiameterUnits");
+hmEntete.add("PaperGrammage");
+hmEntete.add("PaperGrammage");
+hmEntete.add("WoodVolume");
+hmEntete.add("TypeBoard");
+hmEntete.add("TypeHeartBoard");
+hmEntete.add("LongitudinalEdgeType");
+hmEntete.add("FrontFacingType");
+hmEntete.add("BackFacingType");
+hmEntete.add("FrontFacingColour");
+hmEntete.add("BackFacingColour");
+hmEntete.add("TransverseEdgeType");
+hmEntete.add("FrontInternalCoating");
+hmEntete.add("BackInternalCoating");
+hmEntete.add("AddedCoating");
+hmEntete.add("VapourSeal");
+hmEntete.add("Perforation");
+hmEntete.add("Perforation");
+hmEntete.add("PerforationLayout");
+hmEntete.add("InsulationType");
+hmEntete.add("InsulationType");
+hmEntete.add("EPSAccordingToNF");
+hmEntete.add("SurfaceAspect");
+hmEntete.add("Base");
+hmEntete.add("Profil");
+hmEntete.add("Strip");
+hmEntete.add("ProfileRaising");
+hmEntete.add("ChamferRaising");
+hmEntete.add("ChamferDescription");
+hmEntete.add("colourCode");
+hmEntete.add("colourCode");
+hmEntete.add("colourCodeAgency");
+hmEntete.add("colourCodeAgency");
+hmEntete.add("Colouration");
+hmEntete.add("Shape");
+hmEntete.add("HeadShape");
+hmEntete.add("PointType");
+hmEntete.add("ThreadType");
+hmEntete.add("Galvanised");
+hmEntete.add("PaperPresentation");
+hmEntete.add("PaperQuality");
+hmEntete.add("PrePrinted");
+hmEntete.add("PrintLocation");
+hmEntete.add("PaperType");
+hmEntete.add("NumberPrintColours");
+hmEntete.add("NumberLidPrintColours");
+hmEntete.add("PaletType");
+hmEntete.add("CoverType");
+
+hmEntete.add("NumberOfLiners");
+hmEntete.add("LinerGrammage");
+hmEntete.add("LinerPorosity");
+hmEntete.add("LinerPerforated");
+hmEntete.add("LinerColour");
+hmEntete.add("FirstLinerKPE");
+
+hmEntete.add("TypeOfFreeFilm");
+hmEntete.add("FreeFilmThickness");
+hmEntete.add("TypeOfValves");
+hmEntete.add("PositionOfTheValve");
+hmEntete.add("Handle");
+hmEntete.add("HandleMaterial");
+hmEntete.add("GrippingSystem");
+hmEntete.add("BigBagBaseType");
+hmEntete.add("InnerLiner");
+hmEntete.add("netWeight");
+hmEntete.add("netWeightUnit");
+hmEntete.add("grossWeight");
+hmEntete.add("grossWeightUnit");
+hmEntete.add("RoughVolume");
+hmEntete.add("RoughVolumeUnit");
+hmEntete.add("ProductBOM");
+hmEntete.add("ProductEquipement");
+hmEntete.add("ChemicalComposition");
+hmEntete.add("ChemicalComposition");
+hmEntete.add("ProductFormula");
+hmEntete.add("ProductType");
+hmEntete.add("SteelType");
+hmEntete.add("SteelAspect");
+hmEntete.add("Material");
+hmEntete.add("PaletMakeUp");
+hmEntete.add("PaletHandlingPoints");
+hmEntete.add("FibreType");
+hmEntete.add("GypsumBlockType");
+hmEntete.add("BeamCompatibilityCode");
+hmEntete.add("Characteristics");
+hmEntete.add("Familly");
+hmEntete.add("Granulometry");
+hmEntete.add("TreatedForExport");
+hmEntete.add("Energy");
+hmEntete.add("Voltage");
+hmEntete.add("UsefulOutput");
+hmEntete.add("RotationalSpeed");
+hmEntete.add("BladeDiameter");
+hmEntete.add("DuctileRetractable");
+hmEntete.add("ScheduleAgreement");
+
+hmEntete.add("NumberOfLinersGroup");
+
+hmEntete.add("WebDiameter");
+hmEntete.add("CoreType");
+hmEntete.add("RealingHand");
+hmEntete.add("PaperClass");
+hmEntete.add("SpacingInMm");
+
+
+hmEntete.add("BeamHealWidth");
+hmEntete.add("MsgNbrForMarkingPallet");
+hmEntete.add("WingBack");
+hmEntete.add("MethodOfManufacture");
+
+out.writeln(buildSAPCSV(hmGlobals,hmEntete));
+
+var oKey;//Clef de la hash map
+var ctg;//Catalogue utilisé
+
+
+forEachHmElement(ctgs,oKey,ctg) {//Pour chaque element d'un catalogue de la liste de catalogues
+	var sGroupingName = "NumberOfLinersGroup";
+	forEachCtgItem(ctg,item) {//Pour chaque item du catalogue
+		var codeERPProduit = tech(hmGlobals,item,"01AC0044-ERPCode","","","","","",1);
+		var myGroup = getEn(hmGlobals,item,sGroupingName);
+		var i;
+		if(myGroup!=null){
+			for(i=0;i<myGroup.size();i++){
+				var hmEntry = getHmItemBatidataValues(hmGlobals,item, i);//On copie les attributs de l'item dans hmEntry
+				if(hmEntry.size()>0) {//Si hmEntry n'est pas vide
+					out.writeln(buildSAPCSV(hmGlobals,hmEntry));//On appelle la fonction de création de fichier csv et on rajoute l'item et ses attributs
+				}
+			} 
+		} 
+	}
+}
+
+logDebug("Traitement termine");

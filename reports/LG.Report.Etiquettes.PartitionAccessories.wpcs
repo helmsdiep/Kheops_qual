@@ -1,0 +1,7 @@
+//
+// Export PartitionAccessories - Export Kheops pour étiquetage 
+//
+var outWriter = createOtherOut("");
+var str = getScriptByPath("/scripts/triggers/LG.Interface.PartitionAccessories").getFunctionByName("getFullCSV").invoke();
+outWriter.writeln(str);
+out.writeln(str);

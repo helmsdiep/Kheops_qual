@@ -1,0 +1,27 @@
+//
+// Unset DeactiveAllSites flag
+//
+var aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+for (m=0; m<aCatalogNames.size(); m++) {
+	if (aCatalogNames[m].startsWith("C999") || !aCatalogNames[m].startsWith("C")) {continue;}
+	//
+	var queryString = "select item.pk from catalog('"+aCatalogNames[m]+"') where item['SC000-GlobPrim/AttTechDeactivateAllSites'] = 'true'";
+	var query = new SearchQuery(queryString);
+	var resultset = query.execute();
+
+	while (resultset.next()) {
+		var pk = checkString(resultset.getString(1),"");
+		var ocatalog = getCtgByName(aCatalogNames[m]);
+		if(ocatalog!=null) {
+			var oentry = ocatalog.getEntryByPrimaryKey(pk);
+			if(oentry!=null) {
+				var testDeactivateSites = checkString(oentry.getEntryAttrib("SC000-GlobPrim/AttTechDeactivateAllSites"),"");
+				if(testDeactivateSites=="true") {
+					oentry.setEntryAttrib("/SC000-GlobPrim/AttTechDeactivateAllSites", "");
+					var test = oentry.saveCtgItem();
+					logDebug(pk);
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,5 @@
+var envObjList = new EnvObjectList();
+envObjList.setTypeToExport("LOOKUP_TABLE_CONTENT");
+envObjList.addObjectByNameToExport("T001W-Plants");
+var result = exportEnv(envObjList, "export_T001W-20180517.zip");
+out.println("result: " + result);

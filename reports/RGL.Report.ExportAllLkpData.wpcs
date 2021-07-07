@@ -1,0 +1,335 @@
+var lkplist = [];
+
+lkplist[0]="L001-(E)Perméance vapeur eau - Permeability to vapour";
+lkplist[1]="L002-(I)Incompressibilité - Incompressibility";
+lkplist[2]="L003-(L)Cohésion et flexion - Cohesion and inflexion";
+lkplist[3]="L004-(O)Comportement à l eau - Behavior with water";
+lkplist[4]="L006-(S)Stabilité dimensionnelle - Dimensional stability";
+lkplist[5]="L008-Absorption eau en surface plq - Water absorption surface of the board";
+lkplist[6]="L009-Absorption eau plq immersion - Water absorption board by immersion";
+lkplist[7]="L011-Activité utilisatrice - Product activity";
+lkplist[8]="L012-Agences de maintenance des listes de codes - Colour code list agencies";
+lkplist[9]="L014-Aspect de l acier - Steel aspect";
+lkplist[10]="L015-Assemblage - Assembly";
+lkplist[11]="L016-Attestations de conformité CE - EC Certificate of conformity";
+lkplist[12]="L019-Canaux de distribution - Channel of distribution";
+lkplist[13]="L021-Cerclage - Hooping";
+lkplist[14]="L022-Certificats Label Vert - Label Vert certificate";
+lkplist[15]="L023-Certificats NF - Certificate NF";
+lkplist[16]="L024-Charge admissible - Working load";
+lkplist[17]="L025-Classe article gemms - Item class in Gemms";
+lkplist[18]="L026-Classe comportement eau - Water class of behaviour";
+lkplist[19]="L027-Classe compressibilite - Compressibility class";
+lkplist[20]="L028-Classe de perméance - Permeability class";
+lkplist[21]="L029-Classif.pour BP - Work list management row";
+lkplist[22]="L030-Classt Euroclasse réaction feu - Euroclasse classification";
+lkplist[23]="L031-Classt M de réaction au feu - Classification M";
+lkplist[24]="L032-Code corresp.société - Company code";
+lkplist[25]="L033-Code de mise à jour - Update code";
+lkplist[26]="L034-codes comptabilité - General ledger codes";
+lkplist[27]="L035-Codes natures SDC - SDC nature codes";
+lkplist[28]="L036-codes magasin - Store codes";
+lkplist[29]="L037-codes marché - Market codes";
+lkplist[30]="L038-Codes produits GB - Budget control product code";
+lkplist[31]="L039-Coef.abattement 077 - Cut down coefficient 077";
+lkplist[32]="L040-Coef.abattement 086 - Cut down coefficient 086";
+lkplist[33]="L041-Coloration - Colouration";
+lkplist[34]="L042-Compatibilité vis plaque et support - Compatibility screw board and support";
+lkplist[35]="L043-Composition chimique de l article - Chemical composition";
+lkplist[36]="L044-Composition du produit - Product BOM";
+lkplist[37]="L045-Condit.article BD400 - Item packing code in BD400";
+lkplist[38]="L046-Condit.article gemms - CAM packing code in Gemms";
+lkplist[39]="L047-Conditions du conditionnement - Packaging conditions";
+lkplist[40]="L048-Conditions stockage - Handling instructions";
+lkplist[41]="L049-Consignation - Consignment";
+lkplist[42]="L055-Constitution de la palette - Palet make up";
+lkplist[43]="L056-Couleur - Colour";
+lkplist[44]="L060-Coupe feu - Fire insulation";
+lkplist[45]="L061-Déformé résiduel SL - Residual deformation machine direction";
+lkplist[46]="L062-Déformé résiduel ST - Residual deformation cross direction";
+lkplist[47]="L063-Déformé sous charge - Deformation underload";
+lkplist[48]="L064-Déformé sous charge SL - Deformation underload machine direction";
+lkplist[49]="L065-Déformé sous charge ST - Deformation underload cross direction";
+lkplist[50]="L066-Délais - Ordering lead time";
+lkplist[51]="L067-Descente maxi - Maxi descent";
+lkplist[52]="L068-Descente mini - Mini descent";
+lkplist[53]="L069-Destination - Product use";
+lkplist[54]="L070-Dureté en shore C - Hardness in shore C";
+lkplist[55]="L071-Dureté superficielle - Surface hardness";
+lkplist[56]="L072-Eco-Emballages - Packaging material";
+lkplist[57]="L073-Empilage - Stacking";
+lkplist[58]="L074-Energie - Energy";
+lkplist[59]="L075-Epaisseur maxi de support - Maxi thickness of support";
+lkplist[60]="L077-Etirable Rétractable - Ductile Retractable";
+lkplist[61]="L078-Famille - Familly";
+lkplist[62]="L079-Famille de housses - Cover type";
+lkplist[63]="L080-Familles logistiques - Logistic family";
+lkplist[64]="L081-Familles qualité - Quality family";
+lkplist[65]="L082-Familles technologiques - Technological family";
+lkplist[66]="L083-Fonction du produit - Product functions";
+lkplist[67]="L084-Fond - Base";
+lkplist[68]="L085-Format étiquette - Label format";
+lkplist[69]="L086-Forme - Shape";
+lkplist[70]="L087-Forme de la tête - Head shape";
+lkplist[71]="L088-Formulation produit - Product formula";
+lkplist[72]="L089-Fournisseurs - Suppliers";
+lkplist[73]="L090-Galvanisation - Galvanised";
+lkplist[74]="L091-gammes de produit - Item range";
+lkplist[75]="L092-Hiérarchie principale - Principal hierarchy";
+lkplist[76]="L093-Houssage - Covering";
+lkplist[77]="L094-Indice affaiblisst acous Rw+C - Index attenuation of noise Rw+C";
+lkplist[78]="L097-Languette - Strip";
+lkplist[79]="L098-Lieux - Places";
+lkplist[80]="L099-Liste des CPT - Technical specifications";
+lkplist[81]="L100-Localisation de l impression - Print location";
+lkplist[82]="L101-Localisation du marquage - Labelling point";
+lkplist[83]="L102-Marche application - Product market";
+lkplist[84]="L103-Marque ciale Detenteur - Brand name";
+lkplist[85]="L109-Matiere - Material";
+lkplist[86]="L110-Mode application - Mode of application";
+lkplist[87]="L111-Mode de gâchage - Mode of mixing";
+lkplist[88]="L113-Nature de produit 1 - Nature of article 1";
+lkplist[89]="L114-Nature de produit 2 - Nature of article 2";
+lkplist[90]="L115-Nature de produit 3 - Nature of article 3";
+lkplist[91]="L116-Nature de produit 6 - Nature of article 6";
+lkplist[92]="L117-Nature de produit 7 - Nature of article 7";
+lkplist[93]="L118-Nature de produit prime - Type financial item";
+lkplist[94]="L120-Nb éléments au m2 - Gypsum blocks per SqM";
+lkplist[95]="L121-Nom fabricant - Manufacturer name";
+lkplist[96]="L122-Nombre d entrées - Palet handling points";
+lkplist[97]="L123-Nomenclatures douanières - Commodity codes";
+lkplist[98]="L124-Norme calcul Up - Normalizes Up calculation";
+lkplist[99]="L128-Pays - Countries";
+lkplist[100]="L129-Perforation - Perforation";
+lkplist[101]="L130-Plis du sac - Number of liners";
+lkplist[102]="L132-Position de la valve - Position of the valve";
+lkplist[103]="L133-Poutrelle compatible - Compatible beam";
+lkplist[104]="L134-Présentation du papier - Paper presentation";
+lkplist[105]="L135-Profil - Profil";
+lkplist[106]="L136-Profil réhausse - Profil raising";
+lkplist[107]="L137-PSE selon NFT 56-201 - EPS according to NF";
+lkplist[108]="L139-Qualité du papier - Paper quality";
+lkplist[109]="L140-Rapport d essai absorption acoustique - Official report of sound absorption";
+lkplist[110]="L143-Réf NF - NF references";
+lkplist[111]="L144-Réf. ATEC - ATEC references";
+lkplist[112]="L145-Réf. certificats ACERMI isolant - Insulation ACERMI certificate references";
+lkplist[113]="L146-Réf. certificats CSTBAT - CSTBAT certificate references";
+lkplist[114]="L147-Réf. de la spécification LP - Internal specification references";
+lkplist[115]="L148-Réf. Norme Européenne - EN references";
+lkplist[116]="L149-Réf. normes application - Use product standards references";
+lkplist[117]="L150-Réf. PV classt M réaction feu - Official report of fire reaction";
+lkplist[118]="L153-Réf. PV résistance au feu - Official report of fire resistance";
+lkplist[119]="L155-Regroupement commercial - Commercial node";
+lkplist[120]="L156-Reprise eau après immersion 2h - Water uptake after 2 hours immersion";
+lkplist[121]="L157-Résistance au poinçonnement - Resistance to punching";
+lkplist[122]="L158-Résistance flexion SL - Flexural strength machine direction";
+lkplist[123]="L159-Résistance flexion ST - Flexural strength cross direction";
+lkplist[124]="L160-Résistance gel-dégel - Resistance to frost";
+lkplist[125]="L162-Résistance mécanique compression - Mechanical resistance to compression";
+lkplist[126]="L163-Revetement rapporte - Added coating";
+lkplist[127]="L167-Segmentation achat - Purchasing segment";
+lkplist[128]="L168-Statuts lot - Batch status";
+lkplist[129]="L169-Std ou Hstd - Standard or except standard";
+lkplist[130]="L172-Support - Support";
+lkplist[131]="L173-Support compatible - Compatible support";
+lkplist[132]="L174-Supports incompatibles - Incompatible support";
+lkplist[133]="L175-Système de préhension - Gripping system";
+lkplist[134]="L177-Temps attente pour 2ème passe - Latency for 2nd master key";
+lkplist[135]="L178-Type de carreaux - Gypsum block type";
+lkplist[136]="L179-Type bord - Edge type";
+lkplist[137]="L180-Type coeur plq - Type of heart of board";
+lkplist[138]="L181-Type d acier - Steel type";
+lkplist[139]="L182-Type d articles achetés - Type of bought material";
+lkplist[140]="L183-Type d association - Association type";
+lkplist[141]="L184-Type de code à barres - Bar code type";
+lkplist[142]="L185-Type de fibres - Fibre type";
+lkplist[143]="L186-Type de filetage - Thread type";
+lkplist[144]="L187-Type de fond - Base type";
+lkplist[145]="L188-Type de fournisseur - Supplier type";
+lkplist[146]="L189-Type de free-film - Type of free-film";
+lkplist[147]="L190-Type de locaux humides compatibles - Compatible wet buildings";
+lkplist[148]="L191-Type de marquage - Labelling type";
+lkplist[149]="L192-Type de pointe - Point type";
+lkplist[150]="L193-Type de produit - Product type";
+lkplist[151]="L194-Type de valve - Type of valve";
+lkplist[152]="L195-Type d emballage - Packing type";
+lkplist[153]="L196-Type d isolant - Insulation type";
+lkplist[154]="L197-Type d unité commerciale - trade item unit descriptor";
+lkplist[155]="L198-Type finition - Aspect type";
+lkplist[156]="L199-Type parement - Facing type";
+lkplist[157]="L201-Type de plaque - Type of board";
+lkplist[158]="L202-Type produit selon EN - EN product type";
+lkplist[159]="L203-Type produit selon NF - NF product type";
+lkplist[160]="L205-Types d articles gemms - Item type in Gemms";
+lkplist[161]="L206-Types d unités - Type of unit";
+lkplist[162]="L208-Unités gemms - Gemms units";
+lkplist[163]="L209-Unités LP - LP units";
+lkplist[164]="L210-Unités normées - normalized units";
+lkplist[165]="L211-Utilisation - Use";
+lkplist[166]="L214-Zones de perforations - Perforation layout";
+lkplist[167]="L215-Chemins catalogue - Hierarchy catalog";
+lkplist[168]="L217-Sites de fabrication - Production sites";
+lkplist[169]="L218-Familles de transport - Family of routing";
+lkplist[170]="L219-Code GTIN - GTIN Code";
+lkplist[171]="L220-Statuts - Status";
+lkplist[172]="L221-Famille poutrelles compatibles - Compatible beam family";
+lkplist[173]="L222-Classement SC - SCClassification";
+lkplist[174]="L223-Type de mandrin - Core Type";
+lkplist[175]="L224-Sens enroulage - Realing Hand";
+lkplist[176]="L225-Num message Marquage Lot - MessageNumberForMarkingPallet";
+lkplist[177]="L226-Statut inventaire - Inventory status";
+lkplist[178]="L227-Niveau de cout des stocks - Inventory cost level";
+lkplist[179]="L228-Type d article - Stocking type";
+lkplist[180]="L229-Type de ligne - Line Type";
+lkplist[181]="L230-Code de statut du lot - Lot status code";
+lkplist[182]="L231-Code lot source - Layer code source";
+lkplist[183]="L232-Code de base des heures - Time basis code";
+lkplist[184]="L233-Activité de produit - Master planning family";
+lkplist[185]="L234-Code regroupement inventaire (Code ABC) - Inventory code";
+lkplist[186]="L235-Fournisseurs JDE - Suppliers JDE";
+lkplist[187]="L236-Clé GL - GL Class";
+lkplist[188]="L237-Hierarchie principale JDE - JDE Principal hierarchy";
+lkplist[189]="L238-Centre de cout par défaut - Default cost center";
+lkplist[190]="L239-Codes type de sortie - Issue type codes";
+lkplist[191]="L240-Niveaux de fabrication - Manufacturing Levels";
+lkplist[192]="L241-Emplacements-Locations";
+lkplist[193]="L242-MethodOfManufacture";
+lkplist[194]="L243-Numéro de certificat CPU - FPC certificate number";
+lkplist[195]="L244-Etiquetage sanitaire - Labelling Health";
+lkplist[196]="L245-Materials Type - Types de produit";
+lkplist[197]="L246-SAP units of measure";
+lkplist[198]="L800-SAP Material Type";
+lkplist[199]="L801-SAP Storage";
+lkplist[200]="L802-SAP MRP Controller";
+lkplist[201]="L803-SAP Unit";
+lkplist[202]="L900-Interfaces - Interfaces";
+lkplist[203]="L901-PrivateAttributesProperties";
+lkplist[204]="L902-KheopsConstants";
+lkplist[205]="L903-Unités de mesure par catalogue - UOM by catalog";
+lkplist[206]="L904-ShelfLife";
+lkplist[207]="L905-KheopsVars";
+lkplist[208]="L906-SAPConversionsMassUpdate";
+lkplist[209]="L907-BUnitSAPRelevance";
+lkplist[210]="L909-AttributeRelevanceByMaterialType";
+lkplist[211]="ALTSL-Selection method";
+lkplist[212]="CEPCT-Profit Centre";
+lkplist[213]="M_CLASA-Classification";
+lkplist[214]="PERKZ-Period indicator";
+lkplist[215]="RGEKZ-Backflush indicator";
+lkplist[216]="SBDKZ-Individual or collective requirements";
+lkplist[217]="T001L-Storage Location";
+lkplist[218]="T001W-Plants";
+lkplist[219]="T005T-Country of origin";
+lkplist[220]="T005U-Region of origin of material";
+lkplist[221]="T006A-Units of measure";
+lkplist[222]="T023T-Material Groups";
+lkplist[223]="T024D-MRP controller";
+lkplist[224]="T024F-Production supervisor";
+lkplist[225]="T024-Purchasing group";
+lkplist[226]="T134T-Materials Type";
+lkplist[227]="T141T-Plant Material Status";
+lkplist[228]="T179-Product hierarchy";
+lkplist[229]="T30AT-WM picking areas";
+lkplist[230]="T405-Purchasing Value Key";
+lkplist[231]="T436A-Scheduler margin key";
+lkplist[232]="T438T-MRP type";
+lkplist[233]="T438X-MRP Group";
+lkplist[234]="T460T-Special procurement key";
+lkplist[235]="T461X-Strategy group";
+lkplist[236]="T604T-Intrastat code";
+lkplist[237]="TKKH2-Origin group as Subdivision of cost";
+lkplist[238]="TLGRT-Loading group";
+lkplist[239]="TMVFT-Availability check";
+lkplist[240]="TPMT-Generic Item Category Group";
+lkplist[241]="TPTMT-Item category group";
+lkplist[242]="TTGRT-Transportation Group";
+lkplist[243]="TVEGRT-Material Group Packaging";
+lkplist[244]="TVKMT-Account assignment group";
+lkplist[245]="TVKOT-Sales organisation";
+lkplist[246]="TVM2T-Profile";
+lkplist[247]="TVM4T-Business unit";
+lkplist[248]="TVM5T-Material group 5";
+lkplist[249]="TVMST-Distribution Channel Status";
+lkplist[250]="TVSMT-Material statistics group";
+lkplist[251]="TVTYT-Packaging Material Type";
+lkplist[252]="VABME-Variable order unit active";
+lkplist[253]="VPRSV-Price control";
+lkplist[254]="VRMOD-Consumption mode";
+lkplist[255]="ZBKLAS-Valuation class";
+lkplist[256]="ZCLETAB-Routage key";
+lkplist[257]="ZMIXABLE-Mixable range";
+lkplist[258]="ZVTWEG-Distribution channel";
+
+for(var i=0;i<lkplist.size();i++) {
+	var lkpname = lkplist[i];
+	var lkpTemp = getCtgByName(lkpname);
+	var lkpspec = lkpTemp.getCtgSpec();
+	var lkpspecname = lkpspec.getSpecName();
+	
+	out.writeln("lkpspecname="+lkpspecname);
+	
+	//
+	var specnodes = lkpspec.getSpecNodes();
+	var oKey;
+	var nodetemp;
+
+	var nodepk = lkpspec.getPrimaryKeyNode();	
+	var localelist = lkpspec.getLocales();
+
+	var nodenames = [];
+	var cursor = 0;
+	var lkpentry;
+	
+	var outputnodelist = concat("\"",lkpname,"\"");
+	forEachHmElement(specnodes,oKey,nodetemp) {
+		if (!nodetemp.isNodeSpecRoot()) {
+			var nodename = nodetemp.getNodeName();
+			nodenames[cursor] = nodename;
+			cursor++;
+		}
+	}
+	var nodenamessorted = nodenames.sort();	
+	
+	var logPath = "file://lkp-export/"+today().formatDate("yyyyMMdd")+"/"+lkpname+".csv";
+	var logDoc = getDocByPath(logPath);	
+	if (logDoc != null)
+	{
+		logDoc.deleteDoc();
+	}
+	var logOut = createOtherOut(logPath);	
+
+	// Header
+	for(var j=0;j<nodenamessorted.size();j++) {
+		var strnodename = nodenamessorted[j];
+		if(strnodename!="ar_MA" && strnodename!="ar_SA" && strnodename!="bg_BG" && strnodename!="ca_ES" && strnodename!="cs_CZ" && strnodename!="da_DK" && strnodename!="de_DE" && strnodename!="el_GR" && strnodename!="en_US" && strnodename!="es_ES" && strnodename!="et_EE" && strnodename!="fi_FI" && strnodename!="fr_FR" && strnodename!="hr_HR" && strnodename!="hu_HU" && strnodename!="in_ID" && strnodename!="is_IS" && strnodename!="it_IT" && strnodename!="iw_IL" && strnodename!="ja_JP" && strnodename!="ko_KR" && strnodename!="lt_LT" && strnodename!="lv_LV" && strnodename!="ms_MY" && strnodename!="nb_NO" && strnodename!="nl_NL" && strnodename!="pl_PL" && strnodename!="pt_BR" && strnodename!="ro_RO" && strnodename!="ru_RU" && strnodename!="sh_CS" && strnodename!="sk_SK" && strnodename!="sl_SI" && strnodename!="sr_RS" && strnodename!="sr_RS_Cyrl" && strnodename!="sv_SE" && strnodename!="th_TH" && strnodename!="tr_TR" && strnodename!="uk_UA" && strnodename!="zh_CN" && strnodename!="zh_TW") {
+			outputnodelist = outputnodelist + concat(",\"/",lkpspecname,"/",nodenamessorted[j],"\"");
+		}
+	}
+	logOut.writeln(outputnodelist);
+	
+	// Data
+	var lkpentryset = lkpTemp.getItemSetForCatalog();
+	forEachEntrySetElement(lkpentryset, lkpentry) {
+		var strEntryDetails = "";
+		for(var k=0;k<nodenamessorted.size();k++) {
+			var strnodename = nodenamessorted[k];		
+			if(strnodename!="ar_MA" && strnodename!="ar_SA" && strnodename!="bg_BG" && strnodename!="ca_ES" && strnodename!="cs_CZ" && strnodename!="da_DK" && strnodename!="de_DE" && strnodename!="el_GR" && strnodename!="en_US" && strnodename!="es_ES" && strnodename!="et_EE" && strnodename!="fi_FI" && strnodename!="fr_FR" && strnodename!="hr_HR" && strnodename!="hu_HU" && strnodename!="in_ID" && strnodename!="is_IS" && strnodename!="it_IT" && strnodename!="iw_IL" && strnodename!="ja_JP" && strnodename!="ko_KR" && strnodename!="lt_LT" && strnodename!="lv_LV" && strnodename!="ms_MY" && strnodename!="nb_NO" && strnodename!="nl_NL" && strnodename!="pl_PL" && strnodename!="pt_BR" && strnodename!="ro_RO" && strnodename!="ru_RU" && strnodename!="sh_CS" && strnodename!="sk_SK" && strnodename!="sl_SI" && strnodename!="sr_RS" && strnodename!="sr_RS_Cyrl" && strnodename!="sv_SE" && strnodename!="th_TH" && strnodename!="tr_TR" && strnodename!="uk_UA" && strnodename!="zh_CN" && strnodename!="zh_TW") {
+				var entrynodepath = concat(lkpspecname,"/",nodenamessorted[k]);
+				if(entrynodepath!="LKP_SAP_LookupTable_spec/C04-Description") {
+					var valuetemp = checkString(lkpentry.getEntryAttrib(entrynodepath),"");
+					strEntryDetails = strEntryDetails + concat(",\"",valuetemp,"\"");
+				}
+				else {
+					var valuetemp = checkString(lkpentry.getEntryAttrib(entrynodepath+"/fr_FR"),"");
+					strEntryDetails = strEntryDetails + concat(",\"",valuetemp,"\"");	
+				}
+			}
+		}
+		logOut.writeln(strEntryDetails);
+	}
+	logOut.save(logPath);
+	
+	out.writeln("Done");
+}
+			
+			

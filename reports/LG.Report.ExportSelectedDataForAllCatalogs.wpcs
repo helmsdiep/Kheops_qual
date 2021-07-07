@@ -1,0 +1,13 @@
+//
+// Export Selected Data For All Catalogs
+//
+var strCurrentDate = today().formatDate("yyyyMMdd_HHmmss");
+var outWriter = createOtherOut("EXPORTS/exportselecteddataforallcatalogs-"+strCurrentDate+".csv");
+var str = getScriptByPath("/scripts/triggers/Siniat.ExportSelectedAttrForAllCatalogs").getFunctionByName("getFullCSV").invoke();
+outWriter.writeln(str);
+var exportDoc = outWriter.save("EXPORTS/exportselecteddataforallcatalogs-"+strCurrentDate+".csv");
+//
+var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+var strDestUserEmail = lookupValues(lkpTableKheopsConstants,"AllCatSelectedAttrExportDestEmail")[0];
+sendEmail(strDestUserEmail, "Export tous catalogues Kheops", "Veuillez trouver ci-joint un export de données Kheops pour l'ensemble des catalogues produit.", exportDoc); 
+

@@ -1,0 +1,2 @@
+var strTest = "Ronan test";
+out.writeln(strTest);

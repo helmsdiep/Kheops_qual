@@ -1,0 +1,184 @@
+var logPath = "/majmasse/export-labeling-data-"+today().formatDate("yyyyMMdd_HHmmss")+".txt";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+forEachHmElement(ctgs,oKey,ctgName) {
+	strCatalogCode=substring(ctgName,1,4);
+	if(
+	strCatalogCode=="040" || 
+	strCatalogCode=="145" || 
+	strCatalogCode=="115" || 
+	strCatalogCode=="065" || 
+	strCatalogCode=="070" || 
+	strCatalogCode=="075" || 
+	strCatalogCode=="080" || 
+	strCatalogCode=="085" || 
+	strCatalogCode=="095" || 
+	strCatalogCode=="100" || 
+	strCatalogCode=="105" || 
+	strCatalogCode=="140" || 
+	strCatalogCode=="050" || 
+	strCatalogCode=="055" || 
+	strCatalogCode=="600" || 
+	strCatalogCode=="605" || 
+	strCatalogCode=="610" || 
+	strCatalogCode=="690" || 
+	strCatalogCode=="700" || 
+	strCatalogCode=="705" || 
+	strCatalogCode=="710"
+	) {
+		out.writeln("ctgName="+ctgName);
+		logDebug("ctgName="+ctgName);
+		//
+		var oCatalog = getCtgByName(ctgName);
+		//
+		var strCategoryTreeName="H000-Typology";
+		var oCategoryTree = getCategoryTreeByName(strCategoryTreeName);
+		//
+		var oBUnitCategory = oCategoryTree.getEntryByPrimaryKey("BUnit");
+		var oBUnitItemSet = oBUnitCategory.getItemSetForCategory(oCatalog);
+		//
+		var oitemBUnit;
+		forEachItemSetElement(oBUnitItemSet,oitemBUnit) {
+			var strItemPK = oitemBUnit.getPrimaryKey();
+			
+			logDebug("strItemPK="+strItemPK);
+			
+			var oProdItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oitemBUnit,"Prod");
+			//
+			// Statut
+			var strItemStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oitemBUnit);
+			//
+			// Reference SAP
+			var strMaterialNumber = "";
+			var oMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemBUnit,"01AC0664-MaterialNumber");
+			if(oMaterialNumberEn!=null) {
+				strMaterialNumber = checkString(oMaterialNumberEn[0].getEntryNodeValue(),"");
+			}
+			// Long Name
+			var strLongName = "";
+			var oLongNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemBUnit,"01AC0012-LongName");
+			if(oLongNameEn!=null) {
+				strLongName = checkString(oLongNameEn[0].getEntryNodeValue(),"");
+			}
+			// Libellé Etiquette
+			var strLabelName1 = "";
+			var oLabelName1En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0017-LabelName1");
+			if(oLabelName1En!=null) {
+				strLabelName1 = checkString(oLabelName1En[0].getEntryNodeValue(),"");
+			}
+			// Libellé Etiquette suite
+			var strLabelName2 = "";
+			var oLabelName2En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0018-LabelName2");
+			if(oLabelName2En!=null) {
+				strLabelName2 = checkString(oLabelName2En[0].getEntryNodeValue(),"");
+			}			
+			// Marque
+			var strBrand = "";
+			var oBrandEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0036-brandName");
+			if(oBrandEn!=null) {
+				strBrand = checkString(oBrandEn[0].getEntryNodeValue(),"");
+			}
+			// Etiquetage sanitaire
+			var strLabelingHealth = "";
+			var oLabelingHealthEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"08IE0653-LabelingHealth");
+			if(oLabelingHealthEn!=null) {
+				strLabelingHealth = checkString(oLabelingHealthEn[0].getEntryNodeValue(),"");
+			}
+			// Date de création
+			var strCreationDate = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getDateValue").invoke(oitemBUnit, "01AC0006-CreationDate", "yyyyMMdd HH:mm:ss");			
+			// Date de mise à jour
+			var strLastUpdate = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getDateValue").invoke(oitemBUnit, "01AC0004-LastUpdate", "yyyyMMdd HH:mm:ss");
+			//
+			logOut.writeln(ctgName+"|"+strItemPK+"|"+strMaterialNumber+"|"+strItemStatus+"|"+strLongName+"|"+strLabelName1+"|"+strLabelName2+"|"+strBrand+"|"+strLabelingHealth+"|"+strCreationDate+"|"+strLastUpdate);
+		}
+		//
+		var oPItemCategory = oCategoryTree.getEntryByPrimaryKey("PItem");
+		var oPItemItemSet = oPItemCategory.getItemSetForCategory(oCatalog);
+		//
+		var oitemPItem;
+		forEachItemSetElement(oPItemItemSet,oitemPItem) {
+			var strItemPK = oitemPItem.getPrimaryKey();
+			
+			logDebug("strItemPK="+strItemPK);
+			
+			var oProdItem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemAtLevel").invoke(oitemPItem,"Prod");
+			//
+			// Statut
+			var strItemStatus = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oitemPItem);
+			//
+			// Reference SAP
+			var strMaterialNumber = "";
+			var oMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemPItem,"01AC0664-MaterialNumber");
+			if(oMaterialNumberEn!=null) {
+				strMaterialNumber = checkString(oMaterialNumberEn[0].getEntryNodeValue(),"");
+			}
+			// Long Name
+			var strLongName = "";
+			var oLongNameEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitemPItem,"01AC0012-LongName");
+			if(oLongNameEn!=null) {
+				strLongName = checkString(oLongNameEn[0].getEntryNodeValue(),"");
+			}
+			// Libellé Etiquette
+			var strLabelName1 = "";
+			var oLabelName1En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0017-LabelName1");
+			if(oLabelName1En!=null) {
+				strLabelName1 = checkString(oLabelName1En[0].getEntryNodeValue(),"");
+			}
+			// Libellé Etiquette suite
+			var strLabelName2 = "";
+			var oLabelName2En = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0018-LabelName2");
+			if(oLabelName2En!=null) {
+				strLabelName2 = checkString(oLabelName2En[0].getEntryNodeValue(),"");
+			}			
+			// Marque
+			var strBrand = "";
+			var oBrandEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"01AC0036-brandName");
+			if(oBrandEn!=null) {
+				strBrand = checkString(oBrandEn[0].getEntryNodeValue(),"");
+			}
+			// Etiquetage sanitaire
+			var strLabelingHealth = "";
+			var oLabelingHealthEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oProdItem,"08IE0653-LabelingHealth");
+			if(oLabelingHealthEn!=null) {
+				strLabelingHealth = checkString(oLabelingHealthEn[0].getEntryNodeValue(),"");
+			}
+			// Date de création
+			var strCreationDate = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getDateValue").invoke(oitemPItem, "01AC0006-CreationDate", "yyyyMMdd HH:mm:ss");			
+			// Date de mise à jour
+			var strLastUpdate = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getDateValue").invoke(oitemPItem, "01AC0004-LastUpdate", "yyyyMMdd HH:mm:ss");
+			//
+			logOut.writeln(ctgName+"|"+strItemPK+"|"+strMaterialNumber+"|"+strItemStatus+"|"+strLongName+"|"+strLabelName1+"|"+strLabelName2+"|"+strBrand+"|"+strLabelingHealth+"|"+strCreationDate+"|"+strLastUpdate);
+		}
+	}
+}
+
+logOut.save(logPath);
+
+out.writeln("Fin Traitement");
