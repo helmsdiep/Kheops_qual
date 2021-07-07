@@ -1,0 +1,338 @@
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+function getEn(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName);
+}
+
+function getValue(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getPublishedIntoSAP(item, log){
+
+	var attrsToDisplay;
+	var j=0;
+		
+	var lkpInterfaces = getLkpByName("L900-Interfaces - Interfaces");
+	var enTargetSystemGroup = getEn(item,"99CTL200-TargetSystemGroup");
+	
+	var lkpTableKheopsConstants = getLkpByName("L902-KheopsConstants");
+	var myTargetSystemId = lookupValues(lkpTableKheopsConstants,"JMS_OUTBOUND_QUEUE")[1];
+	   	
+    var logText  = "myTargetSystemId : ";
+   	var logValue = myTargetSystemId;
+   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+	   			
+	var strCatalogCode = substring(item.getCtgItemPrimaryKey(), 1, 4);
+    
+    var ctgName = item.getCatalog().getCtgName();
+	    
+    log.loggerDebug("ctgName: " + ctgName) ;
+    var ctgProcessingCatalog=getCtgByName(ctgName);
+    	
+	var catProcessingItem = item.getCtgItemCategories("H000-Typology")[0];
+	var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+	var specItemSpec = getSpecByName(strSecSpecName);
+	   	
+	log.loggerDebug("01AC0775-PublishedIntoSAP: " + checkString(item.getEntryAttrib(strSecSpecName + "/01AC0775-PublishedIntoSAP"), "")) ;
+	var PublishedIntoSAP = checkString(item.getEntryAttrib(strSecSpecName + "/01AC0775-PublishedIntoSAP"), "");
+	log.loggerDebug("01AC0664-MaterialNumber: " + checkString(item.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "")) ;
+	var MaterialInSAP = checkString(item.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "");
+	
+// Item is not published to SAP then Return	
+	if(PublishedIntoSAP!=true) {
+		return(PublishedIntoSAP);
+				}
+				
+// Item is already Created then Return	
+	if(MaterialInSAP!="") {
+		return(PublishedIntoSAP);
+				}
+
+	if(enTargetSystemGroup.size()!=null) {
+		
+		for(j=0;j<enTargetSystemGroup.size();j++) {
+			var TargetSystemId = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL210-TargetSystemId");
+			var MessageStatus = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL220-MessageStatus");
+			var TechnicalStatus = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL230-TechnicalStatus");
+			var Information = item.getEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL250-Information");
+		    
+		    var logText  = "TargetSystemId : ";
+		   	var logValue = TargetSystemId;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "MessageStatus : ";
+		   	logValue = MessageStatus;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "TechnicalStatus : ";
+		   	logValue = TechnicalStatus;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		    
+		    logText  = "Information : ";
+		   	logValue = Information;
+		   	getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("addLog").invoke(log, logText, logValue);
+		   			   			   			   						
+			if(TargetSystemId==myTargetSystemId) {
+				if(TechnicalStatus=="NA" || TechnicalStatus=="") {
+					item.setEntryAttrib("SC000-GlobPrim/99CTL200-TargetSystemGroup#"+j+"/99CTL230-TechnicalStatus","1-Creation");
+					log.loggerDebug("!!! Material is Published !!!") ;
+								}
+				else if(TechnicalStatus=="1-Creation") {
+//					log.loggerDebug("!!! Material is NOT Published !!!") ;	
+//					PublishedIntoSAP="False";
+					}
+			}	
+		}
+}
+											
+	return(PublishedIntoSAP);
+}
+
+function outputError(sType, sMsg) {
+
+var log = getLogger("Monitor");
+
+log.loggerDebug(sType + " - " + sMsg);
+}
+
+function getParser(sFilePath){
+	var moni = getLogger("Monitor");
+	var inout = getLogger("Inout");
+	
+	var result=[];
+	var oParser = null;
+	var err;
+	catchError(err) 
+	{
+		var oReader = new Reader(sFilePath,"UTF-8");
+		if(oReader!=null) 
+		{	
+			//First line is to get the name of the lookuptable						
+			oParser = newDelimParser(oReader, ";");
+			
+			//Second line is to get all the column-names (especially for the languages)
+			var hmColumns = oParser.splitLine();
+			result["columns"] = hmColumns;
+			
+		} else {
+			outputError("MISSING",sFilePath);
+		}
+	}
+	if(err!=null){
+		outputError("ERROR Processing",sFilePath);
+		outputError("ERROR",err);
+	}
+	result["parser"]=oParser;
+	return result;
+}
+
+function ResendItems(sFilePath){
+
+	var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+	var log = getLogger("Monitor");
+	var inout = getLogger("Inout");
+	
+	var strPathCSV = "/XFER/Import/";
+	
+	log.loggerDebug("Import ** Start Publishing Items To SAP **");
+	out.writeln("Import ** Start Publishing Items To SAP **");
+	
+	log.loggerDebug("Import ** strPath = " + strPathCSV);
+	
+	var hmPaths = getDocStoreFilesInDirectory(strPathCSV);
+	
+	out.writeln("Import ** strPath = " + strPathCSV);
+	out.writeln("Import ** hmPaths = " + hmPaths);
+	
+	log.loggerDebug("Import ** hmPaths = " + hmPaths);
+	
+	
+	var cntTotal = 0;
+	var cntError = 0;
+	var cntPublished = 0;
+	var cntNotPublished = 0;
+	var cntChildren = 0;
+	var intKey = "";
+	 
+	forEachHmElement(hmPaths, intKey, strPathCSV){
+		log.loggerDebug("Import *** Process Import File = " + strPathCSV);
+		out.writeln("Import *** Process Import File = " + strPathCSV);
+		
+		var p=getParser(strPathCSV);		
+		var oParser = p["parser"];
+		var listAttrs = oParser.splitLine();
+//		out.writeln("Begin listAttrs     ****" + listAttrs);
+		
+		var Ctg = getCatalogNamesList();
+		
+		var bDone       = (listAttrs==null);
+		var ItemPublish = 1;
+		var ctgName = "";
+		var Catalog     = "";
+		var ERPCode = "";
+		var PrevERPCode = "";
+		var ERPCatCode = "";
+		while(!bDone) {
+			ERPCode = listAttrs[3];	
+//			out.writeln("Begin ERPCode     ****" + ERPCode);
+//			out.writeln("Begin PrevERPCode ****" + PrevERPCode);
+			
+			if (ERPCode != PrevERPCode) {
+				PrevERPCode = ERPCode;
+				Catalog = listAttrs[0];
+				ERPCatCode = "C"+ERPCode.substring(1,4);
+				ItemPublish = 1;
+				
+				log.loggerDebug("Import ERPCode ****" + ERPCode);
+				out.writeln("");
+				out.writeln("Import ERPCode ****" + ERPCode);
+				cntTotal = cntTotal + 1;
+				
+				if (!ctgName.startsWith(ERPCatCode)) {
+					for(var i=0; i < Ctg.size(); i++) {
+					  if (Ctg[i].startsWith(ERPCatCode)) {
+						ctgName = Ctg[i];
+					  }
+					}
+					if(ctgName==""){
+					  log.loggerDebug("Import **** ctg not found");
+					  return null;
+					}
+			    }
+				var ctg = getCtgByName(ctgName);
+			    var item = ctg.getCtgItemByPrimaryKey(ERPCode);	
+					    
+				if (item == null) {
+					log.loggerDebug("Import " + ERPCode + " ***** Item is not existing");
+					out.writeln("Import " + ERPCode + " ***** Item is not existing");
+					cntError = cntError + 1;
+					cntNotPublished = cntNotPublished + 1;
+					
+					ItemPublish = 0;
+					} else {
+	
+						out.writeln("   Processing");
+						
+						var ctgNumber = item.getPrimaryKey().substring(1,4);
+						var catProcessingItem = item.getCtgItemCategories("H000-Typology")[0];
+						var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctg)[0].getSpecName();
+								
+						var errors=item.saveCtgItem();
+						if (errors.getGlobalErrors().size()==0){
+								
+							var categoryArrayTemp=item.getCtgItemCategories();
+							
+							var itemType = "";
+							if (categoryArrayTemp.size()>0) {
+								var categoryTemp=categoryArrayTemp[0];
+								itemType=categoryTemp.getDisplayValue();
+							}
+							if (itemType=="Prod" && ctgNumber!="010") {
+								log.loggerDebug("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Not Exported to SAP");
+//								out.writeln("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Not Exported to SAP");
+								out.writeln("   Not Exported to SAP");
+								ItemPublish = 0;
+								cntError = cntError + 1;
+								cntNotPublished = cntNotPublished + 1;
+							}
+							
+							var PublishedIntoSAP = getPublishedIntoSAP(item, log);
+							if (PublishedIntoSAP!=true) {
+								log.loggerDebug("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Not Published In to SAP");
+//								out.writeln("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Not Published In to SAP");
+								out.writeln("   Not Published");
+								ItemPublish = 0;
+								cntError = cntError + 1;
+								cntNotPublished = cntNotPublished + 1;
+							}
+	
+							if (item != null && ItemPublish == 1 ) {
+								var MaterialInSAP = checkString(item.getEntryAttrib(strSecSpecName + "/01AC0664-MaterialNumber"), "");			
+	
+								getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(item,null);
+								log.loggerDebug("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Published In to SAP");
+//								out.writeln("Import " + ERPCode + " ***** ItemType: " + itemType + " / " + ctgName + " Published In to SAP");
+								out.writeln("   Published");
+	//							inout.loggerDebug(today().formatDate("yyyyMMdd_HHmmss") + " " + ERPCode + " " + MaterialInSAP + " ****** Published      ");
+								cntPublished = cntPublished + 1;
+								
+// get level one item children
+								if (item!=null) {  
+								  var itemChildren = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,item);
+								  var child;
+								  var t;
+								  forEachHmElement(itemChildren,t,child) {
+									var itemChild = getCtgByName(itemChildren[t]["itemCatalog"]).getEntryByPrimaryKey(itemChildren[t]["itemPrimaryKey"]);
+									if (getStatus(itemChild )=="ACTIVE") 
+										{
+										cntChildren = cntChildren + 1;
+										out.writeln("     Processing Child level one " + itemChildren[t]["itemPrimaryKey"] );
+// get level two item children									
+										var itemChildrenlvl1 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,itemChild);
+										var childlvl1;
+										var u;
+										
+										forEachHmElement(itemChildrenlvl1,u,childlvl1) {
+											var itemChildlvl1 = getCtgByName(itemChildrenlvl1[u]["itemCatalog"]).getEntryByPrimaryKey(itemChildrenlvl1[u]["itemPrimaryKey"]);
+											if (getStatus(itemChildlvl1 )=="ACTIVE") 
+												{
+												cntChildren = cntChildren + 1;
+												out.writeln("       Processing Child level two " + itemChildrenlvl1[u]["itemPrimaryKey"] );
+// get level three item children									
+												var itemChildrenlvl2 = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems").invoke(hmGlobals,itemChildlvl1);
+												var childlvl2;
+												var w;
+												
+												forEachHmElement(itemChildrenlvl2,w,childlvl2) {
+													var itemChildlvl2 = getCtgByName(itemChildrenlvl2[w]["itemCatalog"]).getEntryByPrimaryKey(itemChildrenlvl1[w]["itemPrimaryKey"]);
+													if (getStatus(itemChildlvl2 )=="ACTIVE") 
+														{
+														cntChildren = cntChildren + 1;
+														out.writeln("       Processing Child level three " + itemChildrenlvl2[w]["itemPrimaryKey"] );
+													}
+												  }											
+										
+											}
+										  }											
+										
+										}
+									  }
+									}
+								
+							}
+						} else {
+								log.loggerDebug("Import " + ERPCode + " ***** Item is in Error");
+//								out.writeln("Import " + ERPCode + " ***** Item is in Error");
+								out.writeln("   In Error");
+								cntError = cntError + 1;
+								cntNotPublished = cntNotPublished + 1;
+						}	
+					}
+			}
+		
+		listAttrs = oParser.splitLine();
+		bDone = (listAttrs==null);
+	
+		}
+	
+	}
+	log.loggerDebug("Import ***** cntError        = " + cntError);
+	log.loggerDebug("Import ***** cntTotal        = " + cntTotal);
+	log.loggerDebug("Import ***** cntPublished    = " + cntPublished);
+	log.loggerDebug("Import ***** cntNotPublished = " + cntNotPublished);
+	
+	out.writeln("");
+	out.writeln("Import ***** cntError        = " + cntError);
+	out.writeln("Import ***** cntTotal        = " + cntTotal);
+	out.writeln("Import ***** cntPublished    = " + cntPublished);
+	out.writeln("Import ***** cntNotPublished = " + cntNotPublished);
+	out.writeln("Import ***** cntChildren     = " + cntChildren);	
+	out.writeln("Import ** End Publishing Items To SAP **");
+	return true;
+}
+
+out.writeln("*** Resend Item ***");
+ResendItems(" ");

@@ -1,0 +1,17 @@
+var line;
+forEachLine(in, line)
+{
+    var delimiter = "/";
+    var e = null;
+    catchError(e) {
+        if (! ((line == null) || ("" == line)) )
+        {
+            var category = getCategoryTreeByName().buildCategory(line, delimiter);
+            category.setPrimaryKey(line.getNameFromPath(delimiter));
+        }
+    }
+    if (null != e)
+    {
+        logError("?", "Could not save category [" + e + "]");
+    }
+}

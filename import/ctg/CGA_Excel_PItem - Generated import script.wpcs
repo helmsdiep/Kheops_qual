@@ -1,0 +1,27 @@
+in.nextLine();
+var parser = newCSVParser(in);
+var bDone = false;
+while(!bDone)
+{
+    var attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone)
+    {
+        var itemAttrs = [];
+        itemAttrs["CGA_Excel_PItem/ERPCode"] = attrs[0];
+        itemAttrs["CGA_Excel_PItem/IntegerValue1"] = attrs[1];
+        var itemValidatedAttrs = validateMappedAttribs(itemAttrs);
+        if (null != itemValidatedAttrs)
+        {
+            var item = buildCtgItem();
+            var catalog = item.getCatalog();
+            var item2 = catalog.getCtgItemByPrimaryKey(attrs[0]);
+            if( item2 != null )
+            {
+                item = item2;
+            }
+            item.setCtgItemMappedAttribs(itemValidatedAttrs);
+            item.saveCtgItem();
+        }
+    }
+}

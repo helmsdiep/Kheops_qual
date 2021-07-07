@@ -1,0 +1,190 @@
+function getStatus(item){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(item);
+}
+
+function getEn(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName);
+}
+function getEn2(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getValue(item, sNodeName){
+	return getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+function getSimpleValue(item, nodeName){
+
+    var enitem = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(item,nodeName);
+    if (enitem!=null && enitem.size()>0) {
+        return checkString(enitem[0].getEntryNodeValue(),"",false);
+    }
+    return "";
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="BUnit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK= getEn(item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+function getProductItem(item, strItemType){
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    if (strItemType == "Pitem1") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    else if(strItemType == "Pitem2") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    else if (strItemType == "BUnit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    return itmProdItem;
+}
+
+function outputError(sType, sMsg) {
+
+var log = getLogger("Monitor");
+
+log.loggerDebug(sType + " - " + sMsg);
+}
+
+function getParser(sFilePath){
+	var moni = getLogger("Monitor");
+	var inout = getLogger("Inout");
+	
+	var result=[];
+	var oParser = null;
+	var err;
+	catchError(err) 
+	{
+		var oReader = new Reader(sFilePath,"UTF-8");
+		if(oReader!=null) 
+		{	
+			//First line is to get the name of the lookuptable						
+			oParser = newDelimParser(oReader, ";");
+			
+			//Second line is to get all the column-names (especially for the languages)
+			var hmColumns = oParser.splitLine();
+			result["columns"] = hmColumns;
+			
+		} else {
+			outputError("MISSING",sFilePath);
+		}
+	}
+	if(err!=null){
+		outputError("ERROR Processing",sFilePath);
+		outputError("ERROR",err);
+	}
+	result["parser"]=oParser;
+	return result;
+}
+
+
+	var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+	var log = getLogger("Monitor");
+	var inout = getLogger("Inout");
+	
+	var strPathCSV = "/XFER/Import/";
+	
+	log.loggerDebug("Import ** Start Publishing Items To SAP **");
+	out.writeln("Import ** Start Publishing Items To SAP **");
+	
+	log.loggerDebug("Import ** strPath = " + strPathCSV);
+	
+	var hmPaths = getDocStoreFilesInDirectory(strPathCSV);
+	
+	out.writeln("Import ** strPath = " + strPathCSV);
+	out.writeln("Import ** hmPaths = " + hmPaths);
+	
+	log.loggerDebug("Import ** hmPaths = " + hmPaths);
+	
+	
+	var cntTotal = 0;
+	var cntError = 0;
+	var cntPublished = 0;
+	var cntNotPublished = 0;
+	var cntChildren = 0;
+	var intKey = "";
+	 
+	forEachHmElement(hmPaths, intKey, strPathCSV){
+		log.loggerDebug("Import *** Process Import File = " + strPathCSV);
+		out.writeln("Import *** Process Import File = " + strPathCSV);
+		
+		var p=getParser(strPathCSV);		
+		var oParser = p["parser"];
+		var listAttrs = oParser.splitLine();
+//		out.writeln("Begin listAttrs     ****" + listAttrs);
+		
+		var Ctg = getCatalogNamesList();
+		
+		var bDone       = (listAttrs==null);
+		var ItemPublish = 1;
+		var ctgName = "";
+		var Catalog     = "";
+		var ERPCode = "";
+		var PrevERPCode = "";
+		var ERPCatCode = "";
+		while(!bDone) {
+			ERPCode = listAttrs[3];	
+//			out.writeln("Begin ERPCode     ****" + ERPCode);
+//			out.writeln("Begin PrevERPCode ****" + PrevERPCode);
+			
+			if (ERPCode != PrevERPCode) {
+				PrevERPCode = ERPCode;
+				Catalog = listAttrs[0];
+				ERPCatCode = "C"+ERPCode.substring(1,4);
+				
+				if (!ctgName.startsWith(ERPCatCode)) {
+					for(var i=0; i < Ctg.size(); i++) {
+					  if (Ctg[i].startsWith(ERPCatCode)) {
+						ctgName = Ctg[i];
+					  }
+					}
+					if(ctgName==""){
+					  log.loggerDebug("Import **** ctg not found");
+					  return null;
+					}
+			    }
+				var ctg = getCtgByName(ctgName);
+			    var item = ctg.getCtgItemByPrimaryKey(ERPCode);	
+			    
+			    if (item == null) {
+					    
+					} else {
+					
+					var strItemType = getItemType(item, hmGlobals);
+					var itmProdItem = getProductItem(item, strItemType);
+					
+					ERPCode = getSimpleValue(itmProdItem, "01AC0044-ERPCode");
+					out.writeln(";;;" + ERPCode + ";" );
+					}
+			}
+		
+		listAttrs = oParser.splitLine();
+		bDone = (listAttrs==null);
+	
+		}
+	
+	}

@@ -1,0 +1,673 @@
+//This script has been modified to work with manasco company.
+
+var ctg = getCtgByName();
+var log = getLogger("Lafarge.Cloner");
+log.loggerDebug("### ctg " + checkString(ctg.getCtgName(), ""));
+
+//---------------------------------------------------------------------
+// Adding check for default objects which enables cross locale migration
+//---------------------------------------------------------------------
+var defaultMessageMap = [];
+var CSV_DEFAULT_LKT_HIERARCHY = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_LKT_HIERARCHY");//"##DefaultLookupTableHierarchy##";
+var CSV_DEFAULT_SPEC = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC");//"##DefaultHierarchyPrimarySpec##";
+var CSV_DEFAULT_SPEC_ATTR_NAME = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_NAME");//"##NAME##";
+var CSV_DEFAULT_SPEC_ATTR_PATH = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_PATH");//"##PATH##";
+var CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME");//"##DISPNAME##";
+
+
+//Retrive Default Locale object
+var getDefaultLocale = createJavaMethod("com.ibm.ccd.common.context.common.LocaleContext","getDefaultLocale");
+var defaultLocale = runJavaMethod(null,getDefaultLocale);
+
+
+//create getMessage method 
+var getMessage = createJavaMethod("com.ibm.ccd.common.context.common.LocaleContext","getMessage","java.lang.String","java.util.Locale");
+
+var strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_LOOKUP_TABLE_HIERARCHY_NAME_INDEX");
+var DEFAULT_LKT_HIERARCHY = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_LKT_HIERARCHY]=DEFAULT_LKT_HIERARCHY;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_NAME_INDEX");
+var DEFAULT_SPEC = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC]=DEFAULT_SPEC;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_PRIMARY_KEY_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_NAME = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_NAME]=DEFAULT_SPEC_ATTR_NAME;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_PATH_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_PATH = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_PATH]=DEFAULT_SPEC_ATTR_PATH;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_DISPLAY_NAME_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_DISPLAYNAME = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME]=DEFAULT_SPEC_ATTR_DISPLAYNAME;
+
+function replaceCSVDefaults(str,msgMap)
+{
+  if( (str == null) || (str.indexOf("##") == -1) )
+  {
+  	return str;
+  }
+  var key;
+  var value;
+  forEachHmElement(msgMap, key, value) 
+  {
+	  str = replaceString(str,key,value);
+  }
+  
+  return str;
+}
+
+
+//------------------------------------------------
+// Functions
+//------------------------------------------------
+
+// build a hashmap containing all categories from all category trees associated with this catalog so
+// that we don't have to get categories one at a time
+function getCategoryHashMap(sDelimiter)
+{
+
+    // XXX-Wolf-15-dec-Srikanth-NOT_FIXED This is not a good idea
+    // XXX-Wolf-15-dec-Srikanth-NOT_FIXED You are going to end up with all the categories in memory at once
+
+    // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED You should do something (report the error, abort) if an error occurs
+    var f;
+    var hmPathsToCategories;
+    catchError (f)
+    {
+        hmPathsToCategories = [];
+        var categoryTreeList = getCtgByName().getCatalogCategoryTrees();
+        var key; var categoryTree;
+        forEachHmElement(categoryTreeList, key, categoryTree)
+        {
+            var category_tree_name = categoryTree.getCategoryTreeName();
+            out.writeln("Caching category tree [" + category_tree_name + "]");
+            if ( categoryTree != null )
+            {
+            	//Fix for WPC00022249 Root category should be part of hmPathsToCategories otherwise 
+            	//for location item it fails to find root category
+								var catSet;
+								var catObj;
+                catSet = categoryTree.getCategorySetByPrimaryKey(category_tree_name,true);
+                forEachCategorySetElement(catSet, catObj)
+                {
+                    hmPathsToCategories[category_tree_name] = catObj;
+                    break;
+                }
+                var categorySet = categoryTree.getCategorySet();
+                var oCategory;
+                forEachCategorySetElement(categorySet, oCategory)
+                {
+                    var paths = oCategory.getFullPaths(sDelimiter, true);
+                    var key; var path;
+                    forEachHmElement(paths, key, path)
+                    {
+                        hmPathsToCategories[path] = oCategory;
+                    }
+                }
+            }
+        }
+    }
+
+    if (f != null)
+    {
+        out.writeln("ERROR building Categories from Hierarchies "+f);
+        return null;
+    }
+
+    // XXX-Wolf-15-dec-16-jan-Srikanth-FIXED What if it fails?
+
+    return hmPathsToCategories;
+}
+
+function getRemovedAttributeNames(){
+	var aRemovedAttr = [];
+	aRemovedAttr[0]="01AC0002";
+	aRemovedAttr[1]="01AC0013";
+	aRemovedAttr[2]="01AC0015";
+	aRemovedAttr[3]="01AC0045";
+	aRemovedAttr[4]="01AC0046";
+	aRemovedAttr[5]="01AC0047";
+	aRemovedAttr[6]="01AC0048";
+	aRemovedAttr[7]="01AC0049";
+	aRemovedAttr[8]="02FR0052";
+	aRemovedAttr[9]="02FR0057";
+	aRemovedAttr[10]="02FR0058";
+	aRemovedAttr[11]="02FR0059";
+	aRemovedAttr[12]="02FR0060";
+	aRemovedAttr[13]="05PC0252";
+	aRemovedAttr[14]="05PC0253";
+	aRemovedAttr[15]="06DN0348";
+	aRemovedAttr[16]="06DN0349";
+	aRemovedAttr[17]="06DN0350";
+	aRemovedAttr[18]="06DN0353";
+	aRemovedAttr[19]="06DN0354";
+	aRemovedAttr[20]="06DN0355";
+	aRemovedAttr[21]="06DN0359";
+	aRemovedAttr[22]="06DN0362";
+	aRemovedAttr[23]="06DN0363";
+	aRemovedAttr[24]="06DN0364";
+	aRemovedAttr[25]="06DN0365";
+	aRemovedAttr[26]="06DN0366";
+	aRemovedAttr[27]="06DN0367";
+	aRemovedAttr[28]="06DN0368";
+	aRemovedAttr[29]="06DN0369";
+	aRemovedAttr[30]="06DN0370";
+	aRemovedAttr[31]="06DN0371";
+	aRemovedAttr[32]="06DN0372";
+	aRemovedAttr[33]="06DN0373";
+	aRemovedAttr[34]="06DN0374";
+	aRemovedAttr[35]="06DN0375";
+	aRemovedAttr[36]="06DN0376";
+	aRemovedAttr[37]="06DN0377";
+	aRemovedAttr[38]="06DN0378";
+	aRemovedAttr[39]="06DN0379";
+	aRemovedAttr[40]="06DN0380";
+	aRemovedAttr[41]="06DN0381";
+	aRemovedAttr[42]="06DN0382";
+	aRemovedAttr[43]="06DN0383";
+	aRemovedAttr[44]="06DN0384";
+	aRemovedAttr[45]="06DN0385";
+	aRemovedAttr[46]="06DN0386";
+	aRemovedAttr[47]="06DN0387";
+	aRemovedAttr[48]="06DN0388";
+	aRemovedAttr[49]="06DN0389";
+	aRemovedAttr[50]="06DN0390";
+	aRemovedAttr[51]="06DN0391";
+	aRemovedAttr[52]="06DN0392";
+	aRemovedAttr[53]="06DN0393";
+	aRemovedAttr[54]="06DN0394";
+	aRemovedAttr[55]="06DN0397";
+	aRemovedAttr[56]="06DN0398";
+	aRemovedAttr[57]="06DN0401";
+	aRemovedAttr[58]="06DN0404";
+	aRemovedAttr[59]="06DN0417";
+	aRemovedAttr[60]="06DN0418";
+	aRemovedAttr[61]="06DN0421";
+	aRemovedAttr[62]="09CV0494";
+	aRemovedAttr[63]="09CV0495";
+	aRemovedAttr[64]="09CV0496";
+	aRemovedAttr[65]="10GC0497";
+	aRemovedAttr[66]="10GC0498";
+	aRemovedAttr[67]="10GC0499";
+	aRemovedAttr[68]="10GC0500";
+	aRemovedAttr[69]="12BI0501";
+	aRemovedAttr[70]="12BI0502";
+	aRemovedAttr[71]="10GC0503";
+	aRemovedAttr[72]="10GC0504";
+	aRemovedAttr[73]="10GC0505";
+	aRemovedAttr[74]="10GC0506";
+	aRemovedAttr[75]="10GC0507";
+	aRemovedAttr[76]="10GC0508";
+	aRemovedAttr[77]="10GC0509";
+	aRemovedAttr[78]="10GC0510";
+	aRemovedAttr[79]="10GC0511";
+	aRemovedAttr[80]="10GC0512";
+	aRemovedAttr[81]="10GC0513";
+	aRemovedAttr[82]="10GC0514";
+	aRemovedAttr[83]="10GC0515";
+	aRemovedAttr[84]="10GC0516";
+	aRemovedAttr[85]="10GC0517";
+	aRemovedAttr[86]="10GC0518";
+	aRemovedAttr[87]="10GC0519";
+	aRemovedAttr[88]="10GC0520";
+	aRemovedAttr[89]="10GC0521";
+	aRemovedAttr[90]="10GC0522";
+	aRemovedAttr[91]="10GC0523";
+	aRemovedAttr[92]="10GC0524";
+	aRemovedAttr[93]="10GC0525";
+	aRemovedAttr[94]="01AC0526";
+	aRemovedAttr[95]="11GP0527";
+	aRemovedAttr[96]="11GP0528";
+	aRemovedAttr[97]="11GP0529";
+	aRemovedAttr[98]="11GP0530";
+	aRemovedAttr[99]="11GP0531";
+	aRemovedAttr[100]="11GP0532";
+	aRemovedAttr[101]="11GP0533";
+	aRemovedAttr[102]="11GP0534";
+	aRemovedAttr[103]="11GP0535";
+	aRemovedAttr[104]="11GP0536";
+	aRemovedAttr[105]="11GP0537";
+	aRemovedAttr[106]="11GP0538";
+	aRemovedAttr[107]="11GP0539";
+	aRemovedAttr[108]="11GP0540";
+	aRemovedAttr[109]="11GP0541";
+	aRemovedAttr[110]="11GP0542";
+	aRemovedAttr[111]="11GP0543";
+	aRemovedAttr[112]="11GP0544";
+	aRemovedAttr[113]="11GP0545";
+	aRemovedAttr[114]="11GP0546";
+	aRemovedAttr[115]="10GC0547";
+	aRemovedAttr[116]="02FR0553";
+	aRemovedAttr[117]="06DN0558";
+	aRemovedAttr[118]="06DN0559";
+	aRemovedAttr[119]="01AC0583";
+	aRemovedAttr[120]="12BI0584";
+	aRemovedAttr[121]="06DN0585";
+	aRemovedAttr[122]="06DN0586";
+	aRemovedAttr[123]="06DN0587";
+	aRemovedAttr[124]="06DN0588";
+	aRemovedAttr[125]="06DN0589";
+	aRemovedAttr[126]="06DN0590";
+	aRemovedAttr[127]="06DN0591";
+	aRemovedAttr[128]="06DN0592";
+	aRemovedAttr[129]="06DN0593";
+	aRemovedAttr[130]="06DN0594";
+	aRemovedAttr[131]="06DN0595";
+	aRemovedAttr[132]="11GP0596";
+	aRemovedAttr[133]="11GP0598";
+	aRemovedAttr[134]="06DN0599";
+	aRemovedAttr[135]="11GP0600";
+	aRemovedAttr[136]="11GP0601";
+	aRemovedAttr[137]="06DN0602";
+	aRemovedAttr[138]="02FR0603";
+	aRemovedAttr[139]="11GP0604";
+	aRemovedAttr[140]="06DN0607";
+	aRemovedAttr[141]="06DN0608";
+	aRemovedAttr[142]="06DN0609";
+	aRemovedAttr[143]="06DN0610";
+	aRemovedAttr[144]="06DN0611";
+	aRemovedAttr[145]="06DN0612";
+	aRemovedAttr[146]="06DN0613";
+	aRemovedAttr[147]="06DN0614";
+	aRemovedAttr[148]="06DN0615";
+	aRemovedAttr[149]="06DN0616";
+	aRemovedAttr[150]="06DN0617";
+	aRemovedAttr[151]="06DN0618";
+	aRemovedAttr[152]="06DN0619";
+	aRemovedAttr[153]="06DN0620";
+	aRemovedAttr[154]="06DN0621";
+	aRemovedAttr[155]="06DN0622";
+	aRemovedAttr[156]="06DN0623";
+	aRemovedAttr[157]="06DN0624";
+	aRemovedAttr[158]="06DN0625";
+	aRemovedAttr[159]="06DN0626";
+	aRemovedAttr[160]="06DN0627";
+	aRemovedAttr[161]="06DN0628";
+	aRemovedAttr[162]="06DN0629";
+	aRemovedAttr[163]="06DN0630";
+	aRemovedAttr[164]="06DN0631";
+	aRemovedAttr[165]="06DN0632";
+	aRemovedAttr[166]="06DN0633";
+	aRemovedAttr[167]="06DN0634";
+	aRemovedAttr[168]="06DN0635";
+	aRemovedAttr[169]="06DN0636";
+	aRemovedAttr[170]="06DN0637";
+	aRemovedAttr[171]="06DN0638";
+	aRemovedAttr[172]="06DN0639";
+	aRemovedAttr[173]="06DN0640";
+	aRemovedAttr[174]="06DN0641";
+	aRemovedAttr[175]="06DN0642";
+	aRemovedAttr[176]="06DN0643";
+	aRemovedAttr[177]="06DN0644";
+	aRemovedAttr[178]="06DN0645";
+	aRemovedAttr[179]="06DN0647";
+	aRemovedAttr[180]="06DN0648";
+	aRemovedAttr[181]="01AC0649";
+	aRemovedAttr[182]="06DN0661";
+	return aRemovedAttr;
+}
+
+
+var delim = "~~~~~";
+
+var ctg = getCtgByName();
+
+var processingOptions = [];
+processingOptions[0] = "ALL";
+
+ctg.disableContainerProcessingOptions(processingOptions);
+
+// build map from category path to category object
+var hmPathsToCategories = getCategoryHashMap(delim);
+
+// If category hashmap is empty, import is aborted
+if (hmPathsToCategories == null)
+{
+    return null;
+}
+
+var my_parser = new CSVParser(in);
+
+var L098 = getCtgByName("L098-Lieux - Places");
+
+var bDone = false;
+var lineNumber = 0;
+var lineToken = "";
+while ( ! bDone ) {
+    // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED You should do something (report the error, abort) if an error occurs
+    var f;
+    catchError (f) {
+        var item = null;
+        var attrs = my_parser.splitLine();
+        bDone = (null == attrs);
+        if (! bDone ) {
+            // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED You should do something (report the error, abort) if an error occurs
+            var g;
+            catchError (g) {
+                lineNumber = lineNumber +1;
+                var item = new CtgItem();
+                // loop over fields setting the appropriate attribute
+                // using the name-value pair in each field
+                var hmRemovedAttributes = getRemovedAttributeNames();
+                for (var i = 0; i < attrs.size(); i++ ) {
+                    var attr_name_value = attrs[i].parseDelim("|");
+                    var attr_name = replaceCSVDefaults(attr_name_value[0],defaultMessageMap);
+                    var attr_value = attr_name_value[1];
+                    var strAttrName = checkString(attr_name, "");
+
+					//fix for WPC00031630
+					if(attr_name_value.size() >2) {
+						for(escapeCounter=2;escapeCounter<attr_name_value.size();escapeCounter++){
+						  attr_value = attr_value+"|"+attr_name_value[escapeCounter];
+						}
+					}
+					lineToken = attr_name_value[0]+"|"+attr_name_value[1];
+					if ( null != attr_name && "" != attr_name && null != attr_value ) {
+						log.loggerDebug("### attr_name " + checkString(attr_name, ""));
+						if(attr_name!="/") {
+							var iAttrNameCodeStart=attr_name.lastIndexOf("/")+1;
+							log.loggerDebug("### attr_name iAttrNameCodeStart=" + iAttrNameCodeStart);
+							var iAttrNameCodeEnd=attr_name.lastIndexOf("/")+9;
+							log.loggerDebug("### attr_name iAttrNameCodeEnd=" + iAttrNameCodeEnd);
+							
+							var strPackagingItemDescription = "";
+							if(!hmRemovedAttributes.containsValue(substring(attr_name,iAttrNameCodeStart,iAttrNameCodeEnd))){
+								log.loggerDebug("### attr_name Processing" + checkString(attr_name, ""));
+								if ( attr_name == "CATEGORY" ) {
+									var category = hmPathsToCategories[replaceCSVDefaults(attr_value,defaultMessageMap)];
+									if ( null != category ) {
+										item.mapCtgItemToCategory(category);
+									}
+									else {
+										out.writeln("Could not find category with path [" + attr_value + "]");
+									}
+								}
+								else if ( attr_name == "AVAILABLE_LOC" ) {
+									var location = hmPathsToCategories[attr_value];
+									if (location == null) {
+										throwError("Could not find location [" + attr_value + "]");
+									}
+									item.makeItemAvailableInLocation(location);
+								}
+								else if ( attr_name == "/SC000-GlobPrim/99CTL100-ParentItem" 
+										|| contains(attr_name,"06DN0555-PItemLevel1") 
+										|| contains(attr_name,"06DN0556-PItemLevel2")
+										|| contains(attr_name,"01AC0011-replacedGtin")
+										|| contains(attr_name,"07MO0468-AssociatedProducts")) {
+									// skip because this can cause circular dependencies - items can be
+									// related to items in the same catalog or catalogs not yet loaded -
+									// this has to be taken care of in a second pass
+								}
+								else if ( attr_value.startsWith("RELATIONSHIP_INFO") ) {
+									// XXX-Wolf-15-dec-Srikanth-16-jan-FIXED Relationship will have to be handled eventually though
+									// XXX-Srikanth-16-jan Relationships are handled in recursive import.
+		
+									// skip because this can cause circular dependencies - items can be
+									// related to items in the same catalog or catalogs not yet loaded -
+									// this has to be taken care of in a second pass
+								}
+								else {
+									// Determine whether it's a location attribute or global attribute
+									var full_attr_name = attr_name.parseDelim("@");
+									if ( full_attr_name.size() == 1 ) {
+										//521 codebase also exports blank value of grouping node.
+										//if you set any value on grouping node then 5.3 codebase complains.
+										//so skipping all grouping node. 
+										var seperatorIndex = attr_name.lastIndexOf("/");
+										var multivalueIndex = attr_name.lastIndexOf("#");
+										if(multivalueIndex > seperatorIndex) {
+											var tempAttrPath = attr_name.substring(0,multivalueIndex);
+											var entryNode = item.getRootEntryNode().getEntryNode(tempAttrPath);
+											if(entryNode != null) {
+												node = entryNode.getNodeFromEntryNode();
+												var type = node.getNodeAttributeValue("TYPE");
+												if(type == "GROUPING" || ( (type == "LOOKUP_TABLE") && (attr_value == ""))) {
+													continue;
+												}
+												//Added to get the multi occurence lookuptable entries in the item.
+												if(type == "LOOKUP_TABLE" && attr_value != null) {
+													if(attr_value == ""){
+														var attr_name_value_tmp = attrs[i+1].parseDelim("|");
+														var attr_name_tmp = replaceCSVDefaults(attr_name_value_tmp[0],defaultMessageMap);
+														var attr_value_tmp = attr_name_value_tmp[1];
+														if(attr_name_tmp.contains("#1")){
+															item.setEntryAttrib(attr_name, attr_value_tmp);
+														}
+													}
+													else{
+														if(contains(attr_name,"06DN0661") && attr_value!="") {
+															var strBaseUnitOfMeasureV1 = attr_value;
+															if(attr_value=="[PC] - Piece") {
+																attr_value="ST";
+															}
+															else if(attr_value=="[CAR] - Carton") {
+																attr_value="KAR";
+															}
+															else if(attr_value=="[PAC] - Pack") {
+																attr_value="PAK";
+															}
+															else if(attr_value=="[BX] - Box") {
+																attr_value="BOX";
+															}
+															else {
+																attr_value = substring(strBaseUnitOfMeasureV1,1,strBaseUnitOfMeasureV1.indexOf("]"));
+															}
+														}
+														item.setEntryAttrib(attr_name, attr_value);
+													}
+												}
+											}
+										}
+										// Global Attribute
+										// XXX-Wolf-15-dec-Srikanth-16-jan-FIXED Did you test with multi-value nodes (attr_name would be something like specname/name#a/name#b)?
+										else {
+											//Added for manasco import
+											var entryNode = item.getRootEntryNode().getEntryNode(attr_name);
+											if(entryNode != null) {
+												node = entryNode.getNodeFromEntryNode();
+												var type = node.getNodeAttributeValue("TYPE");
+												if(type == "NUMBER") {
+													if(attr_value != ""){
+														var node = entryNode.getNodeFromEntryNode() ;
+														var intPrecission = checkInt(node.getNodeAttributeValue("PRECISION"), 2);
+														var dblReformatted = parseNumber(formatNumberByPrecision(toDouble(attr_value), intPrecission), null, null);
+														//
+														item.setEntryAttrib(attr_name, dblReformatted);
+													}
+												}
+											}
+											else{//add end
+												if(contains(attr_name,"06DN0661") && attr_value!="") {
+													var strBaseUnitOfMeasureV1 = attr_value;
+													if(attr_value=="[PC] - Piece") {
+														attr_value="ST";
+													}
+													else if(attr_value=="[CAR] - Carton") {
+														attr_value="KAR";
+													}
+													else if(attr_value=="[PAC] - Pack") {
+														attr_value="PAK";
+													}
+													else if(attr_value=="[BX] - Box") {
+														attr_value="BOX";
+													}
+													else {
+														attr_value = substring(strBaseUnitOfMeasureV1,1,strBaseUnitOfMeasureV1.indexOf("]"));
+													}
+												}
+												item.setEntryAttrib(attr_name, attr_value);
+											}
+										}
+									}
+									else
+									{
+										var attr_path = full_attr_name[0];
+										var location = hmPathsToCategories[full_attr_name[1]];
+										if ( location == null ) {
+											throwError("Could not find location [" + full_attr_name[1] + "]");
+										}
+										if ( attr_value == "" ){
+											item.setInheriting(location, attr_path, false);
+										}
+										else {
+											item.setItemLocationAttrib(location, attr_path, attr_value);
+										}
+									}
+		
+									var attr_entry_node = item.getRootEntryNode().getEntryNode(attr_name);
+									if(attr_entry_node != null) {
+										var attr_node_type = attr_entry_node.getNodeFromEntryNode().getNodeAttributeValue("TYPE");
+										var multiOccur = (attr_entry_node.getNodeFromEntryNode().getNodeAttributeValue("MAX_OCCURRENCE") > 1);
+										if(multiOccur == true && attr_name.contains("#") == false) {
+											attr_name = attr_name + "#0";
+										}                                
+										if(attr_node_type == "DATE") {
+											//The exported date value is in EEE MMM dd HH:mm:ss zzz yyyy format
+											// So using parseDate to parse the date value.
+											// If parsing error occurs, try to use db2 format then oracle format
+											var en_US = new Locale("en","US");
+											var defaultFormat = "EEE MMM dd HH:mm:ss zzz yyyy";
+											var db2Format = "yyyy-MM-dd-HH.mm.ss";
+											var oracleFormat = "dd-MMM-yyyy HH:mm:ss";                               
+											var dateValue = parseDate(attr_value,defaultFormat,en_US,false);
+											if(dateValue == null){
+											   dateValue = parseDate(attr_value,db2Format,en_US,false);
+											}
+											if(dateValue == null){
+											   dateValue = parseDate(attr_value,oracleFormat,en_US,false);
+											}
+											attr_entry_node.setEntryNodeValue(dateValue);
+										}
+										else if(attr_node_type == "SEQUENCE") {
+											var node = attr_entry_node.getNodeFromEntryNode() ;
+											var spec = node.getNodeSpec();
+											var catname = item.getCatalog().getCtgName();
+											var specname = spec.getSpecName();
+											var seqName = catname + "_CTG_" + specname + "/" + node.getNodeName();
+											if(attr_value != "") {
+												setSequenceValueForMigration(seqName,catname, "CTG", toInteger(attr_value)) ;
+											}
+											item.setEntryAttrib(attr_name, attr_value);
+										}
+										//Added for manasco import
+										else if(attr_node_type == "NUMBER") {
+											if(attr_value != ""){
+												var node = attr_entry_node.getNodeFromEntryNode() ;
+												var intPrecission = checkInt(node.getNodeAttributeValue("PRECISION"), 2);
+												var dblReformatted = parseNumber(formatNumberByPrecision(toDouble(attr_value), intPrecission), null, null);
+												
+												item.setEntryAttrib(attr_name, dblReformatted);
+											   }
+										}
+										//added for Siniat
+										else  if (attr_name.contains("01AC0659")){
+											if(attr_value.contains("[")){
+												item.setEntryAttrib(attr_name, substring(attr_value, 1, 5));
+											}
+										}
+										else  if (attr_name.contains("06DN0419")){
+											if(attr_value.contains("[")){
+												var strCountryCode = substring(attr_value, 1, 3);
+												item.setEntryAttrib(attr_name, strCountryCode);
+											}
+										}
+										else  if (attr_name.contains("06DN0397")){
+											var strSpecNamePath = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"01AC0014-invoiceName").getEntryNodeExactPath();
+											if(strSpecNamePath!=null && strSpecNamePath!="") {
+												strSpecNamePath = substring(strSpecNamePath,1);
+												strSpecNamePath = checkString(substring(strSpecNamePath,0,strSpecNamePath.indexOf("/")), "");
+												if(strSpecNamePath != ""){
+													item.setEntryAttrib(strSpecNamePath + "/01AC0741-PackagingItemDescription", attr_value);
+												}
+											}
+										}
+										//end add
+										else {
+											// XXX-Wolf-15-dec-Srikanth-16-jan-FIXED Did you test with multi-value nodes (attr_name would be something like specname/name#a/name#b)?
+											if(contains(attr_name,"06DN0661") && attr_value!="") {
+												var strBaseUnitOfMeasureV1 = attr_value;
+												if(attr_value=="[PC] - Piece") {
+													attr_value="ST";
+												}
+												else if(attr_value=="[CAR] - Carton") {
+													attr_value="KAR";
+												}
+												else if(attr_value=="[PAC] - Pack") {
+													attr_value="PAK";
+												}
+												else if(attr_value=="[BX] - Box") {
+													attr_value="BOX";
+												}
+												else {
+													attr_value = substring(strBaseUnitOfMeasureV1,1,strBaseUnitOfMeasureV1.indexOf("]"));
+												}
+											}
+											else  if (attr_name.contains("06DN0646") && attr_value==""){
+												attr_value=null;
+											}
+											else  if (attr_name.contains("06DN0661") && attr_value==""){
+												attr_value=null;
+											}										
+											item.setEntryAttrib(attr_name, attr_value);
+										}
+									}
+								}
+							}
+							else if(attr_name.contains("06DN0397")){
+								var strSpecNamePath = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"01AC0014-invoiceName").getEntryNodeExactPath();
+								log.loggerDebug("strSpecNamePath   :   " + strSpecNamePath);
+								if(strSpecNamePath!=null && strSpecNamePath!="") {
+									strSpecNamePath = substring(strSpecNamePath,1);
+									strSpecNamePath = checkString(substring(strSpecNamePath,0,strSpecNamePath.indexOf("/")), "");
+									if(strSpecNamePath != ""){
+										item.setEntryAttrib(strSpecNamePath + "/01AC0741-PackagingItemDescription", attr_value);
+									}
+								}
+							}
+							if(attr_name.contains("06DN0358")){
+								if(attr_value != ""){
+									var oPlant = L098.getEntryByPrimaryKey(attr_value);
+									if(oPlant!=null) {
+										var strSAPPlantId = checkString(oPlant.getEntryAttrib("SL098-Places/C04-SAP Plant of storage"),"");
+										if(strSAPPlantId!="") {									
+											var strnewattrname = replaceString (attr_name, "06DN0358-PlaceOfStorage", "06DN0679-Plant");
+											if(strnewattrname!="") {
+												item.setEntryAttrib(strnewattrname, strSAPPlantId);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+                log.loggerDebug("### attr_name Processing END");
+                
+                // 01AC0667-AuthorisationGroup
+            	var strSpecNamePath = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(item,"01AC0014-invoiceName").getEntryNodeExactPath();
+				if(strSpecNamePath!=null && strSpecNamePath!="") {
+					strSpecNamePath = substring(strSpecNamePath,1);
+					strSpecNamePath = checkString(substring(strSpecNamePath,0,strSpecNamePath.indexOf("/")), "");
+					if(strSpecNamePath != ""){
+						item.setEntryAttrib(strSpecNamePath + "/01AC0667-AuthorisationGroup", "FRSI");
+					}
+				}
+                item.saveCtgItem();
+            }
+            if (g != null) {
+				var exceptionStr = "Error building entries while processing catalog ["+ctg+"] at line number ["+lineNumber+"] for token ["+lineToken+"] with error "+g;
+                out.writeln(exceptionStr);
+                //return null;
+				throwError(exceptionStr);
+            }
+        }
+    }
+    if (f != null) {
+        out.writeln("ERROR parsing CSV file "+f);
+        //return null;
+		throwError("ERROR parsing CSV file "+f);
+    }
+}

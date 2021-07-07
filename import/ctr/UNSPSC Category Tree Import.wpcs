@@ -1,0 +1,31 @@
+var delimiter="/";
+var line;
+forEachLine(in, line)
+{
+    var e = "";
+    var attrs;
+    catchError(e)
+        {
+            attrs = line.parseDelim("|");
+            var code  = attrs[0];
+            var desc  = attrs[1];
+            var path  = "";
+
+            var l = length(code);
+            while (l > 0)
+            {
+                path = substring(code, l-2, l) + delimiter + path;
+                l = l - 2;
+            }
+
+            path = substring(path, 0, length(path) - 1);
+
+            var category = getCategoryTreeByName().buildCategory(path, delimiter, desc);
+            category.setPrimaryKey(line.getNameFromPath(delimiter));
+        }
+    if (null != e)
+    {
+        logError("?", "Could not save category " + attrs[0] + "[" + e + "]");
+    }
+}
+

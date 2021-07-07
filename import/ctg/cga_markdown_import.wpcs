@@ -1,0 +1,59 @@
+var getItemFromPKey = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemFromPKey");
+var getEntryNodeFromAttrPath = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath");
+
+var hattrs = [];
+hattrs.add("01AC0044-ERPCode");
+hattrs.add("01AC0012-LongName");
+hattrs.add("03FN0065-DescriptionLong");
+hattrs.add("03FN0067-ProductQualities");
+hattrs.add("03FN0066-TradeItemDescriptionShort");
+hattrs.add("04CP0220-ProductEquipement");
+hattrs.add("07MO0465-ImplementationAdvice");
+hattrs.add("07MO0466-UsageAdvice");
+hattrs.add("07MO0467-Application");
+
+
+function log(txt) {
+    logWarning("1", txt);
+}
+
+
+var book = new ExcelBook(null, "XLSX");
+var sheet = book.getExcelSheet(0);
+var parser = new ExcelParser(sheet);
+
+// get the header
+var attrs = parser.splitLine();
+
+var bDone = false;
+while (!bDone) {
+    var attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone) {
+        var key = attrs[0];
+        logWarning(key, "key = " + key);
+        var item = getItemFromPKey.invoke(key);
+        logWarning(key, "got item");
+        if (item != null) {
+            logWarning(key, "Updating " + key);
+            forEachHmElement(attrs, oKey, oAttr) {
+                if (hattrs[oKey] != "01AC0044-ERPCode" && hattrs[oKey] !="01AC0012-LongName") {
+                    var entryNode = getEntryNodeFromAttrPath.invoke(item, hattrs[oKey]);
+                    if (entryNode != null) {
+                        var path = entryNode.getEntryNodePath();
+                        logWarning(key, "Setting " + path + " to " + oAttr);
+                        item.setCtgItemAttrib(path, oAttr);
+                    } else {
+                        logWarning(key, "could not find attribute for  " + key + " - " +  hattrs[oKey]);
+                    }
+                }
+            }
+            item.saveCtgItem();
+        } else {
+            logWarning(key, "Could not find item for " + key);
+        }
+
+
+
+    }
+}

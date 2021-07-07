@@ -1,0 +1,58 @@
+var my_parser = new CSVParser(in);
+
+var bDone = false;
+
+while ( ! bDone )
+{
+    var f;
+    catchError (f)
+    {
+        var item = null;
+        var attrs = my_parser.splitLine();
+        bDone = (null == attrs);
+        if ( ! bDone )
+        {
+            var g;
+            catchError (g)
+            {
+                item = new CtgItem();
+                // loop over fields setting the appropriate attribute using the name-value pair in
+                // each field
+                for ( var i = 0; i < attrs.size(); i++ )
+                {
+                    var attr_name_value = attrs[i].parseDelim("|");
+                    var attr_name = attr_name_value[0];
+                    var attr_value = attr_name_value[1];
+
+                    if ( null != attr_name && "" != attr_name && null != attr_value && "" != attr_value )
+                    {
+                        if ( attr_name == "CATEGORY" )
+                        {
+                            var category = hmPathsToCategories[attr_value];
+                            if ( null != category )
+                            {
+                                item.mapCtgItemToCategory(category);
+                            }
+                            else
+                            {
+                                out.writeln("Could not find category with path [" + attr_value + "]");
+                            }
+                        }
+                        else if ( attr_value == "RELATIONSHIP_INFO" )
+                        {
+                            // skip because this can cause circular dependencies - items can be
+                            // related to items in the same catalog or catalogs not yet loaded -
+                            // this has to be taken care of in a second pass
+                        }
+                        else
+                        {
+                            item.setEntryAttrib(attr_name, attr_value);
+                        }
+                    }
+                }
+                item.saveCtgItem();
+            }
+        }
+    }
+}
+

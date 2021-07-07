@@ -1,0 +1,325 @@
+//---------------------------------------------------------------------
+// Adding check for default objects which enables cross locale migration
+//---------------------------------------------------------------------
+
+var defaultMessageMap = [];
+
+var CSV_DEFAULT_LKT_HIERARCHY = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_LKT_HIERARCHY");//"##DefaultLookupTableHierarchy##";
+var CSV_DEFAULT_SPEC = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC");//"##DefaultHierarchyPrimarySpec##";
+var CSV_DEFAULT_SPEC_ATTR_NAME = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_NAME");//"##NAME##";
+var CSV_DEFAULT_SPEC_ATTR_PATH = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_PATH");//"##PATH##";
+var CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME = getStringValueForClassMember("com.ibm.ccd.common.migration.to52.EnvImportExportHelper", "CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME");//"##DISPNAME##";
+
+
+//Retrive Default Locale object
+var getDefaultLocale = createJavaMethod("com.ibm.ccd.common.context.common.LocaleContext","getDefaultLocale");
+var defaultLocale = runJavaMethod(null,getDefaultLocale);
+
+
+//create getMessage method 
+var getMessage = createJavaMethod("com.ibm.ccd.common.context.common.LocaleContext","getMessage","java.lang.String","java.util.Locale");
+
+var strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_LOOKUP_TABLE_HIERARCHY_NAME_INDEX");
+var DEFAULT_LKT_HIERARCHY = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_LKT_HIERARCHY]=DEFAULT_LKT_HIERARCHY;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_NAME_INDEX");
+var DEFAULT_SPEC = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC]=DEFAULT_SPEC;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_PRIMARY_KEY_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_NAME = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_NAME]=DEFAULT_SPEC_ATTR_NAME;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_PATH_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_PATH = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_PATH]=DEFAULT_SPEC_ATTR_PATH;
+
+strvalue = getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_DISPLAY_NAME_FIELD_NAME_INDEX");
+var DEFAULT_SPEC_ATTR_DISPLAYNAME = runJavaMethod(null,getMessage,strvalue, defaultLocale);
+defaultMessageMap[CSV_DEFAULT_SPEC_ATTR_DISPLAYNAME]=DEFAULT_SPEC_ATTR_DISPLAYNAME;
+
+function replaceCSVDefaults(str,msgMap)
+{
+  if( (str == null) || (str.indexOf("##") == -1) )
+  {
+  	return str;
+  }
+  var key;
+  var value;
+  forEachHmElement(msgMap, key, value) 
+  {
+	  str = replaceString(str,key,value);
+  }
+  
+  return str;
+}
+
+var delim = "~~~~~";
+var my_parser = new CSVParser(in);
+
+var category_tree = getCategoryTreeByName();
+var category_tree_name = category_tree.getCategoryTreeName();
+
+var ctrSpec = category_tree.getCategoryTreeSpec();
+
+//var bDefaultHierarchySpec = ( getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_NAME") == ctrSpec.getSpecName() );
+
+var processingOptions = [];
+processingOptions.add("ALL");
+// processingOptions.add("PRE_SCRIPT");
+// processingOptions.add("POST_SCRIPT");
+// processingOptions.add("VALUE_RULES");
+// processingOptions.add("VALIDATION_RULES");
+// processingOptions.add("DEFAULT_VALUES");
+// processingOptions.add("DEFAULT_VALUE_RULES");
+// processingOptions.add("SEQUENCES");
+// processingOptions.add("TYPE_VALIDATION");
+// processingOptions.add("MERGE_WITH_OLD_VERSION");
+// processingOptions.add("MIN_MAX_OCCURANCE");
+// processingOptions.add("MIN_MAX_LENGTH");
+// processingOptions.add("POSSIBLE_VALUES");
+// processingOptions.add("PATTERN_VALIDATION");
+// processingOptions.add("LOCK_CATEGORIES_FOR_ITEM_SAVE");
+// processingOptions.add("LOCKING");
+// processingOptions.add("ENTRY_BUILD_SCRIPT");
+
+
+// XXX-Wolf-15-dec-Srikanth-12-jan-FIXED Why use "ALL" in environment.ctg.import.script and not here?
+category_tree.disableContainerProcessingOptions(processingOptions);
+
+var bDone = false;
+var parentChildMap = [];
+var catMapCount = 0;
+var lineNumber = 0;
+var lineToken = "";
+while ( ! bDone )
+{
+    // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED You should do something (report the error, abort) if an error occurs
+    var f;
+    catchError (f)
+    {
+        var category = null;
+	var escapeCounter;
+        var attrs = my_parser.splitLine();
+        bDone = (null == attrs);
+        if ( ! bDone )
+        {
+            // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED You should do something (report the error, abort) if an error occurs
+            var g;
+            catchError (g)
+            {
+                lineNumber = lineNumber +1;
+                // loop over fields setting the appropriate attribute
+                // using the name-value pair in each field
+                var ismapped = false;
+                var originalPath ="";
+                for (var i = 0; i < attrs.size(); i++ )
+                {
+                    var attr_name_value = attrs[i].parseDelim("|");
+                    var attr_name = replaceCSVDefaults(attr_name_value[0],defaultMessageMap);
+                    var attr_value = attr_name_value[1];
+		    //fix for WPC00031630
+		    if(attr_name_value.size() >2)
+		    {
+			for(escapeCounter=2;escapeCounter<attr_name_value.size();escapeCounter++)
+			{
+			  attr_value = attr_value+"|"+attr_name_value[escapeCounter];
+			}
+		    }
+                    lineToken = attr_name_value[0]+"|"+attr_name_value[1];
+
+                    if ( null != attr_name && "" != attr_name && null != attr_value && "" != attr_value )
+                    {
+                        if ( attr_name == "CATEGORY_PATH" )
+                        {
+                            attr_value = replaceCSVDefaults(attr_value,defaultMessageMap);
+                            var indexOfDelim = attr_value.indexOf(delim);
+                            // var category_tree_name = attr_value.substring(0, indexOfDelim);
+                            var category_path = attr_value.substring(indexOfDelim + delim.length());
+                        	if(ismapped)
+							{
+								//category = new Category(category_tree, category_path, delim);
+								var lastIndex = category_path.lastIndexOf(delim);
+								var parentCatPath;
+								if(lastIndex == -1)
+								{
+									parentCatPath = category_tree_name;
+								}
+								else
+								{
+									parentCatPath = category_path.substring(0,category_path.lastIndexOf(delim));
+								}
+								 
+								var hmCatMap = [];
+								hmCatMap[parentCatPath]=category;
+								parentChildMap[catMapCount]= hmCatMap;
+								catMapCount++;
+							}
+							else
+							{
+								category = new Category(category_tree, category_path, delim);
+                           		originalPath=category.getPathValue();
+								ismapped = true;
+							}
+//                            if ( bDefaultHierarchySpec )
+//                            {
+//                                category.setPrimaryKey(getNameFromPath(category_path, delim));
+//                            }
+                        }
+                        else if ( attr_name == "CATEGORY_SPEC" )
+                        {
+   							ismapped = false;
+                            category.addSecondarySpecToCategory(attr_value);
+                        }
+                        else if ( attr_value.startsWith("RELATIONSHIP_INFO") )		// Fix WPC00033069
+                        {
+                            //Skipping relationship info. Run $TOP/bin/importRelationshipsAsCompany.sh once import is completed
+                        }
+                        else if ( attr_name == "ITEM_SPEC" )
+                        {
+   							ismapped = false;                        
+                            var ctgs = [];
+                            if (attr_name_value.size()>2)
+                            {
+                                for(var j = 2; j < attr_name_value.size(); j++ )
+                                {
+                                    ctgs[j-2] = getCtgByName(attr_name_value[j]);
+                                }
+                                category.addItemSecondarySpecToCategory(attr_name_value[1], ctgs);
+                            }
+                            else
+                            {
+                                category.addItemSecondarySpecToCategory(attr_value);
+                            }
+                        }
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED there is no more code in 4.2
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED in 4.2, you make one of the attribute in the spec the display name
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED therefore no special handling is needed
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED in 4.2, you make one of the attribute in the spec the path
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED therefore no special handling is needed
+                        // XXX-Wolf-15-dec-Srikanth-12-jan-FIXED there is no more code in 4.2
+                        else
+                        {
+   							  ismapped = false;
+   							  var attr_entry_node;
+   							  var rootNode = category.getRootEntryNode();
+   							  attr_entry_node = rootNode.getEntryNode(attr_name);
+				              
+				              //If its a multivalue attribute then entrynode will be null.
+				              if(attr_entry_node == null)
+				              {
+				              	//calling setEntryAttrib with blank value it will create the node recursively if does not exist
+				              	category.setEntryAttrib(attr_name, "");
+				              	attr_entry_node = rootNode.getEntryNode(attr_name);
+				              	if(attr_entry_node == null)
+				              	{
+				              		//Still if we have null value for attr_entry_node then we should stop with error
+				              		throwError("EntryNode not found with path  [" + attr_name + "]");
+				              	}
+				              }
+				              
+				                var attr_node_type = attr_entry_node.getNodeFromEntryNode().getNodeAttributeValue("TYPE");
+				                if(attr_node_type == "DATE")
+				                {
+				                     //The exported date value is in EEE MMM dd HH:mm:ss zzz yyyy format
+				                     // So using parseDate to parse the date value.
+				                     // If parsing error occurs, try to use db2 format then oracle format
+				                     var en_US = new Locale("en","US");
+				                     var defaultFormat = "EEE MMM dd HH:mm:ss zzz yyyy";
+				                     var db2Format = "yyyy-MM-dd-HH.mm.ss";
+				                     var oracleFormat = "dd-MMM-yyyy HH:mm:ss";
+				                     var dateValue = parseDate(attr_value,defaultFormat,en_US,false);
+				                     if(dateValue == null){
+				                        dateValue = parseDate(attr_value,db2Format,en_US,false);
+				                     }
+				                     if(dateValue == null){
+				                        dateValue = parseDate(attr_value,oracleFormat,en_US,false);
+				                     }
+				                     attr_entry_node.setEntryNodeValue(dateValue);
+				                }
+				                else if(attr_node_type == "SEQUENCE")
+				                {
+				                        var node = attr_entry_node.getNodeFromEntryNode() ;
+				                        var spec = node.getNodeSpec();
+				                        var specname = spec.getSpecName();
+				                        var seqName = category_tree.getCategoryTreeName() + "_CATTREE_" + node.getNodePath();
+				                        var seq = getSequenceByName(seqName);
+                                    	var nxtVal = getSequenceNextValue(seq);
+                                    	if (attr_value >= nxtVal)
+				    					{
+				                        setSequenceValueForMigration(seqName, category_tree.getCategoryTreeName(), "CATTREE", toInteger(attr_value)) ;
+				                        }
+				                        category.setEntryAttrib(attr_name, attr_value);
+				                }
+				                else
+				                {
+				                    // XXX-Wolf-15-dec-Srikanth-16-jan-FIXED Did you test with multi-value nodes (attr_name would be something like specname/name#a/name#b)?
+				                            category.setEntryAttrib(attr_name, attr_value);
+				                }
+				              
+                }
+            }
+                }
+            }
+
+            if (g != null)
+            {
+                out.writeln("ERROR building Category while processing Hierarchy ["+category_tree_name+"] at line number ["+lineNumber+"] for token ["+lineToken+"] with error \n"+g);
+                return null;
+            }
+        }
+    }
+
+    if (f != null)
+    {
+        out.writeln("ERROR parsing the CSV file \n"+f);
+        return null;
+    }
+}
+
+var key;
+var value;
+forEachHmElement(parentChildMap, key, value)
+{
+	var parentCatPath;
+	var childCat;
+	var tempParentCatPath;
+	var tempChildCat;
+	
+	forEachHmElement(value,tempParentCatPath,tempChildCat)
+	{
+		parentCatPath = tempParentCatPath;
+		childCat = tempChildCat;
+		break;
+	}
+	var childCatPath = childCat.getFullPaths(delim)[0];
+	var parentCat = null;
+
+	var catSet;
+	var catObj; 	
+	if(parentCatPath == category_tree_name)
+	{
+		catSet = category_tree.getCategorySetByPrimaryKey(category_tree_name,true);
+		forEachCategorySetElement(catSet, catObj)
+		{
+			parentCat = catObj;
+			break;
+		}
+	}
+	else
+	{
+    	parentCat = category_tree.getCategoryByPath(parentCatPath,delim,true,true);
+    }
+    	
+    if( (parentCat != null) && (childCat != null))
+	{
+		parentCat.addChildCategory(childCat);
+	}
+	else
+	{
+	  //out.writeln("SKIPPED MAPPING OF  child='"+childCatPath+"' to parent='"+parentCatPath+"'");
+	}
+
+}
+

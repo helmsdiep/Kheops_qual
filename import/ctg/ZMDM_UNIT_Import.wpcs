@@ -1,0 +1,381 @@
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// @param sLevel - logging level: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+/// @param logContext - log context
+/// @param sMsg - logging message
+//:PRFUNCTION void log(String sLevel, LogContext logContext, String sMsg)
+function log(sLevel, logContext, sMsg) {
+	if (logContext != null && logContext.log != null) {
+		logContext.log.invoke(sLevel, logContext, sMsg);
+	} else {
+    	getLogger(checkString(getCurrentUserName(), "default")).loggerDebug(sMsg);
+	}
+	if (logContext != null && logContext.out != null) { logContext.out.writeln(sLevel + " " + sMsg); }
+	getLogger("Lafarge.DataEntry").loggerInfo(sMsg);
+
+}
+
+var hmCatalog = [];
+hmCatalog["010"] = "C010-Plaques de plâtre - Gypsum plasterBoards";
+hmCatalog["015"] = "C015-Cloisons - Honeycomb Partitions";
+hmCatalog["020"] = "C020-Doublages - Composite panels";
+hmCatalog["025"] = "C025-Profilés - Metal profiles";
+hmCatalog["030"] = "C030-Acc plafonds - Ceiling accessories";
+hmCatalog["035"] = "C035-Acc ouvrages verticaux - Partition accessories";
+hmCatalog["040"] = "C040-Acc finition - Finishing accessories";
+hmCatalog["045"] = "C045-Vis - Fasteners";
+hmCatalog["050"] = "C050-Salsi acc cloisons - Honeycomb partitions accessories";
+hmCatalog["055"] = "C055-Salsi acc finition - Finishing accessories";
+hmCatalog["060"] = "C060-Salsi vis - Fasteners";
+hmCatalog["065"] = "C065-Enduits - Jointing compounds";
+hmCatalog["070"] = "C070-Liants - Adhesives";
+hmCatalog["075"] = "C075-Colles - Adhesives";
+hmCatalog["080"] = "C080-Salsi enduits poudres - Powder compounds";
+hmCatalog["085"] = "C085-Salsi enduits pâtes - Ready-mix compounds";
+hmCatalog["090"] = "C090-Salsi liants - Adhesives";
+hmCatalog["095"] = "C095-Salsi colles - Adhesives";
+hmCatalog["100"] = "C100-Salsi enduits préparation support - Pre-painting compounds";
+hmCatalog["105"] = "C105-Salsi enduits techniques - Technical compounds";
+hmCatalog["110"] = "C110-Panneaux isolant - Insulating panels";
+hmCatalog["115"] = "C115-Styrodur";
+hmCatalog["120"] = "C120-Entrevous -";
+hmCatalog["130"] = "C130-Rehausses -";
+hmCatalog["135"] = "C135-Plâtres - Gypsum plasters";
+hmCatalog["140"] = "C140-Salsi plâtres - Gypsum plasters";
+hmCatalog["145"] = "C145-Carreaux de plâtre - Gypsum blocks";
+hmCatalog["150"] = "C150-Gypse - Gypsum rock";
+hmCatalog["155"] = "C155-Outils mesure&traçage - Measurement tools";
+hmCatalog["160"] = "C160-Outils manutention - Handling Tools";
+hmCatalog["165"] = "C165-Outils façonnage - Shaping tools";
+hmCatalog["170"] = "C170-Outils travail du métal - Tools for metal";
+hmCatalog["175"] = "C175-Outillage électroportatif - Electrical tools";
+hmCatalog["180"] = "C180-Outils finition - Finishing tools";
+hmCatalog["185"] = "C185-Outillage général - Other Tools";
+hmCatalog["190"] = "C190-Pièces détachées machines à projeter - Spare parts for spraying machines";
+hmCatalog["195"] = "C195-Services";
+hmCatalog["200"] = "C200-Produits financiers - Financial products";
+hmCatalog["205"] = "C205-Services industriels - Industrial services";
+hmCatalog["210"] = "C210-Produits&consommables industriels - Industrial products";
+hmCatalog["215"] = "C215-Services&produits généraux - Other services&products";
+hmCatalog["300"] = "C300-Primitifs doublages - Insulating panels for Composite panels";
+hmCatalog["305"] = "C305-Panneaux isolants - Insulating panels";
+hmCatalog["310"] = "C310-Blocs - Polystyrene blocks";
+hmCatalog["315"] = "C315-Colles&Enduits internes - Internal adhesives&compounds";
+hmCatalog["320"] = "C320-Plâtres internes - Internal Gypsum plasters";
+hmCatalog["400"] = "C400-Artifices&Explosifs - Explosives";
+hmCatalog["405"] = "C405-Energies";
+hmCatalog["410"] = "C410-Polyethylene";
+hmCatalog["415"] = "C415-Fournitures pour fabrication -";
+hmCatalog["420"] = "C420-Marquage - Ink and solvents";
+hmCatalog["425"] = "C425-Ajouts - Additives";
+hmCatalog["430"] = "C430-Billes - Polystyrene beads";
+hmCatalog["435"] = "C435-Parements plaques de plâtre -";
+hmCatalog["440"] = "C440-Papiers - Paper";
+hmCatalog["441"] = "C441-Papiers Essais - Paper test";
+hmCatalog["442"] = "C442-Papiers Réseaux - Honeycomb Paper";
+hmCatalog["445"] = "C445-Acc papiers - Paper accessories";
+hmCatalog["450"] = "C450-Papiers recyclés - Recycled paper";
+hmCatalog["455"] = "C455-Produits nettoyant&chaufferie - Cleaning products";
+hmCatalog["460"] = "C460-Solutions mères&premix - Premixes";
+hmCatalog["465"] = "C465-Carreaux internes - Internal gypsum blocks";
+hmCatalog["470"] = "C470-Gypse mat 1ère - Gypsum rock raw material";
+hmCatalog["475"] = "C475-Papiers internes - Internal paper";
+hmCatalog["480"] = "C480-Colles mat 1ère - Glues";
+hmCatalog["485"] = "C485-Acier - Steel";
+hmCatalog["500"] = "C500-Etiquettes - Labels";
+hmCatalog["505"] = "C505-Bandes gommées - End tapes";
+hmCatalog["510"] = "C510-Cartons d emballage - Packaging cardboard";
+hmCatalog["515"] = "C515-Cales - Bearers";
+hmCatalog["520"] = "C520-Cerclage -";
+hmCatalog["525"] = "C525-Sacherie - Bags";
+hmCatalog["530"] = "C530-Big bags";
+hmCatalog["535"] = "C535-Palets";
+hmCatalog["540"] = "C540-Récipients - Small containers";
+hmCatalog["600"] = "C600-Prestia Plâtre formulé automatique - Auto formulated gypsum";
+hmCatalog["605"] = "C605-Prestia Plâtre formulé manuel - Manual formulated gypsum";
+hmCatalog["610"] = "C610-Prestia Plâtre non formulé - Non formulated gypsum";
+hmCatalog["650"] = "C650-LCL Liants - Adhesives";
+hmCatalog["655"] = "C655-LCL Adjuvants - Additives";
+hmCatalog["660"] = "C660-LCL Billes PSE - Polystyrene beads";
+hmCatalog["665"] = "C665-LCL Outillage - Tools";
+hmCatalog["670"] = "C670-LCL Accessoires marketing - Marketing accessories";
+hmCatalog["690"] = "C690-Noble Perlite";
+hmCatalog["700"] = "C700-Platec Acc finition - Finishing accessories";
+hmCatalog["705"] = "C705-Platec Acc ouvr verticaux - Partition accessories";
+hmCatalog["710"] = "C710-Platec Enduits - Jointing compounds";
+hmCatalog["715"] = "C715-Platec Outillage - Tools";
+hmCatalog["730"] = "C730-Platec Prestations - Services";
+hmCatalog["999"] = "C999-Produits génériques - Generic products";
+
+//EntryNode getEn(hmGlobals,item,String)
+//Return the entry node 
+//Parameters
+//-hmGlobals : global variable to call the function getEntryNodeForAttributePath
+//-item : item (generic)
+//-String : name of the attribute
+//Returns EntryNode
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getProductItem(item, strItemType){
+	var itmProdItem = item;
+	var sAttribPath = "SC000-GlobPrim/99CTL100-ParentItem";
+    if(strItemType == "Pitem2"){
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Pitem1") {
+    	itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath).getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    if (strItemType == "Bunit") {
+		itmProdItem = item.getItemUsingEntryRelationshipAttrib(sAttribPath);
+    }
+    return itmProdItem;
+}
+
+/// @brief Saves the item and throws an exception if there are validation errors.
+/// @brief Helper function for saving items and throwing possible validation errors
+/// @param itm - catalog item
+/// @return void -
+//:PRFUNCTION void saveItem(Item itm)
+function saveItem(itm) {
+	var errors = itm.saveCtgItem();
+	if (errors != null) {
+		var sKey = checkString(itm.getPrimaryKey(), "NULL");
+		var globalErrors = errors.getGlobalErrors();
+		if (globalErrors != null && globalErrors.size() > 0) {
+			log("ERROR", [], "Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+			throwError("Global errors on save of item '" + sKey + "': " + checkString(globalErrors, ""));
+		}
+		var locationErrors = errors.getLocationErrors();
+		if (locationErrors != null && locationErrors.size() > 0) {
+			log("ERROR", [], "Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+			throwError("Location errors on save of item '" + sKey + "': " + checkString(locationErrors, ""));
+		}
+	}
+}
+
+function getItemType(item,hmGlobals) {
+	var itemPK=item.getPrimaryKey();
+	var itemType="";
+	if (itemPK.contains("P")) {
+		itemType="Prod";
+	}
+	else if (itemPK.contains("B")) {
+		itemType="Bunit";
+	}
+	else if (itemPK.contains("I")) {
+		var itemParentPK=getEn(hmGlobals,item,"99CTL100-ParentItem")[0].getEntryNodeValue();
+		var relatedEntryId=checkInt(itemParentPK,0);
+		var relatedItemArray=item.getEntryRelatedItemInfo(relatedEntryId);
+		var relatedItemPk=checkString(relatedItemArray[1],"");
+		if(relatedItemPk!=null && relatedItemPk!="") {
+			if (relatedItemPk.contains("B")) {
+				itemType="Pitem1";
+			}
+			else if (relatedItemPk.contains("I")) {
+				itemType="Pitem2";
+			}
+		}
+	}
+	return(itemType);
+}
+
+function fillSalesAttribs(itmProcessingItem, hmGlobals, intOccurrence, itemAttrs, specName, strItemType){
+	log("DEBUG", [], "Filled attribs in   :    " + intOccurrence);
+	itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0759-Counter", itemAttrs["UMREZ"]);
+	itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0760-Denominator", itemAttrs["UMREN"]);
+	itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0771-AlternativeUnit", itemAttrs["MEINH"]);
+	
+	var oGTINEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0804-GTIN");
+	if (oGTINEn!=null) {		
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0804-GTIN", itemAttrs["EAN11"]);
+	}
+	var oEANCategoryEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0805-EANCategory");
+	if (oEANCategoryEn!=null) {		
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0805-EANCategory", itemAttrs["NUMTP"]);
+	}
+	var oLengthOrDepthEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0798-LengthOrDepth");
+	if (oLengthOrDepthEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0798-LengthOrDepth", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["LAENG"]), 3), null, null));
+	}
+	var oWidthEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0797-Width");
+	if (oWidthEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0797-Width", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["BREIT"]), 2), null, null));
+	}
+	var oThicknessOrHeightEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0796-ThicknessOrHeight");
+	if (oThicknessOrHeightEn!=null) {
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0796-ThicknessOrHeight", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["HOEHE"]), 2), null, null));
+	}
+	var oDimensionsUnitEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0806-DimensionsUnit");
+	if (oDimensionsUnitEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0806-DimensionsUnit", itemAttrs["MEABM"]);
+	}
+	var oGrossVolumeEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0802-GrossVolume");
+	if (oGrossVolumeEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0802-GrossVolume", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["VOLUM"]), 4), null, null));
+	}
+	var oGrossVolumeUnitEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0803-GrossVolumeUnit");
+	if (oGrossVolumeUnitEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0803-GrossVolumeUnit", itemAttrs["VOLEH"]);
+	}
+	var ogrossWeightEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0800-grossWeight");
+	if (ogrossWeightEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0800-grossWeight", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["BRGEW"]), 3), null, null));
+	}
+	var oGrossNetWeightUnitEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0801-GrossNetWeightUnit");
+	if (oGrossNetWeightUnitEn!=null) {	
+		itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0801-GrossNetWeightUnit", itemAttrs["GEWEI"]);
+	}
+	
+	var strMEINS = checkString(itmProcessingItem.getEntryAttrib(specName + "/06DN0661-BaseUnitOfMeasure"), "");
+	if(strMEINS == itemAttrs["MEINH"]){
+		var onetWeightEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0799-netWeight");
+		if (onetWeightEn!=null) {	
+			itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0799-netWeight", parseNumber(formatNumberByPrecision(toDouble(itemAttrs["NTGEW"]), 3), null, null));
+		}
+	}
+	else{
+		var numUmrez = toDouble(itemAttrs["UMREZ"]);
+		var numUmren = toDouble(itemAttrs["UMREN"]);
+		var numNtgew = toDouble(itemAttrs["NTGEW"]);
+		var numNTGEW = (numNtgew * numUmrez)/numUmren;
+		numNTGEW = toDouble(formatNumberByPrecision(numNTGEW, 3));
+		var onetWeightEn=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(itmProcessingItem,"AlternativeUnitGroup#" + intOccurrence +"/06DN0799-netWeight");
+		if (onetWeightEn!=null) {	
+			itmProcessingItem.setEntryAttrib(specName + "/AlternativeUnitGroup#" + intOccurrence +"/06DN0799-netWeight", numNTGEW);
+		}
+		log("DEBUG", [], "Netto gewicht berekend   :  " + checkString(numNTGEW , ""));
+	}
+	
+	
+	return null;
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	
+	ctg.disableContainerProcessingOptions(optionstodesactivate);
+	
+	scriptnameTemp[0]="";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+	ctg.saveCatalog();
+}
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+
+disableBatchProcessingForItems();
+log("DEBUG", [], "Started SAP Sales Import");
+log("DEBUG", [], "catalogs initialized");
+var parser = newDelimParser(in, ";");
+//skip two lines
+var attrs = parser.splitLine();
+attrs = parser.splitLine();
+log("DEBUG", [], "Skipped two lines in the import  :  " + attrs[0]);
+var bDone = false;
+
+while(!bDone)
+{
+    attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone)
+    {
+        var itemAttrs = [];
+		itemAttrs["ZZERPCODE"] = checkString(attrs[1], "");
+		itemAttrs["MEINH"] = checkString(attrs[2], "");//06DN0771-AlternativeUnit
+		itemAttrs["UMREZ"] = checkString(attrs[3], "");//06DN0760-Denominator
+		itemAttrs["UMREN"] = checkString(attrs[4], "");//06DN0759-Counter
+		itemAttrs["EAN11"] = checkString(attrs[5], "");//06DN0804-GTIN
+		itemAttrs["NUMTP"] = checkString(attrs[6], "");//06DN0805-EANCategory
+		itemAttrs["LAENG"] = checkString(attrs[7], "");//06DN0798-LengthOrDepth
+		itemAttrs["BREIT"] = checkString(attrs[8], "");//06DN0797-Width
+		itemAttrs["HOEHE"] = checkString(attrs[9], "");//06DN0796-ThicknessOrHeight
+		itemAttrs["MEABM"] = checkString(attrs[10], "");//06DN0806-DimensionsUnit
+		itemAttrs["VOLUM"] = checkString(attrs[11], "");//06DN0802-GrossVolume
+		itemAttrs["VOLEH"] = checkString(attrs[12], "");//06DN0803-GrossVolumeUnit
+		itemAttrs["BRGEW"] = checkString(attrs[13], "");//06DN0800-grossWeight
+		itemAttrs["GEWEI"] = checkString(attrs[14], "");//06DN0801-GrossNetWeightUnit
+		itemAttrs["NTGEW"] = checkString(attrs[15], "");//06DN0799-netWeight
+		
+		
+		if(itemAttrs["ZZERPCODE"] != ""){
+			
+			var strCatalogCode = substring(itemAttrs["ZZERPCODE"], 1, 4);
+			if(strCatalogCode == "010"){
+			
+				var ctgProcessingCatalog = getCtgByName(hmCatalog[strCatalogCode]);
+				var processingOptions = [];
+				processingOptions[0] = "ALL";
+				
+				ctgProcessingCatalog.disableContainerProcessingOptions(processingOptions);
+				
+				//Get item by ERP code 
+				//get attached secondary specname
+				//update attributes  
+				
+				var itmProcessingItem = ctgProcessingCatalog.getEntryByPrimaryKey(itemAttrs["ZZERPCODE"]);
+				if(itmProcessingItem != null){
+					log("DEBUG", [], "Item : " + itemAttrs["ZZERPCODE"]);
+					var strItemType= getItemType(itmProcessingItem, hmGlobals);
+					if(strItemType != "Prod" || (strCatalogCode == "010" && strItemType == "Prod")){
+						log("DEBUG", [], "strItemType : " + strItemType);
+						var catProcessingItem = itmProcessingItem.getCtgItemCategories("H000-Typology")[0];
+						var strSecSpecName = catProcessingItem.getItemSecondarySpecsForCategory(ctgProcessingCatalog)[0].getSpecName();
+
+						//get all AlternativeUnitGroups
+						
+						var hmAUG = itmProcessingItem.getEntryAttribValues(strSecSpecName + "/AlternativeUnitGroup/06DN0771-AlternativeUnit");
+						//See if the AUG is already in the list
+						var intAlternativeUnit = null;
+						var intCount = null;
+						var strAlternativeUnit = null;
+						var boolNewAUG = true;
+						var intAUGCount = hmAUG.size();
+						log("DEBUG", [], "itemAttrs[MEINH] : " + itemAttrs["MEINH"]);		
+						forEachHmElement(hmAUG, intCount, intAlternativeUnit){
+							strAlternativeUnit = checkString(itmProcessingItem.getEntryAttrib(strSecSpecName + "/AlternativeUnitGroup#" + intCount + "/06DN0771-AlternativeUnit"), "");
+							log("DEBUG", [], "strAlternativeUnit : " + strAlternativeUnit);
+							if(strAlternativeUnit != "" && strAlternativeUnit != null){
+								if(strAlternativeUnit == itemAttrs["MEINH"]){
+									boolNewAUG = false;
+									log("DEBUG", [], "Updated AUG   [" + intCount +  "]   :   " + strAlternativeUnit);
+									fillSalesAttribs(itmProcessingItem, hmGlobals, intCount, itemAttrs, strSecSpecName, strItemType);
+								}
+							}
+						}
+						
+						if(boolNewAUG){
+							log("DEBUG", [], "New AUG [" + intAUGCount +  "]   :   " + itemAttrs["MEINH"]);
+							fillSalesAttribs(itmProcessingItem, hmGlobals, intAUGCount, itemAttrs, strSecSpecName, strItemType);
+						}
+						
+						saveItem(itmProcessingItem);
+					}
+				}
+			}
+		}
+    }
+}
+
+// (3) reactivate ctg rules
+var scriptnameTemp2=[];
+
+forEachHmElement(ctgs,oKey,ctgName) {
+    // out.writeln("----------------------"+ctgName);
+    var ctg = getCtgByName(ctgName);
+	scriptnameTemp2[0]="LG.Catalog.PreProc";
+	ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+	ctg.saveCatalog();
+}
+
+log("DEBUG", [], "Import completed. : " );

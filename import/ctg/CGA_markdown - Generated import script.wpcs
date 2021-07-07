@@ -1,0 +1,33 @@
+var book = new ExcelBook(null,"XLSX");
+var sheet = book.getExcelSheet(0);
+var parser = new ExcelParser(sheet);
+
+parser.splitLine();
+parser.splitLine();
+
+var bDone = false;
+while(!bDone)
+{
+    var attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone)
+    {
+        var itemAttrs = [];
+        itemAttrs["CGA_markdown/01AC0044-ERPCode"] = attrs[0];
+        itemAttrs["CGA_markdown/01AC0012-LongName"] = attrs[1];
+        itemAttrs["CGA_markdown/03FN0065-DescriptionLong"] = attrs[2];
+        itemAttrs["CGA_markdown/03FN0067-ProductQualities"] = attrs[3];
+        itemAttrs["CGA_markdown/03FN0066-TradeItemDescriptionShort"] = attrs[4];
+        itemAttrs["CGA_markdown/04CP0220-ProductEquipement"] = attrs[5];
+        itemAttrs["CGA_markdown/07MO0465-ImplementationAdvice"] = attrs[6];
+        itemAttrs["CGA_markdown/07MO0466-UsageAdvice"] = attrs[7];
+        itemAttrs["CGA_markdown/07MO0467-Application"] = attrs[8];
+        var itemValidatedAttrs = validateMappedAttribs(itemAttrs);
+        if (null != itemValidatedAttrs)
+        {
+            var item = buildCtgItem();
+            item.setCtgItemMappedAttribs(itemValidatedAttrs);
+            item.saveCtgItem();
+        }
+    }
+}

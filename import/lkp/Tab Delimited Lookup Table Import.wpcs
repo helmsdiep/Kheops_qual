@@ -1,0 +1,34 @@
+var parser = newDelimParser(in, "\t");
+var bDone = false;
+var validEntries = 0;
+var invalidEntries = 0;
+
+while (!bDone)
+{
+    var aTokens = parser.splitLine();
+    bDone = (null == aTokens);
+
+    if (!bDone)
+    {
+        var valid = true;
+        var key   = aTokens[0];
+        var values = [];
+
+        var i = 1;
+        while (i<aTokens.size())
+        {
+            values[i-1] = aTokens[i];
+            i = i + 1;
+        }
+
+        valid = lkpTable.addRowByOrder(key, values);
+
+        if (valid) {
+            validEntries = validEntries + 1;
+        }
+
+        else {
+            invalidEntries = invalidEntries + 1;
+        }
+    }
+}

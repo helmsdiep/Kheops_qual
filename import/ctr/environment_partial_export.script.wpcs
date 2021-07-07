@@ -1,0 +1,53 @@
+function isChecked(paramName)
+{
+    return checkString(inputs[paramName], "FALSE") == "TRUE";
+}
+
+var sExportFilePath = "/archives/export." + formatDate(today(), "HHmmss") + ".zip";
+
+var e = "";
+catchError(e)
+{
+    var exportList = new EnvObjectList();
+
+    if (isChecked("Scripts"))
+    {
+        exportList.addObjectByNameToExport("DOC_STORE", "\scripts");
+    }
+    if (isChecked("Feeds"))
+    {
+        exportList.addAllObjectsToExport("FEEDS");
+    }
+    if (isChecked("Exports"))
+    {
+        exportList.addAllObjectsToExport("EXPORTS");
+    }
+    if (isChecked("Lookup Tables"))
+    {
+        exportList.addAllObjectsToExport("LOOKUP_TABLE");
+    }
+    if (isChecked("Roles"))
+    {
+        exportList.addAllObjectsToExport("ROLES");
+    }
+    if (isChecked("Users"))
+    {
+        exportList.addAllObjectsToExport("USERS");
+    }
+    if (isChecked("Schedules"))
+    {
+        exportList.addAllObjectsToExport("JOBS");
+    }
+    exportList.exportEnv(sExportFilePath);
+}
+
+if (e == null)
+{
+    out.writeln("Export ran successfully <a target=\"_blank\" href=" + getHrefForDocPath(sExportFilePath) + ">[Export]</a>");
+}
+
+if (e != null)
+{
+    out.writeln("Export failed to run [" + e + "]");
+}
+

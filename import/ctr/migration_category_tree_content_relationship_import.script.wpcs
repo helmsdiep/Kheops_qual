@@ -1,0 +1,204 @@
+var delim = "~~~~~";
+
+
+
+var ctr = getCategoryTreeByName();
+
+
+
+var ctrSpec = ctr.getCategoryTreeSpec();
+
+var pkNode = ctrSpec.getPrimaryKeyNode();
+
+var pkNodePath = "/" + pkNode.getNodePath();
+
+
+
+var processingOptions = [];
+
+processingOptions.add("ALL");
+
+ctr.disableContainerProcessingOptions(processingOptions);
+
+
+
+// cache related catalog objects so that we are not retrieving them from the db every time
+
+var relatedCatalogs = [];
+
+
+
+var my_parser = new CSVParser(in);
+
+
+
+var bDone = false;
+
+
+
+while ( ! bDone )
+
+{
+
+    var f = "";
+
+    catchError (f)
+
+    {
+
+        var category = null;
+
+        var hasRelationshipAttrib = false;
+
+        var attrs = my_parser.splitLine();
+
+        bDone = (null == attrs);
+
+        if ( ! bDone )
+
+        {
+
+            var g = "";
+
+            catchError (g)
+
+            {
+
+                var sCatPK = "";
+
+                var hmRelationshipAttrib = [];
+
+                // loop over fields setting the appropriate attribute
+
+                // using the name-value pair in each field
+
+                for ( var i = 0; i < attrs.size(); i++ )
+
+                {
+
+                    var attr_name_value = attrs[i].parseDelim("|");
+
+                    var attr_name = attr_name_value[0];
+
+                    var attr_value = attr_name_value[1];
+
+
+
+                    if ( null != attr_name && "" != attr_name && null != attr_value && "" != attr_value )
+
+                    {
+
+                        if ( (attr_name == (pkNodePath+ "#0")) || (attr_name == pkNodePath) )
+
+                        {
+
+                            sCatPK = attr_value;
+
+                        }
+
+
+
+                        if ( attr_value == "RELATIONSHIP_INFO" )
+
+                        {
+
+                            var relatedCatalogName = attr_name_value[2];
+
+                            var relatedItemPrimaryKey = attr_name_value[3];
+
+
+
+                            var relatedCatalog = relatedCatalogs[relatedCatalogName];
+
+
+
+                            if ( null == relatedCatalog )
+
+                            {
+
+                                relatedCatalog = getCtgByName(relatedCatalogName);
+
+                                relatedCatalogs[relatedCatalogName] = relatedCatalog;
+
+                            }
+
+
+
+                            if ( null != relatedCatalog && null != relatedItemPrimaryKey )
+
+                            {
+
+                                hmRelationshipAttrib[attr_name] = escapeForCSV(relatedCatalogName) + "," + escapeForCSV(relatedItemPrimaryKey);
+
+                                hasRelationshipAttrib = true;
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+
+
+                if ( hasRelationshipAttrib )
+
+                {
+
+                    if(sCatPK != "")
+
+                    {
+
+                        var catset = ctr.getCategorySetByPrimaryKey(sCatPK);
+
+                        if(catset != null && catset.getCategorySetSize() > 0)
+
+                        {
+
+                            var category = null;
+
+                            var cat = null;
+
+                            forEachCategorySetElement(catset, cat)
+
+                            {
+
+                                category = cat;
+
+                                break;
+
+                            }
+
+                            if(category != null)
+
+                            {
+
+                                var sAttrName;
+
+                                var csvCtgAndKey;
+
+                                forEachHmElement(hmRelationshipAttrib, sAttrName, csvCtgAndKey) {
+
+                                    var aTokens = csvCtgAndKey.parseDelim(",");
+
+                                    category.setEntryRelationshipAttrib(sAttrName, relatedCatalogs[aTokens[0]], aTokens[1]);
+
+                                }
+
+                            }//end-if category null check
+
+                        }//catset null check
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+}
+

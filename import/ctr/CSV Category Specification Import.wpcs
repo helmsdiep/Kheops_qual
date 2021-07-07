@@ -1,0 +1,21 @@
+var parser = newCSVParser(in);
+var bDone = false;
+var delimiter = "/";
+
+while (!bDone)
+{
+    var aTokens = parser.splitLine();
+    bDone = (null == aTokens);
+
+    if (!bDone)
+    {
+        var categPath     = aTokens[0];
+        var categSpecName = aTokens[1];
+        var categ         = getCategoryTreeByName().buildCategory(categPath, delimiter);
+        categ.setPrimaryKey(categPath.getNameFromPath(delimiter));    
+        if(categSpecName!=null)
+        {
+            categ.addItemSecondarySpecToCategory(categSpecName);
+        }
+    }
+}

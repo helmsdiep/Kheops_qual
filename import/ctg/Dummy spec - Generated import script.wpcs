@@ -1,0 +1,19 @@
+var parser = newCSVParser(in);
+var bDone = false;
+while(!bDone)
+{
+    var attrs = parser.splitLine();
+    bDone = (null == attrs);
+    if (!bDone)
+    {
+        var itemAttrs = [];
+        itemAttrs["Dummy spec/test"] = attrs[0];
+        var itemValidatedAttrs = validateMappedAttribs(itemAttrs);
+        if (null != itemValidatedAttrs)
+        {
+            var item = buildCtgItem();
+            item.setCtgItemMappedAttribs(itemValidatedAttrs);
+            item.saveCtgItem();
+        }
+    }
+}

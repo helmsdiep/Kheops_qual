@@ -1,0 +1,79 @@
+var parser = newDelimParser(in, "\t");
+var bDone = false;
+
+// First line (spec)
+var hmColPath = [];
+var attrs = parser.splitLine();
+bDone = (null == attrs);
+
+var e = "";
+catchError(e)
+{
+    if (!bDone)
+    {
+        // Reading from the script context
+        var specMapName = getDefaultSpecMapName();
+        var specMap     = getSpecMapByName(specMapName);
+        var fileSpec     = specMap.getSpecMapSrcObject();
+        var fileSpecName = fileSpec.getSpecName();
+        var catalogSpec  = specMap.getSpecMapDstObject();
+        var catalogSpecName = catalogSpec.getSpecName();
+
+        // New spec
+        fileSpec = new Spec(fileSpecName, "FILE_SPEC");
+        fileSpec.setAttribute("FILE_TYPE", "T");
+
+        for (var i=0; i<attrs.size(); i++)
+        {
+            var path = fileSpecName + "/" + trim(attrs[i]);
+            hmColPath[i] = path;
+            var node = fileSpec.buildSpecNode(path, i+1);
+            node.setAttribute("TYPE", "STRING");
+        }
+        fileSpec.saveSpec();
+
+        // New map
+        specMap =  new SpecMap(specMapName, "FILE_CAT_MAP", fileSpec, catalogSpec);
+
+        for (var i=0; i<attrs.size(); i++)
+        {
+            specMap.map(fileSpecName + "/" + trim(attrs[i]), catalogSpecName + "/" + trim(attrs[i]));
+        }
+        specMap.saveSpecMap();
+
+        // Back into the script context
+        setScriptContextValue("$specmap", specMap);
+    }
+}
+
+if (e!=null)
+{
+    throwError("Could not build spec and spec map automatically from first row: " + e);
+}
+else
+{
+    // Rest of the file (items)
+    while(!bDone)
+    {
+        var attrs = parser.splitLine();
+        bDone = (null == attrs);
+        if (!bDone)
+        {
+            var itemAttrs = [];
+            var col;
+            var path;
+            forEachHmElement(hmColPath, col, path)
+                {
+                    itemAttrs[path] = attrs[col];
+                }
+
+            var itemValidatedAttrs = validateMappedAttribs(itemAttrs);
+            if (null != itemValidatedAttrs)
+            {
+                var item = buildCtgItem();
+                item.setCtgItemMappedAttribs(itemValidatedAttrs);
+                item.saveCtgItem();
+            }
+        }
+    }
+}

@@ -1,0 +1,99 @@
+var delim = "~~~~~";
+var my_parser = new CSVParser(in);
+
+var category_tree = getCategoryTreeByName();
+
+var ctrSpec = category_tree.getCategoryTreeSpec();
+
+var bDefaultHierarchySpec = ( getStringValueForClassMember("com.ibm.ccd.common.util.Const", "DEFAULT_HIERARCHY_SPEC_NAME") == ctrSpec.getSpecName() );
+
+var processingOptions = [];
+// processingOptions.add("ALL");
+processingOptions.add("PRE_SCRIPT");
+processingOptions.add("POST_SCRIPT");
+processingOptions.add("VALUE_RULES");
+processingOptions.add("VALIDATION_RULES");
+processingOptions.add("DEFAULT_VALUES");
+// processingOptions.add("SEQUENCES");
+processingOptions.add("TYPE_VALIDATION");
+processingOptions.add("MERGE_WITH_OLD_VERSION");
+processingOptions.add("MIN_MAX_OCCURANCE");
+processingOptions.add("MIN_MAX_LENGTH");
+processingOptions.add("POSSIBLE_VALUES");
+processingOptions.add("PATTERN_VALIDATION");
+processingOptions.add("LOCK_CATEGORIES_FOR_ITEM_SAVE");
+processingOptions.add("LOCKING");
+
+category_tree.disableContainerProcessingOptions(processingOptions);
+
+var bDone = false;
+
+while ( ! bDone )
+{
+    var f = "";
+    catchError (f)
+    {
+        var category = null;
+        var attrs = my_parser.splitLine();
+        bDone = (null == attrs);
+        if ( ! bDone )
+        {
+            var g;
+            catchError (g)
+            {
+                // loop over fields setting the appropriate attribute
+                // using the name-value pair in each field
+                for (var i = 0; i < attrs.size(); i++ )
+                {
+                    var attr_name_value = attrs[i].parseDelim("|");
+                    var attr_name = attr_name_value[0];
+                    var attr_value = attr_name_value[1];
+
+                    if ( null != attr_name && "" != attr_name && null != attr_value && "" != attr_value )
+                    {
+                        if ( attr_name == "CATEGORY_PATH" )
+                        {
+                            var indexOfDelim = attr_value.indexOf(delim);
+                            // var category_tree_name = attr_value.substring(0, indexOfDelim);
+                            var category_path = attr_value.substring(indexOfDelim + delim.length());
+                            category = new Category(category_tree, category_path, delim);
+                            if ( bDefaultHierarchySpec )
+                            {
+                                category.setPrimaryKey(getNameFromPath(category_path, delim));
+                            }
+                        }
+                        else if ( attr_name == "CATEGORY_SPEC" )
+                        {
+                            category.addSecondarySpecToCategory(attr_value);
+                        }
+                        else if ( attr_name == "ITEM_SPEC" )
+                        {
+                            category.addItemSecondarySpecToCategory(attr_value);
+                        }
+                        else if ( attr_name == "CODE" )
+                        {
+                            // do nothing for the moment
+                        }
+                        else if ( attr_name == "DISPLAY_NAME" )
+                        {
+                            // do nothing for the moment
+                        }
+                        else if ( attr_name == "NAME_PATH" )
+                        {
+                            // do nothing for the moment
+                        }
+                        else if ( attr_name == "CODE_PATH" )
+                        {
+                            // do nothing for the moment
+                        }
+                        else
+                        {
+                            category.setEntryAttrib(attr_name, attr_value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
