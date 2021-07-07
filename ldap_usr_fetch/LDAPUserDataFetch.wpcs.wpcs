@@ -1,0 +1,158 @@
+// ------------------------------------------------------------------------------------------
+// Title:       LDAPUserFetch  - LDAP User Data Fetch Script.
+// Date:        Dec 14 2005
+// Description: This script can be called to fetch the attributes of a LDAP User.
+//
+//Implicit variables available to this script are
+// (a) ldapuser- The user for which the attributes need to be fetched.
+//-------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------
+// Name            : init()
+// Description     : Initialize all the variables and return a hashmap, to be passed on to all the functions
+// Input Param     : 
+// Return Values   : Hashmap of the global variables
+//-------------------------------------------------------------
+function init(){
+
+    var variables = [];
+  
+    //Implicit user object.
+    var scuUser                    = ldapuser;
+    
+    //Scripts used by this script.
+    var script        = getScriptByPath("/scripts/triggers/LDAPLibrary.wpcs");
+    var libraryLogger = getScriptByPath("/scripts/triggers/LdapLibraryLogger.wpcs");
+    var loginScript   = getScriptByPath("/scripts/login/Login.wpcs");
+    
+    // Logger functions
+    variables["log"]                   = libraryLogger.getFunctionByName("log");
+    variables["logger_name"]             = "ldap";  // Log file will be created under logs folder (ldap.log). Needs configuration in etc/default/log.xml
+    
+  
+    //Functions used by this script.
+    variables["rootCtxFn"]            = loginScript.getFunctionByName("getRootLdapContext");
+    variables["searchFn"]             = script.getFunctionByName("search");
+    variables["getLDAPUserDataFn"]    = script.getFunctionByName("getLDAPUserData");
+    variables["getLDAPUserAttribsFn"] = script.getFunctionByName("getLDAPUserAttribs");
+    
+    var initFn = loginScript.getFunctionByName("init");
+    var globals = initFn.invoke();
+      
+    //Variables for root user.Use values from the login script.
+    variables["globals"]         = globals;
+    variables["ldapURL"]         = scuUser.getLdapServerUrl(); //"ldap://9.182.149.92:389";
+    var ldapURL = variables["ldapURL"];
+    // WPC 29333 stale users may not have a reference to a server present in globals being used.
+    if (globals[ldapURL]!=null)
+    {
+        variables["rootPrincipal"]   = globals[ldapURL]["rootUser"]; //"cn=root";
+        variables["rootPassword"]    = globals[ldapURL]["rootPassword"]; //"root1234";
+        variables["rootAuthType"]    = globals[ldapURL]["rootBindType"]; //"simple";
+        variables["namingAttribute"] = globals[ldapURL]["ldap_name_attribute"]; //"uid";
+        variables["parentDN"]        = globals[ldapURL]["userParentDNs"];
+    }
+    //Define the attributes to be fetched.These are specific to the LDAP Server.
+    var attrs = [];
+
+
+    //Get the lookup table LDAP Properties.
+    var lookupTableName =  getSystemMessageByName(getStringValueForClassMember("com.ibm.ccd.common.util.Const", "LDAP_PROPERTIES_LOOKUP_TABLE_NAME_INDEX"),getDefaultLocale());
+    var lookupTable = getLkpByName(lookupTableName);
+    var keys = lookupTable.getLkpKeys();
+    
+    for(var i=0; i< keys.size(); i++){
+        
+        //If the url matches with the lookup table entry then get the attributes to be fetched from the lookup table.
+        if(variables["ldapURL"] == keys[i]){
+            var sLookupValues  = lookupValues(lookupTable,keys[i]);
+            attrs[0] = sLookupValues[12];//"givenname"; //first name
+            attrs[1] = sLookupValues[13];//"sn";//last name
+            attrs[2] = sLookupValues[14];//"cn";//full name
+            attrs[3] = sLookupValues[15];//"mail";//mail id
+            attrs[4] = sLookupValues[16];//"telephonenumber";//telphone number
+            attrs[5] = sLookupValues[17];//"facsimiletelephonenumber";//Fax Number
+            attrs[6] = sLookupValues[18];//"postaladdress";//Postal Address
+            attrs[7] = sLookupValues[19];//"title";
+
+            break;
+        }           
+    }
+
+    variables["attrs"] = attrs;
+    return variables;
+}
+
+
+
+
+var ee;
+var variables = init();
+
+catchError(ee){
+    
+    var scuUser = ldapuser;
+    var attrs   = variables["attrs"];
+    var log     = variables["log"];
+    var logger_name = variables["logger_name"];
+    var ctx = variables["rootCtxFn"].invoke( variables["rootPrincipal"], variables["rootPassword"], variables["ldapURL"], variables["globals"]);
+    log.invoke("INFO","[LDAP User Data Fetch] got the root context " + ctx, logger_name);
+
+    //The username and naming attribute would be obtained from the scripting context.
+    //var userInfo = getLDAPUserDataFn.invoke(ctx, parentDN, "(" + namingAttribute + "=" + scuUser.getUserName() + ")"); 
+    var userInfo = variables["getLDAPUserDataFn"].invoke(ctx, variables["parentDN"], "(" + variables["namingAttribute"] + "=" + scuUser.getUserName() + ")"); 
+
+    log.invoke("INFO", "[LDAP User Data Fetch] search for the ldap user " + scuUser.getUserName() + " was successfull", logger_name);
+    
+    var attribValues = variables["getLDAPUserAttribsFn"].invoke(userInfo, variables["attrs"]);
+    log.invoke("INFO", "[LDAP User Data Fetch] searched all attributes for " + scuUser.getUserName() + " " + attribValues, logger_name);
+
+    var firstName = attribValues[attrs[0]];
+    if(firstName != null){
+        scuUser.setUserFirstName(firstName);
+        log.invoke("INFO", "[LDAP User Data Fetch] first name " + firstName, logger_name);
+    }
+
+    var lastName = attribValues[attrs[1]];
+    if(lastName != null){
+       scuUser.setUserLastName(lastName);
+       log.invoke("INFO", "[LDAP User Data Fetch] last name " + lastName, logger_name);
+    }
+
+    var mailID = attribValues[attrs[3]];
+    if(mailID != null){
+        scuUser.setUserEmail(mailID);
+        log.invoke("INFO", "[LDAP User Data Fetch] mailID " + mailID, logger_name);
+    }
+
+    var telephoneNumber = attribValues[attrs[4]];
+    if(telephoneNumber != null){
+        scuUser.setUserPhone(telephoneNumber);
+        log.invoke("INFO", "[LDAP User Data Fetch] telephoneNumber " + telephoneNumber, logger_name);
+    }
+
+    var faxNumber = attribValues[attrs[5]];
+    if(faxNumber != null){
+        scuUser.setUserFax(faxNumber);
+        log.invoke("INFO", "[LDAP User Data Fetch] faxNumber " + faxNumber, logger_name);
+    }
+
+    var postalAddress = attribValues[attrs[6]];
+    if(postalAddress != null){
+        scuUser.setUserAddress(postalAddress);
+        log.invoke("INFO", "[LDAP User Data Fetch] postalAddress " + postalAddress, logger_name);
+    }
+
+    var title = attribValues[attrs[7]];
+    if(title != null){
+        scuUser.setUserTitle(title);
+        log.invoke("INFO", "[LDAP User Data Fetch] title " + title, logger_name);
+    }
+}
+
+if(ee != null){
+    var log     = variables["log"];
+    log.invoke("ERROR", "[LDAP User Data Fetch] ERROR!! " + ee, variables["logger_name"]);
+
+}

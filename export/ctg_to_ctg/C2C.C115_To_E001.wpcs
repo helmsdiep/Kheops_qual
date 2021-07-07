@@ -1,0 +1,1 @@
+getScriptByPath("/scripts/triggers/LG.Library.CatalogToE001").getFunctionByName("send_catalog_to_E001").invoke();

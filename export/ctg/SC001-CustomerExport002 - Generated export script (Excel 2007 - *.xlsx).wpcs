@@ -1,0 +1,942 @@
+var item;
+// For Excel create a book and sheet to export to.
+var book = new ExcelBook(null,"XLSX");
+var sheet = book.createExcelSheet();
+var row;
+var rowIndex=0;
+var style;
+forEachCtgItem(item)
+{
+    var itemAttrs = item.getCtgItemMappedAttribs();
+    var itemValidatedAttrs = validateMappedAttribs(itemAttrs);
+    if (null != itemValidatedAttrs)
+    {
+        var cell;
+        var cellIndex=0;
+        var attrDate;
+        var attrString;
+        var attrNum;
+        var fr_FR_16 =new Locale("fr","FR");
+        var fr_FR_18 =new Locale("fr","FR");
+        var fr_FR_20 =new Locale("fr","FR");
+        var fr_FR_22 =new Locale("fr","FR");
+        var fr_FR_24 =new Locale("fr","FR");
+        var fr_FR_26 =new Locale("fr","FR");
+        var fr_FR_27 =new Locale("fr","FR");
+        var fr_FR_44 =new Locale("fr","FR");
+        var fr_FR_46 =new Locale("fr","FR");
+        var fr_FR_48 =new Locale("fr","FR");
+        var fr_FR_50 =new Locale("fr","FR");
+        var fr_FR_52 =new Locale("fr","FR");
+        var fr_FR_53 =new Locale("fr","FR");
+        var fr_FR_70 =new Locale("fr","FR");
+        var fr_FR_72 =new Locale("fr","FR");
+        var fr_FR_74 =new Locale("fr","FR");
+        var fr_FR_76 =new Locale("fr","FR");
+        var fr_FR_78 =new Locale("fr","FR");
+        var fr_FR_79 =new Locale("fr","FR");
+        var fr_FR_91 =new Locale("fr","FR");
+        var fr_FR_103 =new Locale("fr","FR");
+        // create an excel row for this item.
+        row = sheet.createRow(rowIndex);
+        rowIndex++;
+        // then populate the cells with the attributes.
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/LibelleFR"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0019-SdcNatureCode_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0019-SdcNatureCode_C02"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0036-brandName_C12"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0042-GTIN"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0020-UnitDescriptor_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0012-LongName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_01AC0042-GTIN"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_01AC0664-MaterialNumber"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_01AC0020-UnitDescriptor_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_01AC0012-LongName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_01AC0014-invoiceName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0347-TradeItemOrderable"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0732-SalesUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0752-PricingUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0351-orderQuantityMultiple"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0406-NetContent"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0410-NetContentUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0213-netWeight"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0214-netWeightUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0082-RealThickness"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0084-RealThicknessUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0095-Width"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0097-WidthUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0103-Length"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_04CP0104-LengthUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0425-effectiveDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0431-endAvailabilityDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0424-orderingLeadTime_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_06DN0426-orderingLeadTimeUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_12BI0736-Profile_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_12BI0737-BusinessUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_12BI0738-MaterialGroup5_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Bunit_12BI0738-MaterialGroup5_C02"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_01AC0042-GTIN"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_01AC0664-MaterialNumber"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_01AC0020-UnitDescriptor_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_01AC0012-LongName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_01AC0014-invoiceName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0347-TradeItemOrderable"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0732-SalesUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0752-PricingUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0407-TotalQuantityOfNextLowerLevel"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0351-orderQuantityMultiple"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0213-netWeight"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0214-netWeightUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0116-Depth"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0117-DepthUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0114-Height"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0115-HeightUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0095-Width"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_04CP0097-WidthUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0425-effectiveDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0431-endAvailabilityDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0424-orderingLeadTime_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_06DN0426-orderingLeadTimeUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_12BI0736-Profile_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_12BI0737-BusinessUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_12BI0738-MaterialGroup5_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem1_12BI0738-MaterialGroup5_C02"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_01AC0042-GTIN"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_01AC0664-MaterialNumber"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_01AC0020-UnitDescriptor_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_01AC0012-LongName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_01AC0014-invoiceName"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0347-TradeItemOrderable"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0732-SalesUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0752-PricingUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0407-TotalQuantityOfNextLowerLevel"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0351-orderQuantityMultiple"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_04CP0213-netWeight"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_04CP0214-netWeightUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_04CP0116-Depth"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_04CP0117-DepthUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_04CP0114-Height"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_04CP0115-HeightUnits_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_04CP0095-Width"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_04CP0097-WidthUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0425-effectiveDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0431-endAvailabilityDate"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0424-orderingLeadTime_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/PItem2_06DN0426-orderingLeadTimeUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_12BI0736-Profile_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_12BI0737-BusinessUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_12BI0738-MaterialGroup5_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Pitem2_12BI0738-MaterialGroup5_C02"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_03FN0074-ProductPhoto"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_03FN0578-TechnicalForm"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_03FN0065-DescriptionLong"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_03FN0067-ProductQualities"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_03FN0066-TradeItemDescriptionShort"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PC0301-ThermalConductivityLambda"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PC0305-EuroclasseClassification_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PC0300-ThermalResistance"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_02FR0658-ACERMICertificateReference_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_02FR0658-ACERMICertificateReference_C07"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PG0245-ENReference_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PG0767-DOPNumber"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PG0769-DOPUrl"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_04CP0163-FrontFacingColour_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/BUnit_06DN0774-IntrastatCode_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_04CP0226-Material_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/BUnit_04CP0226-Material_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_07MO0486-ShelfLife"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_07MO0487-ShelfLifeUnit_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_05PG0248-NFCertified"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_08IE0488-EnvironmentalBasicData"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_08IE0841-SanitizedCertificateReference_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_08IE0841-SanitizedCertificateReference_C02"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0011-replacementGtin"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Prod_01AC0016-associationType_C01"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+
+        cell = row.createExcelCell(cellIndex);
+        attrString = checkString(itemValidatedAttrs["SC001-CustomerExport002/Item_01AC0044-ERPCode"], "");
+        if (null != attrString) {
+          cell.setCellType("STRING");
+          cell.setStringCellValue(attrString);
+        }
+        cellIndex++; 
+    }
+}
+// Save to the docstore
+book.saveToDocStore();

@@ -1,0 +1,690 @@
+<%
+//script_execution_mode=not_compiled
+
+%>
+<head>
+<script type="text/javascript" src='/js/util/Runtime.js'></script>
+<script type="text/javascript" src='/js/modules/utils.js'></script>
+<script type="text/javascript" src='/js/uicomponents/base.jsp'></script>
+<script src="/js/light_ui.js"></script>
+<script src="/js/light_ui_location.js"></script>
+<script src="/js/uicomponents/editors.js"></script>
+<script>Editor.writeFrames();</script>
+
+
+<script language="Javascript"> 
+as_txt_limit = 115;
+
+function setSingle(val, ob) {
+    for (j = 0; j < ob.options.length; j++) {
+      if (ob.options[j].value == val)
+        ob.options[j].selected = true;
+    }
+}
+
+function setMultiple(arSelected, ob) {
+    for (i = 0; i < arSelected.length; i++) {
+      for (j = 0; j < ob.options.length; j++) {
+        if (ob.options[j].value == arSelected[i])
+          ob.options[j].selected = true;
+      }
+    }
+}
+
+function update() {
+   old = document.f.counter.value;
+   document.f.counter.value=document.f.as_txt.value.length;
+   limit = as_txt_limit;
+   if(document.f.counter.value > limit && old <= limit) {
+     alert('Too much data in the text box!');
+     if(document.styleSheets) {
+       document.f.as_txt.style.color = '#ff0000'; } }
+   else if(document.f.counter.value <= limit && old > limit
+       && document.styleSheets ) {
+       document.f.as_txt.style.color = '#000000'; } 
+}
+
+function ok() {
+  if(document.f.as_txt.value.length > as_txt_limit) {
+    alert('Too much data in the text box! Please remove '+
+     (document.f.as_txt.value.length - as_txt_limit)+ ' characters');
+    return false; }
+  else if (document.f.as_txt.value.length == 0 
+          && document.f.as_ref.value.length == 0
+          && document.f.as_cod.value.length == 0
+          && document.f.as_erpcode.value.length == 0
+		  && document.f.as_gtin.value.length == 0
+          && document.f.as_ep.value.length == 0
+          && document.f.as_wd.value.length == 0
+          && document.f.as_lg.value.length == 0) {
+    alert('You must fill in at least one criteria');
+    return false; }
+  else { 
+    return true; 
+  }
+}
+
+
+</script>
+</head>
+<style>
+.responseTable {
+  border: 1px solid #cbdced; /* contour du tableau */
+  border-collapse: collapse;
+}
+.responseTable td, .responseTable th {
+  border: 1px solid #cbdced; /* contour de chaque cellule */
+}
+</style>
+<body alink=#ff0000 bgcolor=#ffffff link=#0000cc text=#000000 vlink=#551a8b>
+  <font face=arial,sans-serif><form method=POST name=f onsubmit="return ok();">
+    <table width=99% border=0 cellpadding=0 cellspacing=2>
+      <tr>
+        <td rowspan=4>
+          <table cellspacing=0 cellpadding=0 border=0 width=100%>
+            <tr><td bgcolor=#3366cc><img width=1 height=1 alt=""></td></tr>
+          </table>
+          <table cellspacing=0 cellpadding=0 border=0 width=100%>
+            <tr>
+              <td nowrap bgcolor=#e5ecf9><font face=arial,sans-serif color=#000000 size=+1><b>&nbsp;Kheops Advanced Search</b></font></td>
+ <!--             <td align=right nowrap bgcolor=#e5ecf9><font face=arial,sans-serif size=-1><a href="/intl/en/help/refinesearch.html">Advanced Search Tips</a>&nbsp;</font></td> -->
+            </tr>
+          </table>
+          <br width=1 height=8>
+        </td>
+      </tr>
+    </table>
+    <table cellspacing=0 cellpadding=3 border=0 width=99%><tr bgcolor=#cbdced>
+      <td>
+        <table width=100% cellspacing=0 cellpadding=0>
+          <tr bgcolor=#cbdced>
+            <td>
+              <table width=100% cellspacing=0 cellpadding=2>
+                <tr>
+                  <td valign=top width=15% style="padding-left:5px;"><font size=-1><br><b>Périmètre / Scope  </b></font></td>
+                  <td width=85%>
+                    <table width=100% cellpadding=2 cellspacing=0>
+                      <tr>
+                        <td><font size=-1><b><input type="radio" name="cnt_type" value="ctg" <%=((request.cnt_type != "coa") ?  "checked" : "")%>>Catalogues</b></font></td>
+                        <td style="padding-top:3px; padding-bottom:3px;"><select multiple name=ctg style="width:450px;">
+							<option value="All">Tous les catalogues / All catalogs
+							<%
+							var aCatalogNames = sort(getCatalogNamesList("VIEW_ITEMS"));
+							var i = 0;
+							for (i = 0; i < aCatalogNames.size(); i++)
+							{
+							  // C999 is not a normal ctg and makes query failure
+							  if(!aCatalogNames[i].startsWith("C999")) {
+								out.writeln("<option value=\"" + aCatalogNames[i] + "\">" + aCatalogNames[i]);
+							  }
+							}
+							%>
+                            </select><script>arSelected = new Array();
+							<%
+							if (request.ctg != null) {
+							  // make sure request.ctg is always an array
+							  // unfortunately it is a string when only one value is selected
+							  var ctg_class = runJavaMethod(request.ctg, createJavaMethod("java.lang.Object", "getClass"));
+							  if (runJavaMethod(ctg_class, createJavaMethod("java.lang.Class", "getName")) == "java.lang.String") {
+								 var tmp = request.ctg;
+								 request.ctg = [];
+								 request.ctg.add(tmp);
+							  } 
+
+							  for (i = 0; i < request.ctg.size(); i++) {
+								out.writeln("arSelected.push(\"" + request.ctg[i] + "\");");
+							  }
+							}
+							else { 
+							  out.writeln("arSelected.push(\"All\");");
+							}
+							%>
+							setMultiple(arSelected, document.f.ctg);</script></td>
+                        <td><input type=submit name=btnG value="Search"></font></td>
+                      </tr>
+                      <tr>
+                        <td><font size=-1><b><input type="radio" name="cnt_type" value="coa" <%=((request.cnt_type == "coa") ?  "checked" : "")%>>Collaboration Area</b></font></td>
+                        <td style="padding-top:1px; padding-bottom:3px;">
+						<select multiple name=coa style="width:450px;">
+							<option value="All">Tous les collaboration areas / All Collaboration Areas
+							<%                         
+							var aColAreaNames = getColAreaNamesForUser();
+							i;
+							for (i = 0; i < aColAreaNames.size(); i++)
+							{
+							  out.writeln("<option value=\"" + aColAreaNames[i] + "\">" + aColAreaNames[i]);
+							} 
+							%>
+						</select><script>arSelected = new Array();
+						<%
+						if (request.coa != null) {
+						  // make sure request.ctg is always an array
+						  // unfortunately it is a string when only one value is selected
+						  var coa_class = runJavaMethod(request.coa, createJavaMethod("java.lang.Object", "getClass"));
+						  if (runJavaMethod(coa_class, createJavaMethod("java.lang.Class", "getName")) == "java.lang.String") {
+							 var tmp = request.coa;
+							 request.coa = [];
+							 request.coa.add(tmp);
+						  } 
+
+						  for (i = 0; i < request.coa.size(); i++) {
+							out.writeln("arSelected.push(\"" + request.coa[i] + "\");");
+						  }
+						}
+						else { 
+						  out.writeln("arSelected.push(\"All\");");
+						}
+						%>
+						setMultiple(arSelected, document.f.coa);</script></td>
+                      </tr>
+                      <tr>
+                        <td nowrap style="padding-left:20px;"><font size=-1><b>Typologie</b></font></td>
+                        <td style="padding-top:1px; padding-bottom:3px;"><select name=type size=1>
+                          <option value="All" selected>Tous types / All types
+                          <option value="Prod">Produit / Product
+                          <option value="BUnit">Base Unit    
+                          <option value="PItem">Packaged Item   
+                            </select><script>setSingle("<%=request.type%>",document.f.type)</script></td>
+                      </tr>
+                      <tr height=50px>                        
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr bgcolor=#ffffff>
+            <td style='padding:5px;'>
+              <table width=100% cellspacing=0 cellpadding=2>
+                <tr>
+                  <td width=15% style="padding-top:10px;"><font size=-1><b>Texte à rechercher</b></font></td>
+                  <td width=60% style="padding-top:10px;"><input type=text style='width:400px;' value='<%=((request.as_txt != null) ? request.as_txt : "")%>' name='as_txt' /></td>
+                </tr>
+                <tr>
+                  <td width=15% style="padding-top:10px;"><font size=-1><b>Réf. article</b></font></td>
+                  <td width=60% style="padding-top:10px;"><input type=text style="width:130px;" maxLength='18' value='<%=((request.as_ref!=null)?request.as_ref:"")%>' name='as_ref' /></td>
+                </tr>
+                <tr>
+                  <td width=15%><font size=-1><b>Ancienne Réf. article</b></font></td>
+                  <td width=60%><input type=text style="width:50px;" maxLength='5' value='<%=((request.as_ref_kheopsv1!=null)?request.as_ref_kheopsv1:"")%>' name='as_ref_kheopsv1' /></td>
+                </tr>
+                <tr>
+                  <td width=15%><font size=-1><b>ERP Code</b></font></td>
+                  <td width=60%><input type=text style="width:130px;" maxLength='10' value='<%=((request.as_erpcode!=null)?request.as_erpcode:"")%>' name='as_erpcode' /></td>
+                </tr>
+                <tr>
+                  <td width=15%><font size=-1><b>GTIN</b></font></td>
+                  <td width=60%><input type=text style="width:130px;" maxLength='13' value='<%=((request.as_gtin!=null)?request.as_gtin:"")%>' name='as_gtin' /></td>
+                </tr>
+                <tr>
+					<td width=15%><font size=-1><b>Epaisseur</b></font></td>
+					<td width=60%><input type=text style="width:60px;" maxLength=6 value='<%=((request.as_ep!=null)?request.as_ep:"")%>' name=as_ep>
+					<!--<select type=text size=1 name=as_ep_uom>
+					<% 
+					var k = 0;
+					var keys = getLkpByName("L210-Unités normées - normalized units").getLkpKeys();
+					for (k=0; k < keys.size(); k++) {
+					  out.writeln("<option value='" + keys[k] + "'>" + keys[k]);
+					}
+					%><script>setSingle("<%=request.as_ep_uom%>",document.f.as_ep_uom);</script>-->
+					</td>
+                </tr>
+                <tr>
+					<td width=15%><font size=-1><b>Largeur</b></font></td>
+					<td width=40%><input type=text style="width:70px;" maxLength=7 value='<%=((request.as_wd!=null)?request.as_wd:"")%>' name=as_wd>
+					<!--<select type=text size=1 name=as_wd_uom>
+					<% 
+					keys = getLkpByName("L210-Unités normées - normalized units").getLkpKeys();
+					for (k=0; k < keys.size(); k++) {
+					  out.writeln("<option value='" + keys[k] + "'>" + keys[k]);
+					}
+					%><script>setSingle('<%=request.as_wd_uom%>',document.f.as_wd_uom);</script>-->
+					</td>
+                </tr>
+                <tr>
+					<td width=15%><font size=-1><b>Longueur</b></font></td>
+					<td width=40%><input type=text style="width:70px;" maxLength=7 value='<%=((request.as_lg!=null)?request.as_lg:"")%>' name=as_lg>
+					<!--<select type=text size=1 name=as_lg_uom>
+					<% 
+					keys = getLkpByName("L210-Unités normées - normalized units").getLkpKeys();
+					for (k=0; k < keys.size(); k++) {
+					  out.writeln("<option value='" + keys[k] + "'>" + keys[k]);
+					}
+					%><script>setSingle("<%=request.as_lg_uom%>",document.f.as_lg_uom)</script>-->
+					</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr bgcolor=#cbdced>
+            <td>
+              <table width=100% cellspacing=0 cellpadding=2>
+                <tr>
+                  <td valign=top width=15% style="padding-left:5px;"><font size=-1><br><b>Filtre</b></font></td>
+                  <td> 
+                    <table width=100% cellpadding=2 cellspacing=0>
+                      <tr>
+                        <td><font size=-1><b>Statut</b></font></td>
+                        <td width=75% style="padding-left:22px; padding-top:3px;">
+						<select type=text size=1 name=f_statut>
+							<option value='[ALL] - Tous'>[ALL] - Tous
+							<% 
+							keys = getLkpByName("L220-Statuts - Status").getLkpKeys();
+							for (k=0; k < keys.size(); k++) {
+							  out.writeln("<option value='" + keys[k] + "'>" + keys[k]);
+							}
+							%><script>setSingle("<%=request.f_statut%>",document.f.f_statut)</script>
+						</td>
+                      </tr>
+                      <tr>
+                        <td><font size=-1><b>Date de début de validité</b></font></td>
+                        <td width=75% style="padding-top:3px;"><font color=#000000>
+                          De:&nbsp
+                          <input t='d'  time='true' inputformat='<%=getDateInputFormat()%>' outputformat='<%=getDateOutputFormat()%>' name='f_valid' mustresize='false'  class='formdate' type='text' value='<%=((request.f_valid!=null)?request.f_valid:"")%>' alert_mode='SUPPRESS_REDUNDANT' valueOnLastAlert='' OnShowCalendar='LightUI.showEditor()'/><img style='margin-left:2px;' align='center' src='/images/newlook/calendar_datectrl.gif' alt='Show Calendar'>
+                          A:&nbsp
+                          <input t='d'  time='true' inputformat='<%=getDateInputFormat()%>' outputformat='<%=getDateOutputFormat()%>' name='f_valid2' mustresize='false'  class='formdate' type='text' value='<%=((request.f_valid2!=null)?request.f_valid2:"")%>' alert_mode='SUPPRESS_REDUNDANT' valueOnLastAlert='' OnShowCalendar='LightUI.showEditor()'/><img style='margin-left:2px;' align='center' src='/images/newlook/calendar_datectrl.gif' alt='Show Calendar'>
+                        </font></td>
+                      </tr>
+                      <tr>
+                        <td><font size=-1><b>Date de fin de validité</b></font></td>
+                        <td width=75% style="padding-top:3px; padding-bottom:3px;"><font color=#000000>
+                          De:&nbsp
+                          <input t='d'  time='true' inputformat='<%=getDateInputFormat()%>' outputformat='<%=getDateOutputFormat()%>' name='f_invalid' mustresize='false'  class='formdate' type='text' value='<%=((request.f_invalid!=null)?request.f_invalid:"")%>' alert_mode='SUPPRESS_REDUNDANT' valueOnLastAlert='' OnShowCalendar='LightUI.showEditor()'/><img style='margin-left:2px;' align='center' src='/images/newlook/calendar_datectrl.gif' alt='Show Calendar'>
+                          A:&nbsp
+                          <input t='d'  time='true' inputformat='<%=getDateInputFormat()%>' outputformat='<%=getDateOutputFormat()%>' name='f_invalid2' mustresize='false'  class='formdate' type='text' value='<%=((request.f_invalid2!=null)?request.f_invalid2:"")%>' alert_mode='SUPPRESS_REDUNDANT' valueOnLastAlert='' OnShowCalendar='LightUI.showEditor()'/><img style='margin-left:2px;' align='center' src='/images/newlook/calendar_datectrl.gif' alt='Show Calendar'>
+                        </font></td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>  
+            </td>              
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+    <br>
+  </font>
+
+<% 
+if (request.btnG != null) {
+ // out.writeln(request);
+
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+var strERPcode= request.as_erpcode;
+var strGTIN = request.as_gtin;
+var strMaterialNumber = request.as_ref;
+var strOldRef = request.as_ref_kheopsv1;
+var bStopAfterFirstResult=false;
+if((strERPcode!=null && strERPcode!="") || (strGTIN!=null && strGTIN!="") || (strMaterialNumber!=null && strMaterialNumber!="") || (strOldRef!=null && strOldRef!="")) {
+	bStopAfterFirstResult=true;
+}
+var catalogname = "";
+if(strERPcode!=null && strERPcode!="") {
+	catalogname=getCatalogNameFromCatalogCode(strERPcode);
+}
+
+  // Default value for locale is en_US 
+  var locale = getUserLocale();
+  var default_locale = new Locale("en", "US");
+  if (locale == null) {
+    locale = default_locale;
+  }
+  // Main loop over all the catalogs to retrieve all the matching items
+  // There is basically two cases, where the user has selected specific catalogs or all catalogs
+  // in all case the list of catalogs to query must appears in aCatalogNames
+  aCatalogNames = [];
+  
+  // Here it depends whether it's a ctg or coa search
+  if (request.cnt_type == "ctg") {
+    if (request.ctg.containsValue("All")) {
+      aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+    } else {
+      aCatalogNames = request.ctg;
+    }
+  } else {
+    if (request.coa.containsValue("All")) {
+      aCatalogNames = getColAreaNamesForUser();
+    } else {
+      aCatalogNames = request.coa;
+    }
+  }
+// DEBUG   out.writeln(aCatalogNames);
+  
+%>
+
+<!--
+  Display of search results as follow:
+  
+  01AC0012-LongName, 06DN0397-PackagingItemDescription(*),  01AC0548-Status ,01AC0740-OldMaterialNumber(*), 01AC0042-GTIN(*), Container, Type
+  (*) attributs belong to secondary specs
+-->
+<table class="responseTable" width=99% cellpadding="0" cellspacing="2" border="0">
+  <tr bgcolor="#cbdced">
+    <td><b>LongName</b></td>
+    <!--<td><b>99CTL501-SearchText</b></td>-->
+	<td><b>PackagingItemDescription</b></td>
+    <td><b>Status</b></td>
+	<td><b>ERP code</b></td>
+    <td><b>MaterialNumber</b></td>
+    <td><b>GTIN</b></td>
+    <td><b>Container</b></td>    
+    <td><b>Type</b></td>
+  </tr>
+<%  
+  // Count the attribute number to display on result
+  var iFieldNumberToDisplay=4;
+  // Loop through all the selected catalogs
+  var nbresult=0;
+  var m = 0;
+  var bEmpty = true;
+  for (m=0; m<aCatalogNames.size(); m++) {
+	if((catalogname!="" && aCatalogNames[m]==catalogname) || catalogname=="") {
+		if((bStopAfterFirstResult==true && nbresult<1) || bStopAfterFirstResult==false) {
+	  // out.writeln(aCatalogNames[m]+"<br />");
+
+	  // C999 is not a normal ctg and makes query failure
+		// for instance: search on spec SC999-Generic_products_BUnit/01AC0740-OldMaterialNumber
+		// that does not exists
+		if (aCatalogNames[m].startsWith("C999")) {continue;}
+
+		// retrieve the secondary specs for that catalog
+		var ctg;
+		if (request.cnt_type == "ctg") {
+		  ctg = getCtgByName(aCatalogNames[m]); 
+		} else {
+		  ctg = getColAreaByName(aCatalogNames[m]).getColAreaSrcContainer();
+		}
+		var filters = [];
+		filters["CONTAINER"] = ctg;
+		filters["SPECTYPE"] = "SECONDARY_SPEC";
+		var aSpecNames = getSpecNameList(filters);
+		var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+		
+		var aTypes = [];
+		if (request.type == "All") {
+		  aTypes.add("Prod");
+		  aTypes.add("BUnit");
+		  aTypes.add("PItem");
+		} else {
+		  aTypes.add(request.type);
+		}
+		
+		// Construct the query for each catalog and each type 
+		var j;
+		var bGtinOk=false;
+		var ItemNumberOk=false;
+		var PackagingItemDescriptionOk=false;
+		for (j=0; j<aTypes.size(); j++) {
+		
+		// out.writeln(aTypes[j]+"<br />");
+
+		  // select string
+		  
+		  var queryString = "select item.pk, item.category.pk, item['SC000-GlobPrim/01AC0012-LongName'], item['SC000-GlobPrim/01AC0548-Status'] ";
+		  
+		  // Add secondary attributs when applicable
+		  // 01AC0042-GTIN ou 01AC0583-GTIN, 01AC0664-MaterialNumber, 06DN0397-PackagingItemDescription
+		  // Add 01AC0664-MaterialNumber attribute as an indexed attributes for all sec specs
+		  
+			if(getSpecByName(sSpecPrefix + "_" +  aTypes[j]).getSpecAttribNames().containsValue("01AC0042-GTIN")) {
+				queryString = queryString + ", item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0042-GTIN" + "']";
+				bGtinOk=true;
+			}
+			else if(getSpecByName(sSpecPrefix + "_" +  aTypes[j]).getSpecAttribNames().containsValue("01AC0583-GTIN")) {
+				queryString = queryString + ", item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0583-GTIN" + "']";
+				bGtinOk=true;
+			}
+			if (getSpecByName(sSpecPrefix + "_" +  aTypes[j]).getSpecAttribNames().containsValue("01AC0664-MaterialNumber")) {
+				queryString = queryString + ", item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "']";
+				ItemNumberOk=true;
+			}
+			if (aTypes[j] == "PItem" && getSpecByName(sSpecPrefix + "_" +  aTypes[j]).getSpecAttribNames().containsValue("01AC0741-PackagingItemDescription")) {
+				  queryString = queryString + ", item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0741-PackagingItemDescription" + "']";
+				  PackagingItemDescriptionOk=true;
+			}
+
+		  //
+		  // apply container from clause
+		  //
+		  if (request.cnt_type == "ctg") {
+			queryString = queryString + " from catalog('" + aCatalogNames[m] + "') ";
+		  } else {
+			queryString = queryString + " from collaboration_area('" + aCatalogNames[m] + "') ";
+		  }
+
+		  //
+		  // Critere typologie request.type
+		  //
+		  queryString = queryString + "where item.category.pk = '" + aTypes[j] + "' ";
+
+		  var queryStringWhere="";
+		  //
+		  // Critere zone de recherche (All)
+		  //
+		  if (request.as_txt != "") {
+			queryStringWhere = queryStringWhere + "and upper(item['SC000-GlobPrim/99CTL501-SearchText']) like '%" + toUpperCase(request.as_txt) + "%' ";
+		  }
+
+		  if (request.as_erpcode != "") {
+			queryStringWhere = queryStringWhere + "and upper(item['SC000-GlobPrim/01AC0044-ERPCode']) = '" + toUpperCase(request.as_erpcode) + "' ";
+		  }
+		  
+		  //
+		  // Critere ref. article (only BUnit and PItem)
+		  //
+		  if (request.as_ref_kheopsv1 != "") {
+			if (aTypes[j] == "Prod") {
+			  // no match possible 
+			  continue;
+			}
+			queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0740-OldMaterialNumber" + "'] like '%" + request.as_ref_kheopsv1 + "%' ";
+		  }
+		  
+		  //
+		  // Critere ref. article (only BUnit and PItem)
+		  //
+		  if (request.as_ref != "") {
+			//  if (aTypes[j] == "Prod") {
+				// no match possible 
+			//  continue;
+			// }
+			var strasref = checkString(request.as_ref,"");
+			var iasref = strasref.length();
+			if(iasref!=null && iasref<18) {
+				for(var j=iasref;j<18;j++) {
+					strasref = concat("0",strasref);
+				}
+			}
+			queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] = '" + strasref + "' ";
+		  }	  
+			   
+		  //
+		  // Critere GTIN (all)
+		  //
+		  if (request.as_gtin != "" && getSpecByName(sSpecPrefix + "_" +  aTypes[j]).getSpecAttribNames().containsValue("01AC0042-GTIN")) {
+			queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0042-GTIN" + "'] = '" + request.as_gtin + "' ";
+		  }
+
+		  //
+		  // Critere epaisseur/thickness (all)
+		  //
+		  if (request.as_ep != "") {
+			queryStringWhere = queryStringWhere + "and  item['SC000-GlobPrim/99CTL502-SearchThickness'] = " + formatNumberByLocPrecision(parseDouble(request.as_ep, locale),default_locale,3) + " ";
+		  //  queryStringWhere = queryStringWhere + "and  item['SC000-GlobPrim/99CTL503–SearchThicknessUnits'] = '" + request.as_ep_uom + "' ";
+		  }
+
+		  
+		  //
+		  // Critere largeur/width (only Prod)
+		  //
+		  if (request.as_wd != "") {
+			if (aTypes[j] != "Prod") {
+			  // no match possible 
+			  continue;
+			}
+			queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/04CP0095-Width" + "'] = " + formatNumberByLocPrecision(parseDouble(request.as_wd, locale),default_locale,3) + " ";
+		  //  queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/04CP0097-WidthUnit" + "'] = '" + request.as_wd_uom + "' ";
+		  }
+
+		  //
+		  // Critere longueur/length (only BUnit)
+		  //
+		  if (request.as_lg != "") {
+			if (aTypes[j] != "BUnit") {
+			  // no match possible 
+			  continue;
+			}
+			queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/04CP0103-Length" + "'] = " + formatNumberByLocPrecision(parseDouble(request.as_lg, locale),default_locale,3) + " ";
+		  //  queryStringWhere = queryStringWhere + "and  item['" + sSpecPrefix + "_" +  aTypes[j] + "/04CP0104-LengthUnits" + "'] = '" + request.as_lg_uom + "' ";
+		  }
+
+		  // 
+		  // Filtre statut
+		  //
+		  var queryStringFiltre="";
+		  if (request.f_statut != "[ALL] - Tous") {
+			queryStringFiltre = queryStringFiltre + "and  item['SC000-GlobPrim/01AC0548-Status'] = '" + request.f_statut + "' ";
+		  }
+		  
+		  //
+		  // Filtre date debut validite
+		  //
+		  if (request.f_valid != "" && request.f_valid2 != "") {
+			queryStringFiltre = queryStringFiltre + "and item['SC000-GlobPrim/06DN0425-effectiveDate'] >= date('" + request.f_valid + "', '" + getDateOutputFormat() + "') ";
+			queryStringFiltre = queryStringFiltre + "and item['SC000-GlobPrim/06DN0425-effectiveDate'] < date('" + request.f_valid2 + "', '" + getDateOutputFormat() + "') ";
+		  }
+		  
+		  //
+		  // Filtre date fin validite
+		  //
+		  if (request.f_invalid != "" && request.f_invalid2 != "") {
+			queryStringFiltre = queryStringFiltre + "and item['SC000-GlobPrim/06DN0427-ValidToDate'] >= date('" + request.f_invalid + "', '" + getDateOutputFormat() + "') ";
+			queryStringFiltre = queryStringFiltre + "and item['SC000-GlobPrim/06DN0427-ValidToDate'] < date('" + request.f_invalid2 + "', '" + getDateOutputFormat() + "') ";
+		  }
+		  // DEBUG out.writeln("<tr><td colspan=3>" + queryString + "</td></tr>");  
+		  
+		 if (queryStringWhere!="") {
+		  var queryStringOrderBy=" order by item['SC000-GlobPrim/01AC0012-LongName']";
+			queryString=queryString+queryStringWhere+queryStringFiltre+queryStringOrderBy;
+		  
+		  // out.writeln("queryString="+queryString);
+		 
+		  var query = new SearchQuery(queryString);
+		  var resultset = query.execute();
+		
+		  while (resultset.next())
+		  {
+			nbresult++;
+			bEmpty = false;
+			var pk =      checkString(resultset.getString(1),"");
+			
+			// out.writeln("<tr><td colspan='7'>pk="+pk+"</td></tr>");
+			
+			var type =    checkString(resultset.getString(2),"");
+			var display = checkString(resultset.getString(3),"");
+			var status =  checkString(resultset.getString(4),"");
+			var gtin = "";
+			if (bGtinOk==true) {
+				gtin=checkString(resultset.getString(5),"");
+			}
+
+			var itemnumber = "";
+			if (ItemNumberOk==true) {
+				if (bGtinOk==true) {
+					itemnumber = checkString(resultset.getString(6),"");
+				  }
+				  else {
+					itemnumber = checkString(resultset.getString(5), "");
+				 }
+				if(itemnumber!=null && itemnumber!=""){
+					var iMaterialNumber = itemnumber.length();
+					for(var k=0;k<iMaterialNumber;k++) {
+						var testzero=itemnumber.startsWith("0");
+						if(testzero==true) {
+							itemnumber=substring(itemnumber,1,itemnumber.length());
+						}
+					}
+				}
+			}
+			
+			var packageitemdesc = "";
+			if(PackagingItemDescriptionOk==true) {
+				if (aTypes[j] == "PItem" ) {
+					if (bGtinOk==true && ItemNumberOk==true) {
+						packageitemdesc = checkString(resultset.getString(7),"");
+					}
+					else if ((bGtinOk==true && ItemNumberOk==false) ||  (bGtinOk==false && ItemNumberOk==true)) {
+						packageitemdesc = checkString(resultset.getString(6),"");
+					}
+					else if(bGtinOk==true && ItemNumberOk==false){
+						packageitemdesc = checkString(resultset.getString(5),"");
+					} 	 
+				}
+			}
+
+
+			
+
+			var url = null;
+			if (request.cnt_type == "ctg") {
+			  var aObjects = [];
+			  aObjects.add(ctg);
+			  aObjects.add(pk);
+			  url = getPageURL("ITEM", aObjects);
+			} else {
+			  var aObjects = [];
+			  aObjects.add(getColAreaByName(aCatalogNames[m]));
+			  aObjects.add(type);
+			  aObjects.add(pk);
+			  url = getPageURL("COLAREA_ENTRY", aObjects);            
+			
+			}
+	%>
+		<tr>
+		  <td><a href='<%=url%>'><%=display%></a></td>
+		  <td><%=packageitemdesc%></td>
+		  <td><%=status%></td>
+		  <td><%=pk%></td>
+		  <td><%=itemnumber%></td>
+		  <td><%=gtin%></td>
+		  <td><%=aCatalogNames[m]%></td>
+		  <td><%=type%></td>
+		</tr>
+	<%
+		  }
+		}
+		}
+	  }
+	  }
+	  }
+	  if (bEmpty) {
+	%>
+	  <H3>Aucune fiche trouvée.</H3> 
+	<%
+	}
+}
+%>
+</body>
+
+<%
+//
+%>

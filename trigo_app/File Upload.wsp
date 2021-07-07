@@ -1,0 +1,96 @@
+<%
+// Custom tool : screen to upload a file in the doc store
+  var THIS_SCRIPT = "File Upload";
+  var path = getScriptContextValue("PATH");
+  if (path == null) {
+    path = "/public_html";
+  }
+%>
+<body>
+<script language="Javascript">
+
+function chekFileToUpload(obj) {
+  var sFile = upl.imageZip.value;
+  if (sFile == "") {
+    alert("You must select a file to upload");
+    return false;
+  }
+
+  return true;
+}
+</script>
+
+    <form name='upl'
+        method='POST'
+        target='ifProcess'
+        action='invoker.jsp?company_code=<%=getCompanyCode()%>&invoking_user=<%=getCurrentUserName()%>&bUserOutput=false&script=LG.File.Upload.Process'
+        enctype='multipart/form-data'
+        onsubmit='return chekFileToUpload();'>
+        <table border=0>
+        <tr>
+        <td>File to load</td>
+        <td>:</td>
+        <td><input type="file" name="imageZip" size="100" maxlength="255" style="font-size:8pt"/></td>
+        </tr>
+        <tr>
+        <td>Path where to store</td>
+        <td>:</td>
+        <td><input type="text"  size="100" name="PATH" value="<%=path%>" style="font-size:8pt"></td>
+        </tr>
+        <tr>
+        <td>Unzip files when necessary</td>
+        <td>:</td>
+        <td><input type="checkbox" checked  size="100" name="UNZIP" value="yes" style="font-size:8pt"></td>
+        </tr>
+
+        <tr>
+        <td>Delete files in folder before</td>
+        <td>:</td>
+        <td><input type="checkbox"  size="100" name="DELETEBEFORE" value="yes" style="font-size:8pt"></td>
+        </tr>
+
+        <tr>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td><input type="submit" value="Upload" style="font-size:8pt"></td>
+        </tr>
+        </table>
+    </form>
+<%
+  // Tree browser
+  var tDirsTmp = getDocStoreDirectoriesInDirectory(path);
+  var tDirs = [];
+  for (var i=0; i<tDirsTmp.size(); i++) {
+    if (tDirsTmp[i] != null) {
+      tDirs.add(tDirsTmp[i]);
+    }
+  }
+  var parentDir = path;
+  if (parentDir.endsWith("/")) {
+    parentDir = substring(parentDir, 0, length(parentDir) -1);
+  }
+  parentDir = getParentPath(parentDir);
+  %>
+    <b><font color='red'>Browse folder: <%=path%></font><br>
+    <a href="custom_page.jsp?script_id=<%=request.script_id%>&PATH=<%=parentDir%>">..</a><br>
+  <%
+  tDirs = tDirs.sort();
+  for (var i=0; i<tDirs.size(); i++) {
+    var subdir = tDirs[i];
+    var subdirNoSlash = substring(subdir, 0, length(subdir)-1);
+    var folder = getNameFromPath(subdirNoSlash);
+    %>
+
+      <a href="custom_page.jsp?script_id=<%=request.script_id%>&PATH=<%=subdir%>"><%=folder%></a><br>
+    <%
+  }
+
+
+%>
+</b>
+<iframe name="ifProcess" frameborder=0 width="100%"></iframe>
+</body>
+
+<%
+//
+%>

@@ -1,0 +1,260 @@
+<%
+//
+// Publication sur le Broker
+//
+// Création : Benoit Durand - Ronan GUEVEL
+// Date création : 08/2016
+// Date dernière mise à jour : 12/11/2016
+// 
+//
+
+var logPath = "/publicationenmasse/publication-"+today().formatDate("yyyyMMdd_HHmmss")+".html";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"]=getLogger("Lafarge.BusinessRules");
+
+//	Fonction qui retourne le nom du catalogue
+//	code ERP => Nom Catalogue (ex:C010-Paques de plâtre -Gypsum plasterBoards)
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+// Fonction qui retourne le code ERP
+// Code SAP => Code ERP
+function getPrimaryKeyFromSAPCode(strSAPCode) {
+	var strSAPCode = checkString(strSAPCode,"");
+	var pk = "";
+	var iasref = strSAPCode.length();
+	if(iasref!=null && iasref<18) {
+		for(var j=iasref;j<18;j++) {
+			strSAPCode = concat("0",strSAPCode);
+			
+		}
+	}
+	out.writeln("code sap : "+strSAPCode+"<br />");
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+	var aTypes = [];
+	aTypes.add("Prod");
+	aTypes.add("BUnit");
+	aTypes.add("PItem");
+	var bERPCodeRetrieved=false;
+	for (var m=0; m<aCatalogNames.size(); m++) {
+		var ctg = getCtgByName(aCatalogNames[m]); 
+		var filters = [];
+		filters["CONTAINER"] = ctg;
+		filters["SPECTYPE"] = "SECONDARY_SPEC";
+		var aSpecNames = getSpecNameList(filters);
+		var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+		for (var j=0; j<aTypes.size(); j++) {
+			if(bERPCodeRetrieved==false) {
+			    var e;
+				catchError(e) {
+					var queryString = "select item.pk from catalog('" + aCatalogNames[m] + "') where item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] = '" + strSAPCode + "'";
+					var query = new SearchQuery(queryString);
+					var resultset = query.execute();
+					if(resultset!=null) {
+						while (resultset.next()) {
+							pk = checkString(resultset.getString(1),"");
+							bERPCodeRetrieved=true;
+							return pk;
+						}
+					}
+				}
+				if(e!=null) {
+					out.writeln("PK item not found for SAP code ="+strSAPCode+"<br />");
+				}
+			}
+		}
+	}
+	return pk;
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+// validation
+if (request.massupdatevalues != null && request.massupdatevalues != "") {
+
+	var strCodeType = request.codeinfo;
+	var strConversions = request.conversions;
+
+	if (strConversions == "yes") {
+		forEachHmElement(ctgs,oKey,ctgName) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			
+			ctg.disableContainerProcessingOptions(optionstodesactivate);
+			
+			scriptnameTemp[0]="";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+			ctg.saveCatalog();
+		}
+	}
+
+	var code1 = request.massupdatevalues;
+	var codeline =[];
+	codeline = parseDelim(code1,"\n");
+	//traitement des enregistrements
+	for (var j = 0; j < codeline.size(); j++) {
+		out.writeln("Traitement ERP/SAP code : "+trim(codeline[j])+"<br />");
+		var strItemPK = "";
+		var strCodeValue = trim(codeline[j]);
+		if(strCodeValue!="") {
+			if (strCodeType == "sap") {
+				if(strCodeValue.contains("K")) {
+					out.writeln("<span style='color: red;'>Le code indiqué n'est pas un code SAP : "+strCodeValue+"</span><br />");
+				}
+				else {
+					strItemPK = getPrimaryKeyFromSAPCode(strCodeValue);// script permettant de trouver le code erp en fonction du sap
+					out.writeln("ERP code : "+strItemPK+"<br />");
+				}
+			}
+			else {
+				strItemPK = strCodeValue;
+			}
+			if(strItemPK!="") {
+				var strCatalogName = getCatalogNameFromCatalogCode(strItemPK);
+				if(strCatalogName!="") {
+					var oitem = getCtgByName(strCatalogName).getEntryByPrimaryKey(strItemPK);
+					if(oitem!=null) {
+						var strMaterialNumber="";
+						var oItemMaterialNumberEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0664-MaterialNumber");
+						if(oItemMaterialNumberEn!=null) {
+							strMaterialNumber = checkString(oItemMaterialNumberEn[0].getEntryNodeValue(),"");
+						}
+						//
+						var strPublishedIntoSAP="";
+						var oItemPublishedIntoSAPEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"01AC0775-PublishedIntoSAP");
+						if(oItemPublishedIntoSAPEn!=null) {
+							strPublishedIntoSAP = checkString(oItemPublishedIntoSAPEn[0].getEntryNodeValue(),"");
+						}
+						//
+						var strSAPTechnicalStatus="";
+						var oItemTargetSystemGroupEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath").invoke(oitem,"99CTL200-TargetSystemGroup");
+						if(oItemTargetSystemGroupEn!=null) {
+							for(var i=0;i<oItemTargetSystemGroupEn.size();i++) {
+								var oItemTargetSystemIdEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"99CTL200-TargetSystemGroup#"+i+"/99CTL210-TargetSystemId");
+								if(oItemTargetSystemIdEn!=null) {
+									var strTargetSystemId = checkString(oItemTargetSystemIdEn.getEntryNodeValue(),"");
+									if(strTargetSystemId=="SP1CLNT100") {
+										var oItemSAPTargetStatusEn = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeFromAttrPath").invoke(oitem,"99CTL200-TargetSystemGroup#"+i+"/99CTL230-TechnicalStatus");
+										if(oItemSAPTargetStatusEn!=null) {
+											strSAPTechnicalStatus = checkString(oItemSAPTargetStatusEn.getEntryNodeValue(),"");
+										}
+									}
+								}
+							}
+						}
+						if(checkString(getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus").invoke(oitem),"")!="ACTIVE") {
+							out.writeln("<span style='color: red;'>L'item ne répond pas aux critères de publication (statut actif) - ERP/SAP code : "+strCodeValue+"</span><br />");
+							logOut.writeln(strCodeValue+"|L'item ne r&eacute;pond pas aux crit&egrave;res de publication (statut actif)<br />");
+						}
+						else {
+							var aCheckBusinessRules = getScriptByPath("/scripts/triggers/LG.Business.Utils").getFunctionByName("checkBusinessRules").invoke(hmGlobals,oitem);
+							if(aCheckBusinessRules.size()==0) {
+								if (strConversions == "yes") {
+									if(!oitem.isEntryCheckedOut()) {
+										getScriptByPath("/scripts/triggers/LG.Library.SAP.Conversions").getFunctionByName("applyConversions").invoke(oitem);
+										//
+										var test = oitem.saveCtgItem();
+										if(test==null || test =="") {
+											out.writeln("Conversions recalculées - ERP/SAP code : "+trim(codeline[j])+"<br />");
+										}
+										else {
+											out.writeln("<span style='color: red;'>Erreur dans recalcul des conversions - ERP/SAP code : "+strCodeValue+"</span><br />");
+											logOut.writeln(strCodeValue+"|Erreur dans recalcul des conversions<br />");
+										}
+									}
+									else {
+										out.writeln("<span style='color: red;'>Item en zone de collaboration - ERP/SAP code : "+strCodeValue+"</span><br />");
+										logOut.writeln(strCodeValue+"|Item en zone de collaboration<br />");
+									}
+								}
+								getScriptByPath("/scripts/triggers/LG.JMS.Out").getFunctionByName("publishItemOnBroker").invoke(oitem,null);
+								out.writeln("<b>Item correctement publié sur le broker : "+trim(codeline[j])+"</b><br />");
+								logOut.writeln(strCodeValue+"|Item correctement publi&eacute; sur le broker<br />");
+							}
+							else {
+								out.writeln("<span style='color: red;'>Business rules KO - ERP/SAP code : "+strCodeValue+"</span><br />");
+								logOut.writeln(strCodeValue+"|Business rules KO<br />");
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	if (strConversions == "yes") {
+		// (3) reactivate ctg rules
+		var scriptnameTemp2=[];
+
+		forEachHmElement(ctgs,oKey,ctgName) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			scriptnameTemp2[0]="LG.Catalog.PreProc";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+			ctg.saveCatalog();
+		}
+	}
+	
+out.writeln("Fin Traitement<br /><br />");
+logOut.save(logPath);
+out.writeln("T&eacute;l&eacute;charger le rapport de publication <a href='http://10.46.2.15/ccd_docstore/adm_view_document_content.jsp?docstore_selected_path="+logPath+"' target='_new'>ici</a>");
+sendEmail("polegestionproduits@siniat.com", "Rapport Publication en masse", "Bonjour, la mise à jour de masse est désormais terminée. Le rapport de publication est consultable depuis le document store, fichier http://10.46.2.15/ccd_docstore/adm_view_document_content.jsp?docstore_selected_path="+logPath);
+}
+
+%>
+<head>
+</head>
+<body>
+<div style="float:left; padding:10px; padding-top:30px;">
+<form method="post" name="massexportform">
+<H1>Publication sur le broker</H1>
+<br /><br />
+Renseigner les codes à mettre à jour  (1 seul code par ligne)
+<br /><br />
+<input type="radio" name="codeinfo" value="erpcode" checked> ERPCode<br>
+<input type="radio" name="codeinfo" value="sap"> Code sap
+<br /><br />
+<input type="radio" name="conversions" value="no" checked> Ne pas recalculer les conversions<br>
+<input type="radio" name="conversions" value="yes"> Recalculer les conversions
+<br /><br />
+<textarea name="massupdatevalues" id="massupdatevalues" style="width:1000px; height:270px;">
+</textarea>
+<br /><br />
+<input type="submit" name="submitvalues" id="submitvalues" value="Publier" style="font-size:14px; background: -ms-linear-gradient(top, #f4f4f4 1%, #ededed 100%);">
+</form>
+</div>
+</body>

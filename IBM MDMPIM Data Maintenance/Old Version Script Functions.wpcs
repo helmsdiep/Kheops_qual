@@ -1,0 +1,920 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//*******************************************************************
+//*  Change log                                                     *
+//*  2010-07-23 Initial Release                                     *
+//*  2011-04-28 APAR JR39006                                        *
+//*  2011-08-28 ER 48205                                            *
+//*******************************************************************
+#include "scripts/IBM MDMPIM Data Maintenance/DB Queries"
+#include "scripts/IBM MDMPIM Data Maintenance/Code Library"
+
+function getMinMaxVersion(db_connection, company_id, start_date, end_date)
+{
+	var min_max_version_id = [];
+	var minMaxVersionIdSQL;
+    if ( end_date == " " ) 
+	{
+		minMaxVersionIdSQL = "SELECT COALESCE(MIN(VER_ID),0), COALESCE(MAX(VER_ID),0) FROM VER WHERE VER_COMPANY_ID = " + company_id ;
+	}
+	else
+	{
+		minMaxVersionIdSQL = getMinMaxVersionIdSQL(company_id,start_date,end_date);
+	}
+	var hmResultSet = db_connection.executeQuery(minMaxVersionIdSQL);
+	while( null != hmResultSet && hmResultSet.next() )
+	{
+		min_max_version_id[0] = hmResultSet.getColumnAt(1);
+		min_max_version_id[1] = hmResultSet.getColumnAt(2);
+	}
+	//have min version as 1 if no start date
+	if (start_date == "1111-11-11 11:11:11" )
+	{
+		min_max_version_id[0] = 1;
+	}
+	return min_max_version_id;
+}
+
+function dropMaintTable(db_connection)
+{
+	var dropMaintTableSql = "DROP TABLE TUTL_MNT_TEMP_OLD_VERSIONS";
+	db_connection.executeUpdate(dropMaintTableSql);
+	db_connection.commit();
+}
+
+function populateMaintTable(db_connection, company_id, min_version, max_version)
+{
+	var max_rows = 0;
+	var queryTempTableExists = checkTableExists("TUTL_MNT_TEMP_OLD_VERSIONS");
+	var existsFlag = getSingleObjectQueryResult(db_connection.executeQuery(queryTempTableExists));
+	if ( existsFlag != null )
+	{
+		dropMaintTable(db_connection);
+	}
+
+	var createMaintTableSql = getCreateMaintTableSql();
+	db_connection.executeUpdate(createMaintTableSql);
+
+	var insertMaintTableSql = getInsertMaintTableSql(company_id,min_version,max_version);
+	max_rows = db_connection.executeUpdate(insertMaintTableSql);
+
+	return max_rows;
+}
+
+function getMinMaxItemIds(db_connection, company_id, ctg_id)
+{
+	var min_max_item_id = [];
+	var ctgQueryString = "";
+	if ( ctg_id != "0" )
+	{
+		ctgQueryString = " AND ITM_CONTAINER_ID = " + ctg_id ;
+	}
+	var minMaxItemIdSQL = ""
+	+ "\n" + "   SELECT COALESCE(MIN(ITM_ID),0), COALESCE(MAX(ITM_ID),0) FROM ITM "
+	+ "\n" + "   WHERE ITM_NEXT_VERSION_ID < 999999999 AND ITM_COMPANY_ID = " + company_id + ctgQueryString;
+	var hmResultSet = db_connection.executeQuery(minMaxItemIdSQL);
+	while( null != hmResultSet && hmResultSet.next() )
+	{
+		min_max_item_id[0] = hmResultSet.getColumnAt(1);
+		min_max_item_id[1] = hmResultSet.getColumnAt(2);
+	}
+	return min_max_item_id;
+}
+
+function estimateOldVersions(db_connection, company_id, ctg_id, min_max_versions, min_max_itm_ids, myLog)
+{
+	var min_itm = min_max_itm_ids[0];
+	var max_itm = min_max_itm_ids[1];
+	var min_ver = min_max_versions[0];
+	var max_ver = min_max_versions[1];
+	var count_ver_query;
+	var qryResults = [];
+	var strItmCtg;
+	var strIcmCtg;
+	var strItaCtg;
+	var strItdCtg;
+	
+	if (ctg_id != "0")
+	{
+		strItmCtg = " and itm_container_id = " + ctg_id ;
+		strIcmCtg = " and icm_catalog_id = " + ctg_id ;
+		strItaCtg = " and ita_catalog_id = " + ctg_id ;
+		strItdCtg = " and itd_container_id = " + ctg_id ;
+
+		count_ver_query = ""
+		+ "\n" + " select count(*) from ver where ver_company_id in (-1," + company_id + ")"
+		+ "\n" + " and ver_object_type = 'CTG' and ver_object_id = " + ctg_id
+		+ "\n" + " and ver_id between " + min_ver + " and (" + max_ver + " - 1) "
+		+ "\n";		
+	}
+	else
+	{
+		strItmCtg = " ";
+		strIcmCtg = " ";
+		strItaCtg = " ";
+		strItdCtg = " ";
+
+		var count_shi_query = ""
+		+ "\n" + " select count(*) from shi where shi_company_id = " + company_id
+		+ "\n" + " and shi_next_version_id < 999999999"
+		+ "\n" + " and shi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_smp_query = ""
+		+ "\n" + " select count(*) from smp where smp_next_version_id < 999999999"
+		+ "\n" + " and smp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_ssm_query = ""
+		+ "\n" + " select count(*) from ssm where ssm_company_id = " + company_id
+		+ "\n" + " and ssm_next_version_id < 999999999"
+		+ "\n" + " and ssm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cna_query = ""
+		+ "\n" + " select count(*) from cna where cna_company_id = " + company_id
+		+ "\n" + " and cna_next_version_id < 999999999"
+		+ "\n" + " and cna_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var count_eem_query = ""
+		+ "\n" + " select count(*) from eem where eem_company_id = " + company_id
+		+ "\n" + " and eem_next_version_id < 999999999"
+		+ "\n" + " and eem_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_efp_query = ""
+		+ "\n" + " select count(*) from efp where efp_company_id = " + company_id
+		+ "\n" + " and efp_next_version_id < 999999999"
+		+ "\n" + " and efp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_ehi_query = ""
+		+ "\n" + " select count(*) from ehi where ehi_company_id = " + company_id
+		+ "\n" + " and ehi_next_version_id < 999999999"
+		+ "\n" + " and ehi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_ent_query = ""
+		+ "\n" + " select count(*) from ent where ent_company_id = " + company_id
+		+ "\n" + " and ent_next_version_id < 999999999"
+		+ "\n" + " and ent_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_esa_query = ""
+		+ "\n" + " select count(*) from esa where esa_company_id = " + company_id
+		+ "\n" + " and esa_next_version_id < 999999999"
+		+ "\n" + " and esa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_esm_query = ""
+		+ "\n" + " select count(*) from esm where esm_company_id = " + company_id
+		+ "\n" + " and esm_next_version_id < 999999999"
+		+ "\n" + " and esm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_eta_query = ""
+		+ "\n" + " select count(*) from eta where eta_company_id = " + company_id
+		+ "\n" + " and eta_next_version_id < 999999999"
+		+ "\n" + " and eta_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_agd_query = ""
+		+ "\n" + " select count(*) from agd where agd_company_id = " + company_id
+		+ "\n" + " and agd_next_version_id < 999999999"
+		+ "\n" + " and agd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_agl_query = ""
+		+ "\n" + " select count(*) from agl where agl_company_id = " + company_id
+		+ "\n" + " and agl_next_version_id < 999999999"
+		+ "\n" + " and agl_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_agn_query = ""
+		+ "\n" + " select count(*) from agn where agn_company_id = " + company_id
+		+ "\n" + " and agn_next_version_id < 999999999"
+		+ "\n" + " and agn_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_caa_query = ""
+		+ "\n" + " select count(*) from caa where caa_company_id = " + company_id
+		+ "\n" + " and caa_next_version_id < 999999999"
+		+ "\n" + " and caa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cab_query = ""
+		+ "\n" + " select count(*) from cab where cab_company_id = " + company_id
+		+ "\n" + " and cab_next_version_id < 999999999"
+		+ "\n" + " and cab_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cad_query = ""
+		+ "\n" + " select count(*) from cad where cad_company_id = " + company_id
+		+ "\n" + " and cad_next_version_id < 999999999"
+		+ "\n" + " and cad_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cat_query = ""
+		+ "\n" + " select count(*) from cat where cat_company_id = " + company_id
+		+ "\n" + " and cat_next_version_id < 999999999"
+		+ "\n" + " and cat_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_ccm_query = ""
+		+ "\n" + " select count(*) from ccm where ccm_company_id = " + company_id
+		+ "\n" + " and ccm_next_version_id < 999999999"
+		+ "\n" + " and ccm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cfp_query = ""
+		+ "\n" + " select count(*) from cfp where cfp_company_id = " + company_id
+		+ "\n" + " and cfp_next_version_id < 999999999"
+		+ "\n" + " and cfp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cgm_query = ""
+		+ "\n" + " select count(*) from cgm where cgm_company_id = " + company_id
+		+ "\n" + " and cgm_next_version_id < 999999999"
+		+ "\n" + " and cgm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_chi_query = ""
+		+ "\n" + " select count(*) from chi where chi_company_id = " + company_id
+		+ "\n" + " and chi_next_version_id < 999999999"
+		+ "\n" + " and chi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_csa_query = ""
+		+ "\n" + " select count(*) from csa where csa_company_id = " + company_id
+		+ "\n" + " and csa_next_version_id < 999999999"
+		+ "\n" + " and csa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_csm_query = ""
+		+ "\n" + " select count(*) from csm where csm_company_id = " + company_id
+		+ "\n" + " and csm_next_version_id < 999999999"
+		+ "\n" + " and csm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_cta_query = ""
+		+ "\n" + " select count(*) from cta where cta_company_id = " + company_id
+		+ "\n" + " and cta_next_version_id < 999999999"
+		+ "\n" + " and cta_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var count_noa_query = ""
+		+ "\n" + " select count(*) from noa where noa_company_id = " + company_id
+		+ "\n" + " and noa_next_version_id < 999999999"
+		+ "\n" + " and noa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_nod_query = ""
+		+ "\n" + " select count(*) from nod where nod_company_id = " + company_id
+		+ "\n" + " and nod_next_version_id < 999999999"
+		+ "\n" + " and nod_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_noh_query = ""
+		+ "\n" + " select count(*) from noh where noh_company_id = " + company_id
+		+ "\n" + " and noh_next_version_id < 999999999"
+		+ "\n" + " and noh_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_nom_query = ""
+		+ "\n" + " select count(*) from nom where nom_company_id = " + company_id
+		+ "\n" + " and nom_next_version_id < 999999999"
+		+ "\n" + " and nom_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_obm_query = ""
+		+ "\n" + " select count(*) from obm where obm_company_id = " + company_id
+		+ "\n" + " and obm_next_version_id < 999999999"
+		+ "\n" + " and obm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_odd_query = ""
+		+ "\n" + " select count(*) from odd where odd_company_id = " + company_id
+		+ "\n" + " and odd_next_version_id < 999999999"
+		+ "\n" + " and odd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_omd_query = ""
+		+ "\n" + " select count(*) from omd where omd_company_id = " + company_id
+		+ "\n" + " and omd_next_version_id < 999999999"
+		+ "\n" + " and omd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var count_oms_query = ""
+		+ "\n" + " select count(*) from oms where oms_company_id = " + company_id
+		+ "\n" + " and oms_next_version_id < 999999999"
+		+ "\n" + " and oms_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_rea_query = ""
+		+ "\n" + " select count(*) from rea where rea_company_id = " + company_id
+		+ "\n" + " and rea_next_version_id < 999999999"
+		+ "\n" + " and rea_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_rgm_query = ""
+		+ "\n" + " select count(*) from rgm where rgm_company_id = " + company_id
+		+ "\n" + " and rgm_next_version_id < 999999999"
+		+ "\n" + " and rgm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_rul_query = ""
+		+ "\n" + " select count(*) from rul where rul_company_id = " + company_id
+		+ "\n" + " and rul_next_version_id < 999999999"
+		+ "\n" + " and rul_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var count_spa_query = ""
+		+ "\n" + " select count(*) from spa where spa_company_id = " + company_id
+		+ "\n" + " and spa_next_version_id < 999999999"
+		+ "\n" + " and spa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var count_tmt_query = ""
+		+ "\n" + " select count(*) from tmt where tmt_company_id = " + company_id
+		+ "\n" + " and tmt_next_version_id < 999999999"
+		+ "\n" + " and tmt_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		count_ver_query = ""
+		+ "\n" + " select count(*) from ver where ver_company_id in (-1," + company_id + ")"
+		+ "\n" + " and ver_id between " + min_ver + " and (" + max_ver + " - 1) "
+		+ "\n";
+
+		qryResults[05] = "TAUD_SHI_SIMPLE_HIERARCHY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_shi_query));
+		qryResults[06] = "TAUD_SMP_SIMPLE_OBJECT|" + getSingleObjectQueryResult(db_connection.executeQuery(count_smp_query));
+		qryResults[07] = "TAUD_SSM_SIMPLE_SIMPLE_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ssm_query));
+		qryResults[08] = "TCNT_CNA_CONTAINER_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cna_query));
+		qryResults[09] = "TCNT_EEM_ENTRY_ENTRY_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_eem_query));
+		qryResults[10] = "TCNT_EFP_ENTRY_FULL_PATHS|" + getSingleObjectQueryResult(db_connection.executeQuery(count_efp_query));
+		qryResults[11] = "TCNT_EHI_ENTRY_HIERARCHY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ehi_query));
+		qryResults[12] = "TCNT_ENT_ENTRY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ent_query));
+		qryResults[13] = "TCNT_ESA_ENTRY_SYS_ATTR|" + getSingleObjectQueryResult(db_connection.executeQuery(count_esa_query));
+		qryResults[14] = "TCNT_ESM_ENTRY_SPEC_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_esm_query));
+		qryResults[15] = "TCNT_ETA_ENTRY_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_eta_query));
+		qryResults[16] = "TCTG_AGD_ATTR_GROUP_DYN_NODE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_agd_query));
+		qryResults[17] = "TCTG_AGL_ATTR_GROUP_LOCALE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_agl_query));
+		qryResults[18] = "TCTG_AGN_ATTR_GROUP_NODE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_agn_query));
+		qryResults[19] = "TCTG_CAA_CATALOG_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_caa_query));
+		qryResults[20] = "TCTG_CAB_CATEGORY_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cab_query));
+		qryResults[21] = "TCTG_CAD_CATEGORY_DETAIL|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cad_query));
+		qryResults[22] = "TCTG_CAT_CATEGORY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cat_query));
+		qryResults[23] = "TCTG_CCM_CATEGORY_CATEGORY_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ccm_query));
+		qryResults[24] = "TCTG_CFP_CAT_FULL_PATHS|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cfp_query));
+		qryResults[25] = "TCTG_CGM_CATALOG_CATALOG_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cgm_query));
+		qryResults[26] = "TCTG_CHI_CATEGORY_HIERARCHY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_chi_query));
+		qryResults[27] = "TCTG_CSA_CAT_SYS_ATTR|" + getSingleObjectQueryResult(db_connection.executeQuery(count_csa_query));
+		qryResults[28] = "TCTG_CSM_CATEGORY_SPEC_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_csm_query));
+		qryResults[29] = "TCTG_CTA_CATEG_TREE_ATTRIBUTE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_cta_query));
+		qryResults[30] = "TCTG_NOA_NODE_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_noa_query));
+		qryResults[31] = "TCTG_NOD_NODE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_nod_query));
+		qryResults[32] = "TCTG_NOH_NODE_HIERARCHY|" + getSingleObjectQueryResult(db_connection.executeQuery(count_noh_query));
+		qryResults[33] = "TCTG_NOM_NODE_MAPPING|" + getSingleObjectQueryResult(db_connection.executeQuery(count_nom_query));
+		qryResults[34] = "TCTG_OBM_OBJECT_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_obm_query));
+		qryResults[35] = "TCTG_ODD_ORD_DETAIL|" + getSingleObjectQueryResult(db_connection.executeQuery(count_odd_query));
+		qryResults[36] = "TCTG_OMD_OBJECT_MAP_DETAIL|" + getSingleObjectQueryResult(db_connection.executeQuery(count_omd_query));
+		qryResults[37] = "TCTG_OMS_OBJECT_MAP_SCRIPTS|" + getSingleObjectQueryResult(db_connection.executeQuery(count_oms_query));
+		qryResults[38] = "TCTG_REA_RELATION_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_rea_query));
+		qryResults[39] = "TCTG_RGM_RUL_GROUP_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_rgm_query));
+		qryResults[40] = "TCTG_RUL_INHERITANCE_RULE|" + getSingleObjectQueryResult(db_connection.executeQuery(count_rul_query));
+		qryResults[41] = "TCTG_SPA_SPEC_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_spa_query));
+		qryResults[42] = "TCTG_TMT_TEST_MULTI_ROW|" + getSingleObjectQueryResult(db_connection.executeQuery(count_tmt_query));
+                 
+	}
+	myLog.loggerInfo(count_ver_query);
+
+	var count_itm_query = ""
+	+ "\n" + " select count(*) from itm where itm_company_id = " + company_id
+	+ "\n" + " and itm_id between " + min_itm + " and " + max_itm
+	+ "\n" + strItmCtg
+	+ "\n" + " and itm_next_version_id < 999999999"
+	+ "\n" + " and itm_version_id between " + min_ver + " and " + max_ver
+	+ "\n";
+	myLog.loggerInfo(count_itm_query);
+	
+	var count_icm_query = ""
+	+ "\n" + " select count(*) from icm where icm_company_id = " + company_id
+	+ "\n" + " and icm_item_id between " + min_itm + " and " + max_itm
+	+ "\n" + strIcmCtg
+	+ "\n" + " and icm_next_version_id < 999999999"
+	+ "\n" + " and icm_version_id between " + min_ver + " and " + max_ver
+	+ "\n";
+	myLog.loggerInfo(count_icm_query);
+
+	var count_ita_query = ""
+	+ "\n" + " select count(*) from ita where ita_company_id = " + company_id
+	+ "\n" + " and ita_item_id between " + min_itm + " and " + max_itm
+	+ "\n" + strItaCtg
+	+ "\n" + " and ita_next_version_id < 999999999"
+	+ "\n" + " and ita_version_id between " + min_ver + " and " + max_ver
+	+ "\n";
+	myLog.loggerInfo(count_ita_query);
+
+	var count_itd_query = ""
+	+ "\n" + " select count(*) from itd where itd_company_id = " + company_id
+	+ "\n" + " and itd_item_id between " + min_itm + " and " + max_itm
+	+ "\n" + strItdCtg
+	+ "\n" + " and itd_next_version_id < 999999999"
+	+ "\n" + " and itd_version_id between " + min_ver + " and " + max_ver
+	+ "\n";
+	myLog.loggerInfo(count_itd_query);
+
+	qryResults[00] = "TCTG_ICM_ITEM_CATEGORY_MAP|" + getSingleObjectQueryResult(db_connection.executeQuery(count_icm_query));
+	qryResults[01] = "TCTG_ITA_ITEM_ATTRIBUTES|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ita_query));
+	qryResults[02] = "TCTG_ITD_ITEM_DETAIL|" + getSingleObjectQueryResult(db_connection.executeQuery(count_itd_query));
+	qryResults[03] = "TCTG_ITM_ITEM|" + getSingleObjectQueryResult(db_connection.executeQuery(count_itm_query));
+	qryResults[04] = "TCTG_VER_VERSION|" + getSingleObjectQueryResult(db_connection.executeQuery(count_ver_query));
+	          
+	return qryResults;
+}
+
+function printOldVersionsReport(ctg_id, tabCounts, col1, col2)
+{
+	var counter;
+	out.writeln("<table border='1'>");
+	out.writeln("<tr>");
+	out.writeln("<th>" + col1 + "</th>");
+	out.writeln("<th>" + col2 + "</th>");
+	out.writeln("</tr>");
+	for (counter = 0; counter < tabCounts.size(); counter++)
+	{
+		var sTabInfo = tabCounts[counter].parseDelim("|");
+		out.writeln("<tr>");
+		out.writeln("<td>" + sTabInfo[0] + "</td>");
+		out.writeln("<td align=center>" + sTabInfo[1] + "</td>");
+		out.writeln("</tr>");
+	}
+	out.writeln("</table>");
+}
+
+function getMsgEndDate(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_VERSION_END_DATE",dftLoc,"Old version data older than date: ");
+}
+
+function getMsgBetwDts(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_VERSION_BETWEEN_DATES",dftLoc,"Old version data between dates: ");
+}
+
+function getMsgNoVersn(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_NO_OLD_VERSIONS",dftLoc,"No old versions available");
+}
+
+function getMsgCtgName(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_VERSIONS_IN_CTG",dftLoc,"Old versions in catalog: ");
+}
+
+function batchDeleteCoreTables(db_connection, company_id, min_max_versions, strItaCtg, strIcmCtg, strItdCtg, strItmCtg)
+{
+	var min_ver = min_max_versions[0];
+	var max_ver = min_max_versions[1];
+	var maint_rows = populateMaintTable(db_connection, company_id, min_ver, max_ver);
+	var batch_counter;
+	var batch_size = 1000;
+	var high_limit;
+	var delCounts = [];
+	var ita_count = 0;
+	var icm_count = 0;
+	var itm_count = 0;
+	var itd_count = 0;
+	
+	for ( batch_counter = 1; batch_counter <= maint_rows; batch_counter = batch_counter + batch_size )
+	{
+		high_limit = batch_counter + batch_size;
+		if ( high_limit > maint_rows )
+		{ high_limit = maint_rows; }
+		//out.writeln ( "*** batch_start and high_limit ***"); 
+		//out.writeln(batch_counter + " " + high_limit );
+
+		var del_ita_query = ""
+		+ "\n" + " delete from ita where ita_company_id = " + company_id
+		+ "\n" + " and ita_item_id in"
+		+ "\n" + " (select mnt_itm_id from tutl_mnt_temp_old_versions where mnt_num1 between "
+		+ "\n" + batch_counter + " and " + high_limit + ") "
+		+ "\n" + strItaCtg
+		+ "\n" + " and ita_next_version_id < 999999999"
+		+ "\n" + " and ita_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		ita_count = ita_count + db_connection.executeUpdate(del_ita_query);
+		db_connection.commit();
+		//out.writeln ( "*** Cumulative ita delete count: " + batch_counter + " = " + ita_count );
+
+		var del_icm_query = ""
+		+ "\n" + " delete from icm where icm_company_id = " + company_id
+		+ "\n" + " and icm_item_id in"
+		+ "\n" + " (select mnt_itm_id from tutl_mnt_temp_old_versions where mnt_num1 between "
+		+ "\n" + batch_counter + " and " + high_limit + ") "
+		+ "\n" + strIcmCtg
+		+ "\n" + " and icm_next_version_id < 999999999"
+		+ "\n" + " and icm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		icm_count = icm_count + db_connection.executeUpdate(del_icm_query);
+		db_connection.commit();
+		//out.writeln ( "*** Cumulative icm delete count: " + batch_counter + " = " + icm_count );
+		
+		var del_itd_query = ""
+		+ "\n" + " delete from itd where itd_company_id = " + company_id
+		+ "\n" + " and itd_item_id in"
+		+ "\n" + " (select mnt_itm_id from tutl_mnt_temp_old_versions where mnt_num1 between "
+		+ "\n" + batch_counter + " and " + high_limit + ") "
+		+ "\n" + strItdCtg
+		+ "\n" + " and itd_next_version_id < 999999999"
+		+ "\n" + " and itd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		itd_count = itd_count + db_connection.executeUpdate(del_itd_query);
+		db_connection.commit();
+		//out.writeln ( "*** Cumulative itd delete count: " + batch_counter + " = " + itd_count );		
+
+		var del_itm_query = ""
+		+ "\n" + " delete from itm where itm_company_id = " + company_id
+		+ "\n" + " and itm_id in"
+		+ "\n" + " (select mnt_itm_id from tutl_mnt_temp_old_versions where mnt_num1 between "
+		+ "\n" + batch_counter + " and " + high_limit + ") "
+		+ "\n" + strItmCtg
+		+ "\n" + " and itm_next_version_id < 999999999"
+		+ "\n" + " and itm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		itm_count = itm_count + db_connection.executeUpdate(del_itm_query);
+		db_connection.commit();
+		//out.writeln ( "*** Cumulative itm delete count: " + batch_counter + " = " + itm_count );
+	}
+
+	delCounts[0] = icm_count;
+	delCounts[1] = ita_count;
+	delCounts[2] = itd_count;
+	delCounts[3] = itm_count;
+	dropMaintTable(db_connection);
+	return delCounts;
+}	
+
+function deleteOldVersions(db_connection, company_id, ctg_id, min_max_versions, min_max_itm_ids, myLog)
+{
+	var min_itm = min_max_itm_ids[0];
+	var max_itm = min_max_itm_ids[1];
+	var min_ver = min_max_versions[0];
+	var max_ver = min_max_versions[1];
+	var del_ver_query;
+	var qryResults = [];
+	var delCounts = [];
+	var strItmCtg;
+	var strIcmCtg;
+	var strItaCtg;
+	var strItdCtg;
+	
+	if (ctg_id != "0")
+	{
+		strItmCtg = " and itm_container_id = " + ctg_id ;
+		strIcmCtg = " and icm_catalog_id = " + ctg_id ;
+		strItaCtg = " and ita_catalog_id = " + ctg_id ;
+		strItdCtg = " and itd_container_id = " + ctg_id ;
+
+		del_ver_query = ""
+		+ "\n" + " delete from ver where ver_company_id in (-1," + company_id + ")"
+		+ "\n" + " and ver_object_type = 'CTG' and ver_object_id = " + ctg_id
+		+ "\n" + " and ver_id between " + min_ver + " and (" + max_ver + " - 1) "
+		+ "\n";		
+	}
+	else
+	{
+		strItmCtg = " ";
+		strIcmCtg = " ";
+		strItaCtg = " ";
+		strItdCtg = " ";
+
+		var del_shi_query = ""
+		+ "\n" + " delete from shi where shi_company_id = " + company_id
+		+ "\n" + " and shi_next_version_id < 999999999"
+		+ "\n" + " and shi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_smp_query = ""
+		+ "\n" + " delete from smp where smp_next_version_id < 999999999"
+		+ "\n" + " and smp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_ssm_query = ""
+		+ "\n" + " delete from ssm where ssm_company_id = " + company_id
+		+ "\n" + " and ssm_next_version_id < 999999999"
+		+ "\n" + " and ssm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cna_query = ""
+		+ "\n" + " delete from cna where cna_company_id = " + company_id
+		+ "\n" + " and cna_next_version_id < 999999999"
+		+ "\n" + " and cna_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var del_eem_query = ""
+		+ "\n" + " delete from eem where eem_company_id = " + company_id
+		+ "\n" + " and eem_next_version_id < 999999999"
+		+ "\n" + " and eem_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_efp_query = ""
+		+ "\n" + " delete from efp where efp_company_id = " + company_id
+		+ "\n" + " and efp_next_version_id < 999999999"
+		+ "\n" + " and efp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_ehi_query = ""
+		+ "\n" + " delete from ehi where ehi_company_id = " + company_id
+		+ "\n" + " and ehi_next_version_id < 999999999"
+		+ "\n" + " and ehi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_ent_query = ""
+		+ "\n" + " delete from ent where ent_company_id = " + company_id
+		+ "\n" + " and ent_next_version_id < 999999999"
+		+ "\n" + " and ent_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_esa_query = ""
+		+ "\n" + " delete from esa where esa_company_id = " + company_id
+		+ "\n" + " and esa_next_version_id < 999999999"
+		+ "\n" + " and esa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_esm_query = ""
+		+ "\n" + " delete from esm where esm_company_id = " + company_id
+		+ "\n" + " and esm_next_version_id < 999999999"
+		+ "\n" + " and esm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_eta_query = ""
+		+ "\n" + " delete from eta where eta_company_id = " + company_id
+		+ "\n" + " and eta_next_version_id < 999999999"
+		+ "\n" + " and eta_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_agd_query = ""
+		+ "\n" + " delete from agd where agd_company_id = " + company_id
+		+ "\n" + " and agd_next_version_id < 999999999"
+		+ "\n" + " and agd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_agl_query = ""
+		+ "\n" + " delete from agl where agl_company_id = " + company_id
+		+ "\n" + " and agl_next_version_id < 999999999"
+		+ "\n" + " and agl_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_agn_query = ""
+		+ "\n" + " delete from agn where agn_company_id = " + company_id
+		+ "\n" + " and agn_next_version_id < 999999999"
+		+ "\n" + " and agn_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_caa_query = ""
+		+ "\n" + " delete from caa where caa_company_id = " + company_id
+		+ "\n" + " and caa_next_version_id < 999999999"
+		+ "\n" + " and caa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cab_query = ""
+		+ "\n" + " delete from cab where cab_company_id = " + company_id
+		+ "\n" + " and cab_next_version_id < 999999999"
+		+ "\n" + " and cab_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cad_query = ""
+		+ "\n" + " delete from cad where cad_company_id = " + company_id
+		+ "\n" + " and cad_next_version_id < 999999999"
+		+ "\n" + " and cad_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cat_query = ""
+		+ "\n" + " delete from cat where cat_company_id = " + company_id
+		+ "\n" + " and cat_next_version_id < 999999999"
+		+ "\n" + " and cat_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_ccm_query = ""
+		+ "\n" + " delete from ccm where ccm_company_id = " + company_id
+		+ "\n" + " and ccm_next_version_id < 999999999"
+		+ "\n" + " and ccm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cfp_query = ""
+		+ "\n" + " delete from cfp where cfp_company_id = " + company_id
+		+ "\n" + " and cfp_next_version_id < 999999999"
+		+ "\n" + " and cfp_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cgm_query = ""
+		+ "\n" + " delete from cgm where cgm_company_id = " + company_id
+		+ "\n" + " and cgm_next_version_id < 999999999"
+		+ "\n" + " and cgm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_chi_query = ""
+		+ "\n" + " delete from chi where chi_company_id = " + company_id
+		+ "\n" + " and chi_next_version_id < 999999999"
+		+ "\n" + " and chi_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_csa_query = ""
+		+ "\n" + " delete from csa where csa_company_id = " + company_id
+		+ "\n" + " and csa_next_version_id < 999999999"
+		+ "\n" + " and csa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_csm_query = ""
+		+ "\n" + " delete from csm where csm_company_id = " + company_id
+		+ "\n" + " and csm_next_version_id < 999999999"
+		+ "\n" + " and csm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_cta_query = ""
+		+ "\n" + " delete from cta where cta_company_id = " + company_id
+		+ "\n" + " and cta_next_version_id < 999999999"
+		+ "\n" + " and cta_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var del_noa_query = ""
+		+ "\n" + " delete from noa where noa_company_id = " + company_id
+		+ "\n" + " and noa_next_version_id < 999999999"
+		+ "\n" + " and noa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_nod_query = ""
+		+ "\n" + " delete from nod where nod_company_id = " + company_id
+		+ "\n" + " and nod_next_version_id < 999999999"
+		+ "\n" + " and nod_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_noh_query = ""
+		+ "\n" + " delete from noh where noh_company_id = " + company_id
+		+ "\n" + " and noh_next_version_id < 999999999"
+		+ "\n" + " and noh_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_nom_query = ""
+		+ "\n" + " delete from nom where nom_company_id = " + company_id
+		+ "\n" + " and nom_next_version_id < 999999999"
+		+ "\n" + " and nom_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_obm_query = ""
+		+ "\n" + " delete from obm where obm_company_id = " + company_id
+		+ "\n" + " and obm_next_version_id < 999999999"
+		+ "\n" + " and obm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_odd_query = ""
+		+ "\n" + " delete from odd where odd_company_id = " + company_id
+		+ "\n" + " and odd_next_version_id < 999999999"
+		+ "\n" + " and odd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_omd_query = ""
+		+ "\n" + " delete from omd where omd_company_id = " + company_id
+		+ "\n" + " and omd_next_version_id < 999999999"
+		+ "\n" + " and omd_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var del_oms_query = ""
+		+ "\n" + " delete from oms where oms_company_id = " + company_id
+		+ "\n" + " and oms_next_version_id < 999999999"
+		+ "\n" + " and oms_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_rea_query = ""
+		+ "\n" + " delete from rea where rea_company_id = " + company_id
+		+ "\n" + " and rea_next_version_id < 999999999"
+		+ "\n" + " and rea_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_rgm_query = ""
+		+ "\n" + " delete from rgm where rgm_company_id = " + company_id
+		+ "\n" + " and rgm_next_version_id < 999999999"
+		+ "\n" + " and rgm_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_rul_query = ""
+		+ "\n" + " delete from rul where rul_company_id = " + company_id
+		+ "\n" + " and rul_next_version_id < 999999999"
+		+ "\n" + " and rul_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+		
+		var del_spa_query = ""
+		+ "\n" + " delete from spa where spa_company_id = " + company_id
+		+ "\n" + " and spa_next_version_id < 999999999"
+		+ "\n" + " and spa_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		var del_tmt_query = ""
+		+ "\n" + " delete from tmt where tmt_company_id = " + company_id
+		+ "\n" + " and tmt_next_version_id < 999999999"
+		+ "\n" + " and tmt_version_id between " + min_ver + " and " + max_ver
+		+ "\n";
+
+		del_ver_query = ""
+		+ "\n" + " delete from ver where ver_company_id in (-1," + company_id + ")"
+		+ "\n" + " and ver_id between " + min_ver + " and (" + max_ver + " - 1) "
+		+ "\n";
+
+		qryResults[05] = "TAUD_SHI_SIMPLE_HIERARCHY|" + db_connection.executeUpdate(del_shi_query);
+		db_connection.commit();
+		qryResults[06] = "TAUD_SMP_SIMPLE_OBJECT|" + db_connection.executeUpdate(del_smp_query);
+		db_connection.commit();
+		qryResults[07] = "TAUD_SSM_SIMPLE_SIMPLE_MAP|" + db_connection.executeUpdate(del_ssm_query);
+		db_connection.commit();
+		qryResults[08] = "TCNT_CNA_CONTAINER_ATTRIBUTES|" + db_connection.executeUpdate(del_cna_query);
+		db_connection.commit();
+		qryResults[09] = "TCNT_EEM_ENTRY_ENTRY_MAP|" + db_connection.executeUpdate(del_eem_query);
+		db_connection.commit();
+		qryResults[10] = "TCNT_EFP_ENTRY_FULL_PATHS|" + db_connection.executeUpdate(del_efp_query);
+		db_connection.commit();
+		qryResults[11] = "TCNT_EHI_ENTRY_HIERARCHY|" + db_connection.executeUpdate(del_ehi_query);
+		db_connection.commit();
+		qryResults[12] = "TCNT_ENT_ENTRY|" + db_connection.executeUpdate(del_ent_query);
+		db_connection.commit();
+		qryResults[13] = "TCNT_ESA_ENTRY_SYS_ATTR|" + db_connection.executeUpdate(del_esa_query);
+		db_connection.commit();
+		qryResults[14] = "TCNT_ESM_ENTRY_SPEC_MAP|" + db_connection.executeUpdate(del_esm_query);
+		db_connection.commit();
+		qryResults[15] = "TCNT_ETA_ENTRY_ATTRIBUTES|" + db_connection.executeUpdate(del_eta_query);
+		db_connection.commit();
+		qryResults[16] = "TCTG_AGD_ATTR_GROUP_DYN_NODE|" + db_connection.executeUpdate(del_agd_query);
+		db_connection.commit();
+		qryResults[17] = "TCTG_AGL_ATTR_GROUP_LOCALE|" + db_connection.executeUpdate(del_agl_query);
+		db_connection.commit();
+		qryResults[18] = "TCTG_AGN_ATTR_GROUP_NODE|" + db_connection.executeUpdate(del_agn_query);
+		db_connection.commit();
+		qryResults[19] = "TCTG_CAA_CATALOG_ATTRIBUTES|" + db_connection.executeUpdate(del_caa_query);
+		db_connection.commit();
+		qryResults[20] = "TCTG_CAB_CATEGORY_ATTRIBUTES|" + db_connection.executeUpdate(del_cab_query);
+		db_connection.commit();
+		qryResults[21] = "TCTG_CAD_CATEGORY_DETAIL|" + db_connection.executeUpdate(del_cad_query);
+		db_connection.commit();
+		qryResults[22] = "TCTG_CAT_CATEGORY|" + db_connection.executeUpdate(del_cat_query);
+		db_connection.commit();
+		qryResults[23] = "TCTG_CCM_CATEGORY_CATEGORY_MAP|" + db_connection.executeUpdate(del_ccm_query);
+		db_connection.commit();
+		qryResults[24] = "TCTG_CFP_CAT_FULL_PATHS|" + db_connection.executeUpdate(del_cfp_query);
+		db_connection.commit();
+		qryResults[25] = "TCTG_CGM_CATALOG_CATALOG_MAP|" + db_connection.executeUpdate(del_cgm_query);
+		db_connection.commit();
+		qryResults[26] = "TCTG_CHI_CATEGORY_HIERARCHY|" + db_connection.executeUpdate(del_chi_query);
+		db_connection.commit();
+		qryResults[27] = "TCTG_CSA_CAT_SYS_ATTR|" + db_connection.executeUpdate(del_csa_query);
+		db_connection.commit();
+		qryResults[28] = "TCTG_CSM_CATEGORY_SPEC_MAP|" + db_connection.executeUpdate(del_csm_query);
+		db_connection.commit();
+		qryResults[29] = "TCTG_CTA_CATEG_TREE_ATTRIBUTE|" + db_connection.executeUpdate(del_cta_query);
+		db_connection.commit();
+		qryResults[30] = "TCTG_NOA_NODE_ATTRIBUTES|" + db_connection.executeUpdate(del_noa_query);
+		db_connection.commit();
+		qryResults[31] = "TCTG_NOD_NODE|" + db_connection.executeUpdate(del_nod_query);
+		db_connection.commit();
+		qryResults[32] = "TCTG_NOH_NODE_HIERARCHY|" + db_connection.executeUpdate(del_noh_query);
+		db_connection.commit();
+		qryResults[33] = "TCTG_NOM_NODE_MAPPING|" + db_connection.executeUpdate(del_nom_query);
+		db_connection.commit();
+		qryResults[34] = "TCTG_OBM_OBJECT_MAP|" + db_connection.executeUpdate(del_obm_query);
+		db_connection.commit();
+		qryResults[35] = "TCTG_ODD_ORD_DETAIL|" + db_connection.executeUpdate(del_odd_query);
+		db_connection.commit();
+		qryResults[36] = "TCTG_OMD_OBJECT_MAP_DETAIL|" + db_connection.executeUpdate(del_omd_query);
+		db_connection.commit();
+		qryResults[37] = "TCTG_OMS_OBJECT_MAP_SCRIPTS|" + db_connection.executeUpdate(del_oms_query);
+		db_connection.commit();
+		qryResults[38] = "TCTG_REA_RELATION_ATTRIBUTES|" + db_connection.executeUpdate(del_rea_query);
+		db_connection.commit();
+		qryResults[39] = "TCTG_RGM_RUL_GROUP_MAP|" + db_connection.executeUpdate(del_rgm_query);
+		db_connection.commit();
+		qryResults[40] = "TCTG_RUL_INHERITANCE_RULE|" + db_connection.executeUpdate(del_rul_query);
+		db_connection.commit();
+		qryResults[41] = "TCTG_SPA_SPEC_ATTRIBUTES|" + db_connection.executeUpdate(del_spa_query);
+		db_connection.commit();
+		qryResults[42] = "TCTG_TMT_TEST_MULTI_ROW|" + db_connection.executeUpdate(del_tmt_query);
+	}
+	myLog.loggerInfo(del_ver_query);
+
+	delCounts = batchDeleteCoreTables(db_connection, company_id, min_max_versions, strItaCtg, strIcmCtg, strItdCtg, strItmCtg);
+	db_connection.commit();	
+	qryResults[00] = "TCTG_ICM_ITEM_CATEGORY_MAP|" + delCounts[0];
+	qryResults[01] = "TCTG_ITA_ITEM_ATTRIBUTES|" + delCounts[1];
+	qryResults[02] = "TCTG_ITD_ITEM_DETAIL|" + delCounts[2];
+	qryResults[03] = "TCTG_ITM_ITEM|" + delCounts[3];
+	qryResults[04] = "TCTG_VER_VERSION|" + db_connection.executeUpdate(del_ver_query);
+	db_connection.commit();	
+	return qryResults;
+}

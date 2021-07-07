@@ -1,0 +1,203 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM Data Maintenance DB2 Specific Queries
+//******************************************************************
+// CHANGE LOG
+// 2010-03-11 - Initial release
+//******************************************************************
+function topDirectoryFiles(company_id)
+{
+	var queryTopDirectoryFiles = ""
+	+ "\n" + "   SELECT DIRECTORY_NAME, COUNT(*) CNT FROM ("
+    + "\n" + "   	SELECT CASE WHEN SSINSTR(DHI_DOC_PATH,'/',1,2) > 0 "
+	+ "\n" + "      THEN SUBSTR(DHI_DOC_PATH,1,SSINSTR(DHI_DOC_PATH,'/',1,2)-1) "
+	+ "\n" + "   	ELSE '/' END AS DIRECTORY_NAME"
+	+ "\n" + "   	FROM DHI WHERE (DHI_DOC_REAL_PATH IS NULL OR DHI_DOC_REAL_PATH = '') "
+    + "\n" + "   	AND DHI_CMP_ID = " + company_id
+	+ "\n" + "   ) AS TEMP GROUP BY DIRECTORY_NAME "
+    + "\n" + "   ORDER BY 2 DESC "        
+    + "\n";   
+	return queryTopDirectoryFiles;
+}
+
+function subDirectoryFiles(company_id,path)
+{
+	var querySubDirectoryFiles = ""
+	+ "\n" + "   SELECT DIRECTORY_NAME, COUNT(*) CNT FROM ("
+    + "\n" + "   	SELECT CASE WHEN SSINSTR(DHI_DOC_PATH,'/',1,3) > 0 THEN SUBSTR(DHI_DOC_PATH,1,SSINSTR(DHI_DOC_PATH,'/',1,3)-1)"
+	+ "\n" + "   	ELSE '*** Files in " + path + " ***' END AS DIRECTORY_NAME"
+	+ "\n" + "   	FROM DHI WHERE (DHI_DOC_REAL_PATH IS NULL OR DHI_DOC_REAL_PATH = '') "
+    + "\n" + "   	AND DHI_CMP_ID = " + company_id
+	+ "\n" + "   	AND DHI_DOC_PATH LIKE '" + path + "%'"
+	+ "\n" + "   ) AS TEMP GROUP BY DIRECTORY_NAME "
+    + "\n" + "   ORDER BY 2 DESC "        
+    + "\n";   
+	return querySubDirectoryFiles;
+}
+
+function checkTableExists(tab_name)
+{
+    var queryTableExists = ""
+	+ "\n" + "SELECT 1 CNT "
+	+ "\n" + "  FROM SYSCAT.tables "
+	+ "\n" + " WHERE TABNAME  = '" + tab_name + "' "
+	+ "\n" + " AND TYPE  = 'T' "		
+	+ "\n" + " AND TABSCHEMA  = CURRENT SCHEMA "		
+	+ "\n";	
+	return queryTableExists;
+}
+
+function populateDocsToPurge(path, date, company_id)
+{
+    var queryPopulateDocsToPurge = ""
+    + "\n" + "   INSERT INTO DOCS_TO_PURGE ("
+    + "\n" + "   SELECT DHI_DOC_ID DOC_ID, "
+    + "\n" + "          DHI_DOC_PATH DOC_PATH "
+    + "\n" + "     FROM DHI "
+    + "\n" + "    WHERE DHI_CMP_ID = " + company_id	
+    + "\n" + "      AND DHI_DOC_PATH LIKE '" + path + "%' "	
+    + "\n" + "      AND DHI_DOC_REAL_PATH = '' "
+    + "\n" + "      AND (EXISTS "
+  	+ "\n" + "      	(SELECT 1 FROM DOA "
+    + "\n" + "    		WHERE DOA_NAME = 'LAST_MODIFIED_TIMESTAMP' "
+    + "\n" + "      	AND DOA_CMP_ID = DHI_CMP_ID "
+    + "\n" + "      	AND NOT DOA_VALUE IS NULL "
+    + "\n" + "      	AND DOA_DOC_ID = DHI_DOC_ID "
+    + "\n" + "      	AND DHI_CMP_ID = " + company_id
+    + "\n" + "      	AND TIMESTAMP_FORMAT( SUBSTR(DOA_VALUE,8,4) || CASE SUBSTR(DOA_VALUE,4,3)"
+    + "\n" + "          	WHEN 'JAN' THEN '-01-' "
+    + "\n" + "          	WHEN 'FEB' THEN '-02-' "
+    + "\n" + "          	WHEN 'MAR' THEN '-03-' "
+    + "\n" + "          	WHEN 'APR' THEN '-04-' "
+    + "\n" + "          	WHEN 'MAY' THEN '-05-' "
+    + "\n" + "          	WHEN 'JUN' THEN '-06-' "
+    + "\n" + "          	WHEN 'JUL' THEN '-07-' "
+    + "\n" + "          	WHEN 'AUG' THEN '-08-' "
+    + "\n" + "          	WHEN 'SEP' THEN '-09-' "
+    + "\n" + "          	WHEN 'OCT' THEN '-10-' "
+    + "\n" + "              WHEN 'NOV' THEN '-11-' "
+    + "\n" + "              WHEN 'DEC' THEN '-12-' "
+    + "\n" + "        	end || substr(DOA_VALUE,1,2) || substr(DOA_VALUE,12,9) , 'YYYY-MM-DD HH24:MI:SS') < TIMESTAMP_FORMAT('" + date + "', 'YYYY-MM-DD HH24:MI:SS') "
+    + "\n" + "       	) OR "
+    + "\n" + "       	(NOT EXISTS "
+    + "\n" + "       	(SELECT 1 FROM DOA WHERE DOA_CMP_ID = DHI_CMP_ID AND DOA_DOC_ID = DHI_DOC_ID AND DOA_NAME = 'LAST_MODIFIED_TIMESTAMP' )) "
+  	+ "\n" + "	 		)"     	
+  	+ "\n" + "	 )";     
+    return queryPopulateDocsToPurge;
+}
+
+function truncateTable(tab_name)
+{
+    var queryTruncateTable = ""
+    + "\n" + " ALTER TABLE " + tab_name  
+	+ " ACTIVATE NOT LOGGED INITIALLY WITH EMPTY TABLE\n";	
+	return queryTruncateTable;
+}
+
+function deletePsdQuery(start_date,end_date,company_id)
+{
+	var deletePsd = ""
+	+ "\n" + "   DELETE FROM PSD "
+	+ "\n" + "   WHERE PSD_DATE BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND PSD_COMPANY_ID = " + company_id
+	+ "\n";
+	return deletePsd;
+}
+
+function deletePsiQuery(start_date,end_date,company_id)
+{
+	var deletePsi = ""
+	+ "\n" + "   DELETE FROM PSI "
+	+ "\n" + "   WHERE PSI_DATE BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND PSI_COMPANY_ID = " + company_id
+	+ "\n"; 
+	return deletePsi;
+}
+
+function deletePprQuery(start_date,end_date,company_id)
+{
+	var deletePpr = ""
+	+ "\n" + "   DELETE FROM PPR "
+	+ "\n" + "   WHERE PPR_DATE BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND PPR_COMPANY_ID = " + company_id
+	+ "\n";  
+	return deletePpr;
+}
+
+function deletePpiQuery(start_date,end_date,company_id)
+{
+	var deletePpi = ""
+	+ "\n" + "   DELETE FROM PPI "
+	+ "\n" + "   WHERE PPI_DATE BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND PPI_COMPANY_ID = " + company_id
+	+ "\n";   
+	return deletePpi;
+}
+
+function getMinMaxVersionIdSQL(company_id,start_date,end_date)
+{
+	var minVersionId = ""
+	+ "\n" + "   SELECT COALESCE(MIN(VER_ID),0), COALESCE(MAX(VER_ID),0) FROM VER "
+	+ "\n" + "   WHERE VER_DATE BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND VER_COMPANY_ID = " + company_id
+	+ "\n";   
+	return minVersionId;
+}
+
+function getCreateMaintTableSql()
+{
+	var maintTable = ""
+	+ "\n" + " CREATE TABLE TUTL_MNT_TEMP_OLD_VERSIONS "
+	+ "\n" + "(MNT_NUM1 INTEGER NOT NULL, MNT_ITM_ID INTEGER)"
+	+ "\n";   
+	return maintTable;
+}
+
+function getInsertMaintTableSql(company_id,min_version,max_version)
+{
+	var insMaintTable = ""
+	+ "\n" + "   INSERT INTO TUTL_MNT_TEMP_OLD_VERSIONS "
+	+ "\n" + "   (SELECT ROWNUMBER() OVER (ORDER BY ITEMS) MNT_NUM1, ITEMS MNT_ITM_ID FROM "
+	+ "\n" + "    (SELECT DISTINCT ITM_ID ITEMS FROM ITM  " 
+	+ "\n" + "     WHERE ITM_NEXT_VERSION_ID BETWEEN " + min_version + " AND " + max_version
+	+ "\n" + "     AND ITM_COMPANY_ID = " + company_id + " ) AS A )"
+	+ "\n";  
+	return insMaintTable;
+}
+
+function deleteSccQuery(start_date,end_date,company_id)
+{
+	var deleteScc = ""
+	+ "\n" + "   DELETE FROM SCC "
+	+ "\n" + "   WHERE SCC_COMPLETION_TIME BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+	+ "\n" + "   AND SCC_COMPANY_ID = " + company_id
+	+ "\n";   
+	return deleteScc;
+}
+
+function deleteSchQuery(start_date,end_date,company_id)
+{
+    var deleteSch = ""
+    + "\n" + "   DELETE FROM SCH "
+    + "\n" + "   WHERE SCH_NEXT_RUNNING_TIME BETWEEN TIMESTAMP_FORMAT('" + start_date + "','YYYY-MM-DD HH24:MI:SS')"
+    + "\n" + "   AND TIMESTAMP_FORMAT('" + end_date + "','YYYY-MM-DD HH24:MI:SS')"
+    + "\n" + "   AND SCH_COMPANY_ID = " + company_id
+    + "\n";
+    return deleteSch;
+}

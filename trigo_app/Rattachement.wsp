@@ -1,0 +1,238 @@
+<%
+//
+// Rattachement items à un parent
+//
+// Création : Ronan GUEVEL
+// Date création : 27/08/2017
+// Date dernière mise à jour :
+// 
+//
+
+var logPath = "/rattachementenmasse/rattachement-"+today().formatDate("yyyyMMdd_HHmmss")+".html";
+var logDoc = getDocByPath(logPath);	
+if (logDoc != null)
+{
+	logDoc.deleteDoc();
+}
+var logOut = createOtherOut(logPath);
+
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"]=getLogger("Lafarge.BusinessRules");
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+//	Fonction qui retourne le nom du catalogue
+//	code ERP => Nom Catalogue (ex:C010-Paques de plâtre -Gypsum plasterBoards)
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+// Fonction qui retourne le code ERP
+// Code SAP => Code ERP
+function getPrimaryKeyFromSAPCode(strSAPCode) {
+	var strSAPCode = checkString(strSAPCode,"");
+	var pk = "";
+	var iasref = strSAPCode.length();
+	if(iasref!=null && iasref<18) {
+		for(var j=iasref;j<18;j++) {
+			strSAPCode = concat("0",strSAPCode);
+			
+		}
+	}
+	out.writeln("code sap : "+strSAPCode+"<br />");
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+	var aTypes = [];
+	aTypes.add("Prod");
+	aTypes.add("BUnit");
+	aTypes.add("PItem");
+	var bERPCodeRetrieved=false;
+	for (var m=0; m<aCatalogNames.size(); m++) {
+		var ctg = getCtgByName(aCatalogNames[m]); 
+		var filters = [];
+		filters["CONTAINER"] = ctg;
+		filters["SPECTYPE"] = "SECONDARY_SPEC";
+		var aSpecNames = getSpecNameList(filters);
+		var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+		for (var j=0; j<aTypes.size(); j++) {
+			if(bERPCodeRetrieved==false) {
+			    var e;
+				catchError(e) {
+					var queryString = "select item.pk from catalog('" + aCatalogNames[m] + "') where item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] = '" + strSAPCode + "'";
+					var query = new SearchQuery(queryString);
+					var resultset = query.execute();
+					if(resultset!=null) {
+						while (resultset.next()) {
+							pk = checkString(resultset.getString(1),"");
+							bERPCodeRetrieved=true;
+							return pk;
+						}
+					}
+				}
+				if(e!=null) {
+					// out.writeln("PK item not found for SAP code ="+strSAPCode+"<br />");
+				}
+			}
+		}
+	}
+	return pk;
+}
+
+// (1) deactivate ctg rules
+var optionstodesactivate=[];
+optionstodesactivate[0]="ALL";
+var scriptnameTemp=[];
+
+var oKey;
+var ctgName;
+var ctgs = getCatalogNamesList();
+
+var aCatalogNames = [];
+aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+
+var strParentCode = checkString(request.parentcode,"");
+
+// validation
+if (request.massupdatevalues != null && request.massupdatevalues != "" && strParentCode!="") {
+
+	var strCodeType = request.codeinfo;
+	var strDeleteCurrentParentFlag = checkString(request.deleteparentflag,"");
+
+	var strParentItemPK = "";
+	if(strParentCode!="") {
+		strParentItemPK = strParentCode;
+	}
+	if(strParentItemPK!="") {
+		forEachHmElement(ctgs,oKey,ctgName) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			
+			ctg.disableContainerProcessingOptions(optionstodesactivate);
+			
+			scriptnameTemp[0]="";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+			ctg.saveCatalog();
+		}
+		
+		var code1 = request.massupdatevalues;
+		var codeline =[];
+		codeline = parseDelim(code1,"\n");
+		//traitement des enregistrements
+		for (var j = 0; j < codeline.size(); j++) {
+			out.writeln("Traitement ERP/SAP code : "+trim(codeline[j])+"<br />");
+			var strItemPK = "";
+			var strCodeValue = trim(codeline[j]);
+			if(strCodeValue!="") {
+				if (strCodeType == "sap") {
+					if(strCodeValue.contains("K")) {
+						out.writeln("<span style='color: red;'>Le code indiqué n'est pas un code SAP : "+strCodeValue+"</span><br />");
+					}
+					else {
+						strItemPK = getPrimaryKeyFromSAPCode(strCodeValue);// script permettant de trouver le code erp en fonction du sap
+						out.writeln("ERP code : "+strItemPK+"<br />");
+					}
+				}
+				else {
+					strItemPK = strCodeValue;
+				}
+				if(strItemPK!="") {
+					var strCatalogName = getCatalogNameFromCatalogCode(strItemPK);
+					if(strCatalogName!="") {
+						var oitem = getCtgByName(strCatalogName).getEntryByPrimaryKey(strItemPK);
+						// récupération du parent actuel de l'enfant
+						var parentProd  = getPublishingItemAtLevel(oitem,"Prod" );
+						var strParentProdERP = parentProd.getPrimaryKey();
+						var oparentitem = getCtgByName(strCatalogName).getEntryByPrimaryKey(strParentItemPK);
+						oitem.setEntryRelationshipAttribUsingItem("/SC000-GlobPrim/99CTL100-ParentItem", oparentitem);
+						// var rsParentItem = oitem.getEntryRelationshipAttrib("/SC000-GlobPrim/99CTL100-ParentItem");
+						var test = oitem.saveCtgItem();
+						if(test==null || test =="") {
+							out.writeln("Rattachement correctement mis à jour - ERP/SAP code : "+strCodeValue+"<br />");
+							logOut.writeln(strCodeValue+"|Rattachement correctement effectue<br />");
+							if(strDeleteCurrentParentFlag=="yes" && strCatalogName.contains("805")) {
+								if(parentProd!=null) {
+									var testdelete = parentProd.deleteCtgItem();
+									if(testdelete==null || testdelete =="") {
+										out.writeln("Ancien produit du catalogue 805 correctement supprim&eacute; : "+strParentProdERP+"<br />");
+										logOut.writeln(strParentProdERP+"|Suppression du produit du catalogue 805 correctement effectue<br />");
+									}
+									else {
+										out.writeln("<span style='color: red;'>Erreur lors de la suppression du Produit du catalogue 805 - ERP/SAP code : "+strParentProdERP+"</span><br />");
+										logOut.writeln(strParentProdERP+"|Erreur lors de la suppression du produit du catalogue 805<br />");
+									}
+								}
+							}
+						}
+						else {
+							out.writeln("<span style='color: red;'>Erreur lors du rattachement - ERP/SAP code : "+strCodeValue+"</span><br />");
+							logOut.writeln(strCodeValue+"|Erreur lors du rattachement parent<br />");
+						}
+					}
+				}
+			}
+		}
+		
+		// (3) reactivate ctg rules
+		var scriptnameTemp2=[];
+
+		forEachHmElement(ctgs,oKey,ctgName) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			scriptnameTemp2[0]="LG.Catalog.PreProc";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+			ctg.saveCatalog();
+		}
+		
+	out.writeln("Fin Traitement<br /><br />");
+	logOut.save(logPath);
+	out.writeln("T&eacute;l&eacute;charger le rapport de rattachement <a href='http://10.45.7.30/ccd_docstore/adm_view_document_content.jsp?docstore_selected_path="+logPath+"' target='_new'>ici</a>");
+	sendEmail("polegestionproduits@siniat.com", "Rapport de rattachement", "Bonjour, le rattachement a bien ete effectue. Le rapport est consultable depuis le document store, fichier http://10.45.7.30/ccd_docstore/adm_view_document_content.jsp?docstore_selected_path="+logPath);
+	}
+}
+
+%>
+<head>
+</head>
+<body>
+<div style="float:left; padding:10px; padding-top:30px;">
+<form method="post" name="massexportform">
+<H1>Rattachement items &agrave; un parent</H1>
+<br /><br />
+Code parent&nbsp;(ERP code uniquement)
+<br />
+<input type="text" name="parentcode" id="parentcode" value="" style="width:150px;">
+<br /><br />
+Renseigner les codes à mettre à jour
+<br /><br />
+<input type="radio" name="codeinfo" value="erpcode" checked> ERPCode<br>
+<input type="radio" name="codeinfo" value="sap"> Code sap
+<br /><br />
+Elements enfant &agrave; rattacher (1 seul code par ligne)
+<br />
+<textarea name="massupdatevalues" id="massupdatevalues" style="width:1000px; height:270px;">
+</textarea>
+<br /><br />
+<span style="color:red;">Supprimer niveau produit courant de l'enfant lors du rattachement (C805 uniquement) ?</span>&nbsp;&nbsp;<input type="radio" name="deleteparentflag" value="no" checked><span style="color:red;"> Non</span>&nbsp;&nbsp;<input type="radio" name="deleteparentflag" value="yes"><span style="color:red;"> <b>Oui</b></span>
+<br /><br />
+<input type="submit" name="submitvalues" id="submitvalues" value="Rattacher" style="font-size:14px; background: -ms-linear-gradient(top, #f4f4f4 1%, #ededed 100%);">
+</form>
+</div>
+</body>

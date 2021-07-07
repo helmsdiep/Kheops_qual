@@ -1,0 +1,357 @@
+/// @brief Logs messages according to the given log level into different logging facilities.
+/// This method logs messages using the log function in the given log context. If no log context is given then the
+/// message is written to the default Log4J category with level 'DEBUG'. In addition, the messages is written to 
+/// the Writer object 'writer' of the given LogContext if available.
+/// @param sLevel - logging level: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+/// @param logContext - log context: HashMap containing for key 'log' a function pointer with the following 
+/// signature: void log(String sLevel, LogContext logContext, String sMsg).
+/// @param sMsg - logging message
+//:PRFUNCTION void log(String sLevel, LogContext logContext, String sMsg)
+function log(sLevel, logContext, sMsg) {
+	if (logContext == null || logContext.log == null) { 
+		getLogger("default").loggerDebug(sMsg); 
+	} else {
+    	logContext.log.invoke(sLevel, logContext, sMsg); 
+	}
+	if (logContext != null && logContext.writer != null) { 
+		logContext.writer.writeln(resizeString(sLevel, 7, " ", true) + " -- " + sMsg); 
+	}
+}
+
+/// @brief Helper function for formatting strings for HTML output.
+/// @param sString - string to be formatted
+/// @param sColor - (optional) color: "green", "red", "black", "blue" (default: "black")
+/// @param bBold - (optional) if true string is formatted in bold face (default: false)
+/// @return String - the string formatted in HTML
+//:PRFUNCTION String formatHTML(String in_sString, String in_sColor, boolean in_bBold)
+function formatHTML(sString, sColor, bBold) {
+	var hmColor = [];
+	hmColor["black"]	= "#000000";
+	hmColor["red"]		= "#FF0000";
+	hmColor["green"]	= "#008040";
+	hmColor["blue"]	    = "#0000FF";
+	
+	bBold = (toLowerCase(checkString(bBold, "false")) == "true");
+	var sHTML = "<span style='color:" + checkString(hmColor[sColor], hmColor["black"]) + "'>"
+				+ (bBold ? "<b>" : "") + checkString(sString, "") +  (bBold ? "</b>" : "") + "</span>";
+	return sHTML;
+}
+
+/// @brief Helper function to retrieve a mapping of the defined companies to their internal WPC ID.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - mapping company code to internal company ID
+//:PRFUNCTION HashMap getCompanies(LogContext logContext)
+function getCompanies(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getCompanies"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+		context = getWPCDBContext();
+		connection = context.getWPCDBConnection();
+		var hmCmp = [];
+		var sSQL = "select CMP_COMPANY_ID, CMP_COMPANY_NAME from CMP";
+		var resultSet = connection.executeQuery(sSQL);
+		while (resultSet != null && resultSet.next()) {
+			var sCmpId = resultSet.getColumnAt(1);
+			var sCmpName = resultSet.getColumnAt(2);
+			if (sCmpId != null && sCmpName != null) {
+				hmCmp[sCmpName] = sCmpId;
+			}
+		}
+		context.releaseWPCDBConnection(connection);
+		return hmCmp;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Helper function to retrieve a HashMap of HashMaps with information about all containers currently deployed.
+/// The HashMap uses a key representing the container type:
+/// - CATALOG
+/// - CATEGORY_TREE
+/// - LOOKUP_TABLE
+/// - ORGANIZATION_TREE
+/// The values of the HashMap is again a HashMap mapping the internal ID to the corresponding container name.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - info about containers
+//:PRFUNCTION HashMap getContainers(LogContext logContext)
+function getContainers(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getContainers"; 
+	
+	var context = null;
+	var connection = null;
+	var sErrMsg;
+	catchError(sErrMsg) {
+	
+		// lazy caching
+		var hmContainers = logContext[sFctName + ".hmContainers"];
+		if (hmContainers == null) {
+			// HashMap for storing the information
+			hmContainers = [];
+			logContext[sFctName + ".hmContainers"] = hmContainers;
+			hmContainers["CATALOG"] = [];
+			hmContainers["CATALOG"]["-2"] = "$ALL";
+			hmContainers["COLLABORATION_AREA"] = [];
+			hmContainers["LOOKUP_TABLE"] = [];
+			hmContainers["ORGANIZATION"] = [];
+			hmContainers["CATEGORY_TREE"] = [];
+			hmContainers["CATEGORY_TREE"]["-2"] = "$ALL";
+			hmContainers["ORGANIZATION_TREE"] = [];
+			
+			// need internal company ID for SQL
+			var sCmpId = getCompanies(logContext)[checkString(getCompanyCode(), "")];
+			
+			// retrieve container info with SQL using UNION
+			context = getWPCDBContext();
+			connection = context.getWPCDBConnection();
+			var sSQL = "select ctr_id as ID, ctr_type as TYPE, ctr_name as NAME "
+				+ "from ctr where ctr_company_id = " + sCmpId + " union "
+				+ "select ctg_id as ID, ctg_type as TYPE, ctg_name as NAME "
+				+ "from ctg where ctg_company_id = " + sCmpId;
+			var resultSet = connection.executeQuery(sSQL);
+			while (resultSet != null && resultSet.next()) {
+				var sContainerId = resultSet.getColumnAt(1);
+				var sContainerType = resultSet.getColumnAt(2);
+				var sContainerName = resultSet.getColumnAt(3);
+				if (sContainerId != null && sContainerType != null && sContainerName != null) {
+					hmContainers[sContainerType][sContainerId] = sContainerName;
+				}
+			}
+			context.releaseWPCDBConnection(connection);
+		}
+		return hmContainers;
+	}
+	if (sErrMsg != null) {
+		if (connection != null && context != null) { context.releaseWPCDBConnection(connection); }
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext: " + checkString(logContext, "NULL"));
+	}
+	return null;
+}
+
+/// @brief Retrieves a HashMap for all specs mapping the internal ID to the corresponding spec name.
+/// @param logContext - log context for logging and caching
+/// @return HashMap - mapping internal ID to spec name
+//:PRFUNCTION HashMap getSpecs(LogContext logContext, String sSpecId)
+function getSpecs(logContext) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getSpecs";
+	
+	var sErrMsg = null;
+	catchError(sErrMsg) {
+		var hmSpec = logContext[sFctName + ".hmSpec"];
+		if (hmSpec == null) {
+			hmSpec = [];
+			logContext[sFctName + ".hmSpec"] = hmSpec;
+			var getSpecId = createJavaMethod("com.ibm.ccd.element.common.Spec", "getSpecId");
+	
+			var hmFilters = [];
+			hmFilters["PATTERN"] = "*";
+			var aSpecNames = getSpecNameList(hmFilters).sort();
+			for (var i = 0; i < aSpecNames.size(); i++) {
+				
+				var sSpecName = checkString(aSpecNames[i], "");
+				var spec = getSpecByName(aSpecNames[i], true);
+				if (spec == null) {
+					log("WARN", logContext, "Could not find spec: " + sSpecName);
+					continue;
+				}
+				var sSpecId = checkString(runJavaMethod(spec, getSpecId), "");
+				if (sSpecId == "") {
+					log("WARN", logContext, "Could not find id for spec: " + sSpecName);
+					continue;
+				}
+				hmSpec[sSpecId] = sSpecName;
+			}
+		}
+		return hmSpec;
+	}
+	
+	if (sErrMsg != null) {
+		throwError(sFctName + ": " + sErrMsg 
+			+ ", logContext    : " + checkString(logContext, "NULL"));
+	}
+	// always return something to make script compilable.
+	return null;
+}
+
+/// @brief Returns type of script as needed in the <code>Scripts.csv</code>.
+/// @param logContext - log context for logging and caching
+/// @param sFullScriptPath - full docstore path of the script
+/// @return String - type of the script, e.g. 'ENTRY_PREVIEW'
+//:PRFUNCTION String getScriptType(LogContext logContext, String sFullScriptPath)
+function getScriptType(logContext, sFullScriptPath) {
+	var sFctName = "MDMPIM.EnvXML.Export.Library.getScriptType"; 
+	
+	var sDirectory = replace("/" + getParentPath(checkString(sFullScriptPath, "")), "//", "/");
+	var hmPathToScriptType = logContext[sFctName + ".hmPathToScriptType"];
+	if (hmPathToScriptType == null) {
+		hmPathToScriptType = [];
+		logContext[sFctName + ".hmPathToScriptType"] = hmPathToScriptType;
+		hmPathToScriptType["/scripts/aggregate_update"]		= "AGGREGATE_UPDATE";
+		hmPathToScriptType["/scripts/export/ctg_diff"]		= "CTG_DIFF_EXPORT";
+		hmPathToScriptType["/scripts/export/ctg"]			= "CTG_EXPORT";
+		hmPathToScriptType["/scripts/import/ctg"]			= "CTG_IMPORT";
+		hmPathToScriptType["/scripts/entry_macro"]			= "ENTRY_MACRO";
+		hmPathToScriptType["/scripts/catalog"]				= "CTG";
+		hmPathToScriptType["/scripts/entry_macro"]			= "CTG_MACRO";
+		hmPathToScriptType["/scripts/entry_preview"]		= "ENTRY_PREVIEW";
+		hmPathToScriptType["/scripts/catalog_preview"]		= "CATALOG_PREVIEW";
+		hmPathToScriptType["/scripts/category_preview"]		= "CATEGORY_PREVIEW";
+		hmPathToScriptType["/scripts/category_tree"]		= "CTR";
+		hmPathToScriptType["/scripts/category_tree"]		= "CATEGORY_TREE";
+		hmPathToScriptType["/scripts/export/ctg_to_ctg"]	= "CTLG_CTLG_EXPORT";
+		hmPathToScriptType["/scripts/import/ctr"]			= "CTR_IMPORT";
+		hmPathToScriptType["/scripts/distribution"]			= "DISTRIBUTION";
+		hmPathToScriptType["/scripts/entry_build"] 			= "ENTRY_BUILD";
+		hmPathToScriptType["/scripts/export/img_diff"] 		= "IMG_DIFF_EXPORT";
+		hmPathToScriptType["/scripts/export/img"] 			= "IMG_EXPORT";
+		hmPathToScriptType["/scripts/import/lkp"] 			= "LKP_IMPORT";
+		hmPathToScriptType["/scripts/export/po"] 			= "PO_EXPORT";
+		hmPathToScriptType["/scripts/import/po"] 			= "PO_IMPORT";
+		hmPathToScriptType["/scripts/import/po_status_request"] = "PO_STATUS_REQUEST";
+		hmPathToScriptType["/scripts/import/po_status_update"] = "PO_STATUS_UPDATE_IMPORT";
+		hmPathToScriptType["/scripts/reports"] 				= "REPORT";
+		hmPathToScriptType["/scripts/secure_triggers"] 		= "SECURE_TRIGGER";
+		hmPathToScriptType["/scripts/triggers"] 			= "TRIGGER";
+		hmPathToScriptType["/scripts/widgets"] 				= "WIDGETS";
+		hmPathToScriptType["/scripts/workflow"] 			= "WORKFLOW";
+		hmPathToScriptType["/scripts/trigo_app"] 			= "TRIGO_APP";
+		hmPathToScriptType["/scripts/qmsg_processor"] 		= "QMSG_PROCESSOR";
+		hmPathToScriptType["/scripts/entity_synchronization"] = "ENTITY_SYNCHRONIZATION";
+		hmPathToScriptType["/scripts/wbs"] 					= "WBS";
+		hmPathToScriptType["/scripts/login"] 				= "LOGIN";
+		hmPathToScriptType["/scripts/logout"] 				= "LOGOUT";
+		hmPathToScriptType["/scripts/ldap_usr_fetch"] 		= "LDAP_USR_FETCH";
+		hmPathToScriptType["/scripts/report"] 				= "SEARCH_RESULT_REPORT";
+		hmPathToScriptType["/params"] 						= "INPUT_PARAM";
+		hmPathToScriptType["/"] 							= "DOCUMENT";
+	}
+	var sScriptType = checkString(hmPathToScriptType[sDirectory], "");
+	
+	// successively try parent path if no type found (e.g. workflow scripts migth be in a deeper path)
+	var iMax = 5; var i = 0;
+	while (sScriptType == "" && sDirectory.length() > 1 && i < iMax) {
+		i++;
+		sDirectory = getParentPath(sDirectory);
+		sScriptType = checkString(hmPathToScriptType[sDirectory], "");
+	}
+	return sScriptType;
+}
+
+// prepare logging
+var logContext = [];
+logContext["MDMPIM.EnvXML.out"] = out;
+
+// get needed functions
+var scrEnvXML = getScriptByPath("scripts/triggers/MDMPIM.EnvXML.Export.Library");
+var getFolderPath			= scrEnvXML.getFunctionByName("getFolderPath");
+var export					= scrEnvXML.getFunctionByName("export");
+var getDeploymentFileNames	= scrEnvXML.getFunctionByName("getDeploymentFileNames");
+var logGUI					= scrEnvXML.getFunctionByName("logGUI");
+	
+log("INFO", logContext, "*** Started process - List Scripts ***");
+
+// variables for the columns
+var sSavePath = "file:///public_html/EnvXML/";
+var sFileName = "ListScripts.csv";
+
+var writer = createOtherOut(sFileName, "Cp1252");
+			
+var sLocalPath = "";
+var sScriptName = "";
+var sType = "";
+var sFileSpec = "";
+var sInputSpec = "";
+var sCharset = "";
+var sJSP = "";
+var sContainerName = "";
+var sContainerType = "";
+
+// write header line
+var sHeaderLine = "\"Script path (relative to \"\"loadToEnv\"\")\",Script name," 
+	+ "Script type,File spec / Destination spec name (imports / exports)," 
+	+ "Input spec name (if any),Character set,ASP / JSP-like," 
+	+ "Container name (ctr / ctg scripts),Container type (entry build/preview/macro scripts),"
+	+ "Date Modified";
+writer.writeln(sHeaderLine);
+
+// now iterate through the scripts in the docstore
+var aScripts = getDocStoreSubtreeList("scripts");
+var iSize = aScripts.size();
+		
+for (var i = 0; i < iSize; i++) {
+
+// basic script info
+	var sPath = aScripts[i];
+
+	var doc = getDocByPath(sPath);
+	if (doc == null) { continue; }
+
+	var hmAttribs = doc.getDocAttributes();
+	sJSP = toLowerCase(checkString(hmAttribs["ATTR_JSPLIKE"], "false"));
+	var sSuffix = (sJSP == "true" ? ".wsp" : ".wpcs");
+	sLocalPath = sPath + sSuffix;
+
+	if (sLocalPath.startsWith("/")) { sLocalPath = substring(sLocalPath, 1); }
+
+	sScriptName = getNameFromPath(sPath, "/");
+	sType = getScriptType(logContext, sPath);
+
+	// finding spec info for script
+	sFileSpec = checkString(hmAttribs["ATTR_SPEC_NAME"], "");
+	if (sFileSpec == "") {
+		var sSpecId = checkString(hmAttribs["ATTR_SPEC_ID"], "");
+		if (sSpecId != "") { sFileSpec = checkString(getSpecs(logContext)[sSpecId], ""); }
+	}
+	sInputSpec = checkString(hmAttribs["ATTR_SCRIPT_INPUT_SPEC_NAME"], "");
+	if (sInputSpec == "") {
+		var sSpecId = checkString(hmAttribs["ATTR_SCRIPT_INPUT_SPEC_ID"], "");
+		if (sSpecId != "") { sInputSpec = checkString(getSpecs(logContext)[sSpecId], ""); }
+	}
+	sCharset = checkString(hmAttribs["CHARSET"], "");
+	
+	// finding container info for script
+	sContainerType		= checkString(hmAttribs["CONTAINER_TYPE"], "");
+	var sContainerId	= checkString(hmAttribs["CONTAINER_ID"], "");
+	var sCatalogId		= checkString(hmAttribs["CATALOG_ID"], "");
+	var sCategoryTreeId	= checkString(hmAttribs["CATEGORY_TREE_ID"], "");
+	if (sContainerType != "" && sContainerId != "") {
+		sContainerName = getContainers(logContext)[sContainerType][sContainerId];
+	} else if (sCatalogId != "") {
+		sContainerName = getContainers(logContext)["CATALOG"][sCatalogId];
+	} else if (sCategoryTreeId != "") {
+		sContainerName = getContainers(logContext)["CATEGORY_TREE"][sCategoryTreeId];
+	}
+
+	var mDate = doc.getDocLastModifiedTimeStamp().formatDate("dd/MM/yyyy");
+		
+	// write CSV line
+	var sLine = sLocalPath + "," + sScriptName + "," + sType + "," + sFileSpec + ","
+		+ sInputSpec + "," + sCharset + "," + sJSP + "," + sContainerName + "," + sContainerType + "," + mDate ;
+	writer.writeln(sLine);
+				
+ }
+ 
+ writer.save(sFileName);
+	    
+// close writer
+writer.close();
+
+var sZipPath = sSavePath + sFileName;
+var sHref = getHrefForDocPath(sFileName);
+
+%>
+	<br/>
+	List Scripts finished<br/>
+	Here you can download the <a href="<%= sHref %>" target="_blank"><%= formatHTML("List Scripts", "blue", true) %></a><br/>
+<%
+
+
+log("INFO", logContext, "*** sZipPath" + sZipPath +   "***");
+log("INFO", logContext, "*** Finished process - List Scripts ***");

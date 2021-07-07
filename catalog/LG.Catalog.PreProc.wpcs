@@ -1,0 +1,215 @@
+//////////////////////////////////////////////////////////////////
+// @file:
+//   LG.Catalog.PreProc
+// @description:
+//   PreProcessing script for all catalogs and collaboration area
+//
+/////////////////////////////////////////////////////////////////
+var hmGlobals = getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst").invoke();
+hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+hmGlobals["LOGGER"] = getLogger("Lafarge.BusinessRules");
+var log = hmGlobals["LOGGER"];
+var errorMessage = "";
+var e;
+
+// getAttributesToControl
+// returns list of attributes on which business rules must run for a fiven step of a workflow
+// allows to limit validation rules to run only on those attributes.
+function getAttributesToControl(wflName, stepName) {
+	var wfl = getWflByName(wflName);
+	var step = wfl.getWflStepByName(stepName);
+	var attrs = [];
+
+	if (stepName=="10-Initiate-Product Manager"){
+		// only required and editable attribute groups
+		var hm1 = step.getEditableAttributeGroups("ITEM_EDIT");
+		var hm2 = step.getRequiredAttributeGroups("ITEM_EDIT");
+		var hm = mergeValues(hm1, hm2);
+		forEachHmElement(hm, oKey, attrGroup) {
+			attrs = mergeValues(attrs, getAttrGroupByName(attrGroup).getAllAttributePathsFromAttrGroup());
+		}
+	}else{
+		// all attribute groups : editable + required + viewable
+		forEachHmElement(step.getWflStepAttributeGroups(), oKey, attrGroup) {
+			attrs=mergeValues(attrs,getAttrGroupByName(attrGroup).getAllAttributePathsFromAttrGroup());
+		}
+	}
+
+	attrs = attrs.sort();
+	return attrs;
+}
+
+// currentUserHasRole
+// check if current user has a given role
+function currentUserHasRole(role) {
+	var companyCode = getCompanyCode();
+	var username = getCurrentUserName();
+	var user = getUserByUsername(username, companyCode);
+	var userRoles = user.getUserRoles();
+	var userRolesLen = userRoles.size();
+
+	var bRoleTest = false;
+	for (var j = 0; j < userRolesLen; j++) {
+		if (userRoles[j] == role) {
+			bRoleTest = true;
+		}
+	}
+	return bRoleTest;
+}
+
+// validateItem
+// runs validation rules against current item being processed.
+// if errorsMustThrow = true then we should throw validation errors. 
+// if errorsMustThrow = false nothing is throwned, allowing to save the item even if it's not a valid item (useful for mass updates)
+//
+function validateItem(errorsMustThrow) {
+
+	// do not run this script inside a checkout
+	var sCtgName = item.getCatalog().getCtgName();
+	if (colArea!=null){
+		log.loggerDebug("Validating item in col area " + colArea.getColAreaName());
+	}else{
+		log.loggerDebug("Validating item which is in catalog " + sCtgName);
+	}
+
+	var sStepPath = getScriptContextValue("stepPath");
+	var aStepPaths = [];
+	aStepPaths.add("BUnit");
+	aStepPaths.add("PItem");
+	aStepPaths.add("Prod");
+	aStepPaths.add("10-Initiate-Product Manager");
+	aStepPaths.add("20-Complete-Data Steward");
+	aStepPaths.add("15-FixIssues-Data Steward");
+
+	if (sCtgName.startsWith("C")) {
+		//Run validation rule only in the main catalog or in the three above steps
+		if (sCtgName.startsWith("CA") &&
+			(sStepPath == null || (!(aStepPaths.containsValue(sStepPath))))) {
+			log.loggerDebug("Not Running Validation Rules. We are probably in the DISPATCH step of the workflow !");
+		}
+		else {
+			catchError(e)
+			{
+				var script = getScriptByPath("/scripts/triggers/LG.Business.Rules");
+				var i;
+				//log.loggerDebug("Validation context: " + dumpContext());
+				log.loggerDebug("sStepPath: " + sStepPath);
+				var exitValue = item.getExitValue();
+				log.loggerDebug("Exit value :" + exitValue);
+				// var modifiedAttrsList = item.getEntryChangedDataSinceLastSave().getModifiedAttributePathsOldEntry();
+
+				var bSave = "";
+				if (sStepPath == "SUCCESS") {
+					bSave = "false";
+				}
+				else {
+					bSave = checkString(item.getEntryAttrib("SC000-GlobPrim/AttTechSave"), "true");
+				}
+
+				// do not run business rules if we are rejecting an item in the workflow.
+				// this will not prevent min occ/ max occ errors, but at least it will not run too many rules :)
+				if (checkString(exitValue, "") == "Renvoyer au Marketing" || checkString(exitValue, "")=="Demander Aide" || checkString(exitValue, "")=="Abandonner"){
+					log.loggerDebug("Disabling entry validation");
+					var result=colArea.disableEntryValidation(item,sStepPath,true);
+					log.loggerDebug("entry validation result = " + result);
+					bSave="techprocess";
+				}
+
+				log.loggerDebug(concat("PREPROC_AttTechSave :", bSave));
+
+				if (bSave != "techprocess") {
+					log.loggerDebug("Running Validation Rules");
+					var aAttrsList = [];
+					
+					// if we are in the WFL010 workflow, on 10-Initiate-Product Manager we want to run validation rules only on those attributes that are editable/required
+					if (sCtgName != "CA010-WFL010-Product Creation-v1") {
+						aAttrsList = item.getEntryAttribsList();
+					} else {
+						aAttrsList = getAttributesToControl("WFL10-C010-Prod", sStepPath);
+					}
+
+					// for each attribute, run validation rules before saving.
+					for (i = 0; i < aAttrsList.size(); i++) {
+						// check if there is an existing validation rule.
+						var fnValidationRule = script.getFunctionByName(concat("fn", substring(getNameFromPath(aAttrsList[i], "/"), 0, 8), "_Ctl"));
+						
+						if (fnValidationRule != null) {
+							// run vallidation rule
+							log.loggerDebug("Validating: " + aAttrsList[i]);
+							var en = null;
+							var entryNodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item, aAttrsList[i].parseDelim("/", 1));
+							if (entryNodes != null && entryNodes.size() > 0) {
+								en = entryNodes[0];
+							}
+							if (en != null) {
+								var ee;
+								var result = "";
+								catchError(ee){
+									result = fnValidationRule.invoke(hmGlobals, item, en, bSave);
+								}
+								// Programming errors, really nasty and unexpected
+								if (ee != null) {
+									result = "Unexpected Error while checking " + en.getEntryNodeExactPath() + hmGlobals["CRLF"] + ee + hmGlobals["CRLF"];
+									errorMessage = concat(errorMessage, result);
+									log.loggerDebug(result);
+									en.throwValidationError("VALIDATION_RULE", result);
+								}
+
+								// Business Rules Errors
+								if (checkString(result, "") != "") {
+									log.loggerDebug(result);
+									errorMessage = concat(errorMessage, result, hmGlobals["CRLF"]);
+									if (errorsMustThrow) {
+										en.throwValidationError("VALIDATION_RULE", result);
+									} else {
+										log.loggerWarn("W1" + result);
+										logWarning(item.getCtgItemPrimaryKey(), result);
+									}
+
+								}
+							}
+						}
+					}
+
+					// SAP Conversions management
+					if (bSave == "true" && !sCtgName.contains("805")) {
+						log.loggerDebug("CALL applyConversions");
+						getScriptByPath("/scripts/triggers/LG.Library.SAP.Conversions").getFunctionByName("applyConversions").invoke(item);
+					}
+					log.loggerDebug(concat("FIN PREPROC_AttTechSave :", bSave));
+				}
+			}
+			var enError = item.getRootEntryNode().getEntryNode(hmGlobals["ERROR_FIELD"]);
+			if (e != null) {
+				log.loggerError(e);
+				var errorMessage = "FATAL ERROR : " + e;
+
+				if (errorMessage.length() > 300) {
+					errorMessage = substring(errorMessage, 0, 299);
+				}
+				enError.setEntryNodeValue(errorMessage);
+				enError.throwValidationError("VALIDATION_RULE", errorMessage);
+			}
+			else {
+				if (errorMessage.length() > 300) {
+					errorMessage = substring(errorMessage, 0, 299);
+				}
+				enError.setEntryNodeValue(errorMessage);
+			}
+		}
+	}
+
+}
+
+var pkey = item.getCtgItemPrimaryKey();
+log.loggerDebug("### BEGIN LG.Catalog.Preproc for entry " + pkey);
+
+if (!(currentUserHasRole("siniat_nobusinessrules"))) {
+	validateItem(true);
+} else {
+	log.loggerDebug("### Not running PreProc as user has role siniat_nobusinessrules");
+}
+
+log.loggerDebug("### END LG.Catalog.Preproc for entry " + pkey);
+
+

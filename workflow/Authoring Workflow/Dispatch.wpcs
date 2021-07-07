@@ -1,0 +1,28 @@
+function IN(entrySet, colArea, workflow, step, stepPath)
+{
+  // entrySet: entry set
+  // colArea: collaboration area
+  // workflow: workflow
+  // step: step
+  // stepPath: step path
+}
+
+function OUT(entrySet, colArea, workflow, step, stepPath)
+{
+	var ctr = getCategoryTreeByName("H000-Typology");
+	var entry;
+	forEachEntrySetElement(entrySet, entry)
+	{
+		var paths =	entry.getCtgItemCategoryPaths("/", false, ctr);
+		entry.setExitValue(paths[0]);
+	}
+}
+
+function TIMEOUT(entrySet, colArea, workflow, step, stepPath)
+{
+  // entrySet: entry set
+  // colArea: collaboration area
+  // workflow: workflow
+  // step: step
+  // stepPath: step path
+}

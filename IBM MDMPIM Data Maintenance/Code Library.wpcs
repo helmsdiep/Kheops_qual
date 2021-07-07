@@ -1,0 +1,149 @@
+///// {COPYRIGHT-TOP} //////////////////////////////////////////////
+// IBM Confidential
+// OCO Source Materials
+// 5725-E59
+//
+// (c) Copyright IBM Corp. 2000, 2008 All Rights Reserved.
+//
+// The source code for this program is not published or otherwise
+// divested of its trade secrets, irrespective of what has been
+// deposited with the U.S. Copyright Office.
+///// {COPYRIGHT-END} //////////////////////////////////////////////
+//******************************************************************
+// MDMPIM Data Maintenance Code Library
+//******************************************************************
+// CHANGE LOG
+// 2010-08-06 - Initial release
+//******************************************************************
+function getSingleObjectQueryResult (resultSet)
+{
+    if ( null != resultSet && resultSet.next() )
+    {
+        return resultSet.getColumnAt(1);
+    }
+    return null;
+}
+
+function getLocalizedSystemMessage(message_name, locale_obj, english_message)
+{
+	var msg;
+	var msgExp;
+	var errLog = getLogger("IBM MDMPIM Data Maintenance Script Function: getLocalizedSystemMessage");
+	catchError (msgExp)
+	{
+		msg = getSystemMessageByName(message_name, locale_obj);
+	}
+	if (msgExp != null)
+	{
+		msg = english_message;
+		errLog.loggerError("*** No Localized Message *** " + message_name + " *** " + locale_obj + " *** " + checkString(msgExp,"[novalue]"));
+	}
+    return msg;
+}
+
+function getCompanyId(db_connection, company_code)
+{
+    var companyIdSQL = ""
+        + "\n" + "SELECT cmp_company_id "
+        + "\n" + "  FROM cmp "
+        + "\n" + " WHERE cmp_company_code = '" + company_code + "' "
+        + "\n";
+    return getSingleObjectQueryResult(db_connection.executeQuery(companyIdSQL));
+}
+
+function getMsgRunDate(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_JOB_RUN_DATE",dftLoc,"Job run date: ");
+}
+
+function getMsgNoCmpId(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_NO_COMPANY_CODE",dftLoc,"Could not find company id for company code ");
+}
+
+function getMsgTabName(dftLoc)
+{
+	return getLocalizedSystemMessage("COMMON_INFO_TABLE_NAME",dftLoc,"Database table name");
+}
+
+function validateDataMaintenanceLookup(lookup_table,lookup_key,dft_loc)
+{
+	var lookupTableObj = getLkpByName(lookup_table);
+	var aEntries = lookupValues(lookupTableObj, lookup_key);
+	var validatedEntries = [];
+	var sStartDate = "1111-11-11 11:11:11";
+	var sEndDate = " ";
+	var dAdjustedDate;
+	var msgLkpEntr = getLocalizedSystemMessage("COMMON_INFO_INVALID_LKP_ENTRIES",dft_loc,"Lookup entries are not valid ");
+	var msgLkpDate = getLocalizedSystemMessage("COMMON_INFO_LKP_DATE_ERROR",dft_loc,"Date entries in lookup table are not valid: ");	
+	var msgLkpCatg = getLocalizedSystemMessage("COMMON_INFO_INVALID_CTG_NAME",dft_loc,"Catalog name entry in lookup table is not valid: ");	
+	var strCtgId = "0";
+	var strCtgName = " ";
+	validatedEntries[0] = "Success";
+	
+	//Days to keep null or negative
+	if (checkInt(aEntries[0],9) == 9 || aEntries[0] < 0)
+	{
+		//End date null
+		if (checkString(aEntries[2],"0") == "0")
+		{
+			//Both Days_to_keep and end_date cannot be null
+			out.writeln(msgLkpEntr);
+			validatedEntries[0] = "ERROR";
+		}
+		else
+		{
+			var endDate = new Date("dd-MM-yyyy HH:mm:ss", aEntries[2]);
+			sEndDate = endDate.formatDate("yyyy-MM-dd HH:mm:ss");		
+			
+			//start date not null
+			if (checkString(aEntries[1],"0") != "0")
+			{
+				var startDate = new Date("dd-MM-yyyy HH:mm:ss", aEntries[1]);
+				sStartDate = startDate.formatDate("yyyy-MM-dd HH:mm:ss");		
+
+				//error if start date > end date
+				if ( startDate.isDateAfter(endDate) )
+				{
+					out.writeln(msgLkpDate + sStartDate + sEndDate);
+					validatedEntries[0] = "ERROR";
+				}
+			}
+		}
+	}
+	else
+	{
+		if (aEntries[0] >= 0) 
+		{
+			dAdjustedDate = today().addDate("DATE", -1 * checkInt(aEntries[0], 1000));
+			sEndDate = dAdjustedDate.formatDate("yyyy-MM-dd HH:mm:ss");
+			//out.writeln("compute end date");
+		}
+		else
+		{
+			//out.writeln("truncate profile tables");
+			validatedEntries[0] = "ZeroDays";
+		}
+
+	}
+	if (checkString(aEntries[3],"null") != "null")
+	{
+		strCtgName = aEntries[3];
+		var ctg = getCtgByName(strCtgName);
+		if (ctg != null)
+		{
+			var strCtgId = toString(ctg.getCatalogId());
+		}
+		//Catalog Name not exists!
+		else
+		{
+			out.writeln(msgLkpCatg + aEntries[3]);
+			validatedEntries[0] = "ERROR";
+		}
+	}
+	validatedEntries[1] = sStartDate;
+	validatedEntries[2] = sEndDate;
+	validatedEntries[3] = strCtgId;	
+	validatedEntries[4] = strCtgName;		
+	return validatedEntries;
+}

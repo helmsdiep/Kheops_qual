@@ -1,0 +1,6 @@
+var log = getLogger("default");
+log.loggerInfo("BEGIN-CGA-Debug Catalog Export Script");
+var doc = getDocByPath("params/E001-InputSpec/CGA.test.report");
+var attribValue = "" + doc.getDocAttribute("E001-InputSpec/CatalogName");
+log.loggerInfo(attribValue);
+log.loggerInfo("END-CGA-Debug Catalog Export Script");

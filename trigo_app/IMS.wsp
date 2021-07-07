@@ -1,0 +1,49 @@
+<%
+    var reportName="LG.IMS.Interface";
+    var user = getCurrentUserName();  
+    var report=getReportByName("LG.IMS.Interface");
+    var m=createJavaMethod("com.ibm.ccd.report.common.Report","getJobId");
+    var reportId=runJavaMethod(report,m);
+%>
+
+<html>
+
+    <head>
+        <title>IMS exports</title>
+    </head>
+
+    <body onload="document.forms['show_schedule_status'].submit()">
+        <h1>Welcome on the IMS Interface page</h1>
+        <h2><%=reportName %></h2>
+
+        <form name="run_report" method="get" action="/utils/invoker.jsp" target="run_results">
+            <input type="hidden" name="company_code" value="siniat"/>
+            <input type="hidden" name="bUserOutput" value="false"/><!-- set to true for debugging -->
+            <input type="hidden" name="invoking_user" value="<%= user%>/siniat"/>
+            <input type="hidden" name="script" value="LG.IMS.runExportReport"/>
+            <input type="submit" value="run IMS Export" />
+        </form>
+        <iframe name="run_results" width="1200px" height="50px" src=""></iframe>
+
+        <form name="show_schedule_status" method="post" action="/ccd_scheduler/schedule_popup.jsp" target="status_results">
+            <input type="hidden" name="job_id" value='<%=reportId %>' />
+            <input type="hidden" name="sch_id" value='-1' />
+            <input type="hidden" name="doit" value='view' />
+            <input type="hidden" name="sBackLink" value="/ccd_report/report_console.jsp||+Report+Console||" />
+            <input type="submit" value="Refresh job status" />
+        </form>
+        <iframe name="status_results" width="1200px" height="200px" src=""></iframe>
+
+        <form name="show_docstore" method="post" action="/ccd_docstore/adm_browse_docstore.jsp" target="docstore_results">
+            <input type="hidden" name="doit" value='' />
+            <input type="hidden" name="docstore_selected_path" value="/ims/" />
+            <input type="submit" value="View result files" />
+        </form>
+
+        <iframe name="docstore_results" width="1200px" height="400px" src=""></iframe>
+
+
+    </body>
+
+</html>
+

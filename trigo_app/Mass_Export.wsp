@@ -1,0 +1,1242 @@
+<%
+//script_execution_mode=not_compiled
+//////////////////////////////////////////////////////////////////
+// @file: mass export
+// @description: exportation csv
+// @Création : Benoit Durand
+//
+/////////////////////////////////////////////////////////////////
+//	FONCTION QUI INITIALISE LA HASH MAP DE VARIABLES GLOBALES
+function initGlobals(){
+	//On déclare la hash map
+    var hmGlobals = [];
+	//On récupère des fonctions qui sont stockées dans des librairies de fonctions,
+	//Elles seront utiles plus tard dans le programme
+	//On les stocke dans une hash map de variables globales
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+    hmGlobals["FN_GET_ENTRY_NODE_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeAtLevel");
+    hmGlobals["FN_GET_PARENT_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentAtLevel");
+    hmGlobals["FN_GET_STATUS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+	//Recupere la constant kheops "QUOT" de la table L902-KheopsConstants et la stocke dans la variable globale
+    hmGlobals["QUOT"] = lookupValues(getLkpByName("L902-KheopsConstants"),"QUOT")[0];
+    return hmGlobals;
+}
+
+//	FONCTION QUI RETOURNE LE PARENT D'UN ITEM	
+function getParentItem(hmGlobals,item){
+	//On retourne l'objet item situé à l'adresse contenue dans la varible globale "PARENT_RELATIONSHIP_FIELD"
+	return item.getItemUsingEntryRelationshipAttrib(hmGlobals["PARENT_RELATIONSHIP_FIELD"]);
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS-GRANDS PARENTS D'UN ITEM	(tous les ancètres de l'item)
+function getParentsItem(hmGlobals,item,hmParents){
+	//Ajoute l'item/parent/grandparent à la hashmap de Parents (selon l'étape de récursivité sur la fonction)
+	hmParents.add(item);
+	//On appelle la fonction getParentItem décrite ci dessus et qui retourne le parent d'un item 
+	//on stocke le résultat dans parent
+	var parent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);
+	if(parent!=null) {//Si il y a un parent on effectue une récursivité avec comme argument parent (pour trouver les grand-parents)
+		return(getParentsItem(hmGlobals,parent,hmParents));
+	}
+	else {//sinon on retourne hmParents
+		return(hmParents);
+	}
+}
+
+//	FONCTION QUI RETOURNE LE TYPE D'UN ITEM	
+//La méthode associée à la variable hmGlobals["FN_GET_ITEM_TYPE"] (ici il s'agit de getItemType())
+//est exécutée sur l'objet item passé en parametres via la fonction invoke()
+function getType(hmGlobals,item){
+	return hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+}
+
+//	FONCTION QUI RETOURNE LES PARENTS DE L'ITEM A UN NIVEAU DONNE (PROD, BUNIT, PITEM...)
+function getParentAtLevel(hmGlobals,item,iLevel) {
+	if(iLevel==0) {//Si le niveau pour récupérere la valeur de l'attribut est au niveau courant on retourne l'item
+		return(item);
+	}
+	else {//On appelle la fonction getParentItem décrite ci dessus et qui retourne le parent d'un item 
+		//on stocke le résultat dans parentItem
+		var parentItem = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);
+		if(parentItem==null) {//si l'item n'a pas de parent
+			return(null);//on retourne null
+		}
+		else {//sinon on recherche les parents au niveau supérieur (PROD, BUNIT, PITEM...) par recursivite
+			return(getParentAtLevel(hmGlobals,parentItem,iLevel+1));
+		}
+	}
+}
+
+//	FONCTION QUI RETOURNE LE NOEUD (attribut de l'item) EN FONCTION DU CHEMIN 
+//la méthode associée à la variable hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] (ici il s'agit de getEntryNodesFromAttrPath())
+//est exécutée sur item et sNodeName via la fonction invoke()
+function getEn(hmGlobals, item, sNodeName){
+	return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+
+
+
+//	FONCTION QUI RETOURNE LA VALEUR DU NOEUD (valeur attribut de l'item) EN FONCTION DU CHEMIN 
+//Idem fonction précédente sauf que l'on récupère la valeur correspondand au noeud spécifié
+function getValue(hmGlobals, item, sNodeName){
+	return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName)[0].getEntryNodeValue();
+}
+
+//	FONCTION QUI RETOURNE LE PARENT DE PLUS HAUT NIVEAU		
+function getHigherParent(hmGlobals , hmParents, sAttrPath){
+	var i;
+	for(i=0;i<hmParents.size();i++) {//On boucle sur la hashmap de parents
+		if(getEn(hmGlobals,hmParents[i],sAttrPath)!=null) {//Si la valeur de l'attribut du noeud parent n'est pas nul
+			return(hmParents[i]);//On retourne le noeud parent
+		}
+	}
+	return(null);
+}
+
+//	FONCTION QUI RECUPERE L'ITEM A UN NIVEAU DONNE
+function getItemAtLevel(hmGlobals,item,sLevel){
+	if (item==null) {//Si l'item n'existe pas, on retourne la valeur null
+		return null;
+	}
+	else
+	{
+		if (getType(hmGlobals,item)==sLevel) //Si le type de l'item correspond au niveau demandé, on retourne l'item
+		{
+			return item;
+		}
+		
+		var oParent = getParentItem(hmGlobals["FN_GET_CONST"].invoke(),item);//Sinon on récupère le parent de l'item
+		return getItemAtLevel(hmGlobals,oParent,sLevel);//Et on regarde si il correspond au niveau demandé par recursivité
+	}
+}
+
+//	FONCTION QUI RECUPERE LA PLUS GRANDE CLEF DE LA HASH MAP (= taille max de la hashmap pour pouvoir boucler dessus)
+function getMaxHm(hm) {
+	var oKey;
+	var oValue;
+	var max = 0;
+	forEachHmElement(hm,oKey,oValue) {//Pour chaque couple (Okey, oValue) de la hash map
+		if(toInteger(oKey)>max) {//Si la conversion en int de oKey est supérieure a max
+			max = toInteger(oKey);//On place la valeur de oKey dans max
+		}	
+	}	
+	return(max);//On retourne la clef la plus grande de la hashmap
+}
+
+//	FONCTION QUI CONSTRUIT LE FICHIER CSV
+function buildSAPCSV(hmGlobals,hm) {
+	var i;
+	var csv = "";
+	var val ="";
+	for(i=1;i<getMaxHm(hm);i++) {//Pour chaque valeur inférieure à la valeur max de la hashmap
+		if(hm[i]==null) {//Si la valeur contenue dans la hashmap est a NULL
+			val = "";//La variable val prend pour valeur ""(vide)
+		}
+		else {//Sinon on copie la valeur de la hashmap dans val
+			val = toString(hm[i]);
+			if(val.contains("null")==true) {//Si val contient la chaine de caractères null
+				val = "";//La variable val pren pour valeur ""(vide)
+			}
+		}
+		//csv = csv  + escapeForCSV(val) + ",";
+		//On remplit la variable csv avec les différentes valeurs en respectant la syntaxe du format
+		//Exemple : "val1","val2","val3"...
+		csv = csv  + hmGlobals["QUOT"] + val + hmGlobals["QUOT"] + ";";
+	}
+	//On réitère l'opération pour la dernière valeur de la hashmap (valeur max) car non prise en compe dans la boucle for (i<MaxHm(hm))
+	if(hm[i]==null) {
+			val = "";
+		}
+		else {
+			val = toString(hm[i]);
+			if(val.contains("null")==true) {
+				val = "";
+			}
+		}
+	//csv = csv + escapeForCSV(val);
+	csv = csv  + hmGlobals["QUOT"] + val + hmGlobals["QUOT"];
+	return(csv);//On renvoie la variable csv qui respecte le format du meme nom
+}
+
+function getPublishingItemAtLevel(oitem,sLevel){
+    return getScriptByPath("/scripts/triggers/LG.Library.LGUtils")
+              .getFunctionByName("getPublishingItemAtLevel").invoke(oitem, sLevel);
+}
+
+// FONCTION QUI RECUPERE LA OU LES VALEURS D'UN ATTRIBUT (champr de la matrice Kheops) POUR UN ITEM DONNE 
+function tech(hmGlobals,item,sAttrName,sGroupingName,sLkpName,iLkpRow,sAttrNameGroupingKey,sAttrValGroupingKey,iLevel) {
+//- hmGlobals : tableau de variables globales
+//- item : item
+//- sAttrName : nom de l'attribut (ex : "06DN0346-IsInCatalog")
+//- sGroupingName : nom du grouping (ex : "ChannelOfDistributionGroup")
+//- sLkpName : nom de la lookup table (ex : "L103-Marque ciale Detenteur - Brand name")
+//- iLkpRow : numéro de la colonne de la lookup table (ex : 2)
+//- sAttrNameGroupingKey : nom de l’attribut clé du grouping 
+//- sAttrValGroupingKey : valeur de l’attribut clé du grouping 
+//- iLevel : niveau où récupérer la valeur de l'attribut (de -2 à 4)
+	
+	var val = [];//tableau des valeurs de sAttrName si c'est un grouping ou un multivalué
+	var en;
+	var sKey;
+	
+	//Si on veut la valeur de sAttrName à un niveau différent de celui sur lequel on est
+	//On remplace l'item item par celui du niveau désiré  
+	if(iLevel!=null) {
+		//0 ou null = valeur de l'attribut de l'item au niveau courant,
+		//1 = valeur de l'attribut de l'item au niveau Prod,
+		//2 = valeur de l'attribut de l'item au niveau BUnit,
+		//3 = valeur de l'attribut de l'item au niveau Pitem1,
+		//4 = valeur de l'attribut de l'item au niveau Pitem2,
+		//-1 = valeur de l'attribut de l'item au niveau du parent,
+		//-2 = valeur de l'attribut de l'item au niveau du grand parent
+		var sLevel = "";
+		if(iLevel ==1 ){//Si le niveau est a 1, sLevel prend la valeur "Prod"
+			sLevel = "Prod";
+		}
+		else if (iLevel == 2) {//Si le niveau est a 2, sLevel prend la valeur "BUnit"
+			sLevel = "BUnit";
+		}
+		else if (iLevel == 3) {//Si le niveau est a 3, sLevel prend la valeur "PItem"
+			sLevel = "PItem";
+		}
+		else if (iLevel < 0) {//Si le niveau est inférieur a 0, on récupère l'attribut chez le parent, grand-parent de l'item
+			//item = hmGlobals["FN_GET_PARENT_AT_LEVEL"].invoke(hmGlobals,item,iLevel);
+			item = getParentAtLevel(hmGlobals,item,iLevel);
+		}
+		if(sLevel!="") {//Si la variable sLevel n'est pas vide, on récupère l'item au niveau demandé
+			item = getItemAtLevel(hmGlobals,item,sLevel);
+		}
+	}
+	
+	//---------------------------------------------------------------------------------------------------------------------
+	
+	//Si on est dans un grouping
+	if(checkString(sGroupingName,"")!=""){
+		var myGroup = getEn(hmGlobals,item,sGroupingName);
+		if(myGroup!=null) {
+			var i;
+			//On parcourt le grouping sGroupingName
+			for(i=0;i<myGroup.size();i++) {
+				//Si on veut récupérer les valeurs de sAttrName sur une occcurrence spéciale
+				if(checkString(sAttrNameGroupingKey,"")!="" && checkString(sAttrValGroupingKey,"") != "") {
+					//Recherche de l'occurrence tel que sAttrNameGroupingKey = sAttrValGroupingKey
+					if(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrNameGroupingKey)==sAttrValGroupingKey) {						
+						en = getEn(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+						if(en!=null) {
+							//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+							if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+								var j;
+								for(j=0;j<en.size();j++) {
+									//sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+									sKey = en[j].getEntryNodeValue();
+									if(sKey!=null) {
+										val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+									}
+								}
+							}
+							//Si on veut simplement la valeur de l'attribut de sAttrName
+							else {
+								var j;
+								for(j=0;j<en.size();j++) {
+									//val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+									val.add(en[j].getEntryNodeValue());
+								}		
+							}
+						}
+					}
+				}
+				//Si on veut récupérer les valeurs de sAttrName sur toutes les occurrences
+				else {
+					en = getEn(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+					if(en!=null) {
+						//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+						if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+							var j;
+							for(j=0;j<en.size();j++) {
+								//sKey = getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName);
+								sKey = en[j].getEntryNodeValue();
+								if(sKey!=null) {
+									val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+								}
+							}	
+						}
+						//Si on veut simplement la valeur de l'attribut de sAttrName
+						else {
+							var j;
+							for(j=0;j<en.size();j++) {
+								//val.add(getValue(hmGlobals,item,sGroupingName + "#" + i + "/" + sAttrName));
+								val.add(en[j].getEntryNodeValue());
+							}	
+						}
+					}
+				}
+			}
+		}
+	}
+	//Si on n'est pas dans un grouping
+	else {
+		en = getEn(hmGlobals,item,sAttrName);
+		if(en!=null) {
+			//Si on veut la valeur d'une colonne particulière de la lkp attachée à sAttrName
+			if(iLkpRow!=null && checkString(sLkpName,"")!="") {
+				var j;
+				for(j=0;j<en.size();j++) {
+					sKey = en[j].getEntryNodeValue();
+					if(sKey!=null) {
+						val.add(lookupValues(getLkpByName(sLkpName),sKey)[iLkpRow]);
+					}
+				}	
+			}
+			//Si on veut simplement la valeur de l'attribut de sAttrName
+			else {
+				var j;
+				for(j=0;j<en.size();j++) {
+					val.add(en[j].getEntryNodeValue());
+				}	
+			}	
+		}
+	}
+	
+	//out.writeln(en);
+	//out.writeln(val);
+	
+	//-----------------------------------------------------------------------------------------------------------------------
+	
+	//CHAINE FINALE DE L'ATTRIBUT
+	var myStr = ""; 
+	if(val.size()==0) {//Si val est vide myStr prend ma valeur null
+		myStr = "null";
+	}
+	if(val.size()==1) {//Si val contient 1 valeur on convertit la valeur en string et on la place dans myStr
+		myStr = toString(val[0]);
+	}
+	if(val.size()>1) {//Si val contient plus d'une valeur
+		var i;
+		for(i=0;i<val.size()-1;i++) {//On boucle sur les valeurs contenues dans val[]
+			myStr = myStr + toString(val[i]) + "@#@";//On les copie dans myStr en les separant par @#@
+		}
+		myStr = myStr + toString(val[i]);//on copie la derniere valeur (val.size()) dans myStr car elle n'est pas prise en compte dans la boucle (i<val.size())
+	}
+	return(myStr);
+}
+
+
+var attrlist = [];
+attrlist.add("01AC0044-ERPCode|01AC0044-ERPCode");
+attrlist.add("01AC0664-MaterialNumber|01AC0664-MaterialNumber");
+attrlist.add("01AC0012-LongName|01AC0012-LongName");
+attrlist.add("01AC0014-invoiceName|01AC0014-invoiceName");
+attrlist.add("01AC0042-GTIN|01AC0042-GTIN");
+
+attrlist.add("01AC0001-IsInPDM|01AC0001-IsInPDM");
+attrlist.add("01AC0003-LastUpdateUser|01AC0003-LastUpdateUser");
+attrlist.add("01AC0004-LastUpdate|01AC0004-LastUpdate");
+attrlist.add("01AC0005-CreationUser|01AC0005-CreationUser");
+attrlist.add("01AC0006-CreationDate|01AC0006-CreationDate");
+attrlist.add("01AC0007-BlockedDate|01AC0007-BlockedDate");
+attrlist.add("01AC0008-BlockedUser|01AC0008-BlockedUser");
+attrlist.add("01AC0009-UnblockedDate|01AC0009-UnblockedDate");
+attrlist.add("01AC0010-UnblockedUser|01AC0010-UnblockedUser");
+attrlist.add("01AC0011-replacementGtin|01AC0011-replacementGtin");
+attrlist.add("01AC0016-associationType|01AC0016-associationType");
+attrlist.add("01AC0017-LabelName1|01AC0017-LabelName1");
+attrlist.add("01AC0018-LabelName2|01AC0018-LabelName2");
+attrlist.add("01AC0019-SdcNatureCode|01AC0019-SdcNatureCode");
+attrlist.add("01AC0020-UnitDescriptor|01AC0020-UnitDescriptor");
+attrlist.add("01AC0021-BaseUnit|01AC0021-BaseUnit");
+attrlist.add("01AC0022-ConsumerUnit|01AC0022-ConsumerUnit");
+attrlist.add("01AC0023-DespatchUnit|01AC0023-DespatchUnit");
+attrlist.add("01AC0024-Model|01AC0024-Model");
+attrlist.add("01AC0025-StandardMixedPackage|01AC0025-StandardMixedPackage");
+attrlist.add("01AC0026-ConsumerPack|01AC0026-ConsumerPack");
+attrlist.add("01AC0027-FullDisplayStand|01AC0027-FullDisplayStand");
+attrlist.add("01AC0028-Service|01AC0028-Service");
+attrlist.add("01AC0029-BulkItem|01AC0029-BulkItem");
+attrlist.add("01AC0030-CutToOrderItem|01AC0030-CutToOrderItem");
+attrlist.add("01AC0031-DivisibleItem|01AC0031-DivisibleItem");
+attrlist.add("01AC0032-ReOrdable|01AC0032-ReOrdable");
+attrlist.add("01AC0033-SeasonalItem|01AC0033-SeasonalItem");
+attrlist.add("01AC0034-PromotionalItem|01AC0034-PromotionalItem");
+attrlist.add("01AC0035-ReturnableItem|01AC0035-ReturnableItem");
+attrlist.add("01AC0036-brandName|01AC0036-brandName");
+attrlist.add("01AC0037-nameOfBrandOwner|01AC0037-nameOfBrandOwner");
+attrlist.add("01AC0038-brandOwner |01AC0038-brandOwner ");
+attrlist.add("01AC0039-GLNProvider|01AC0039-GLNProvider");
+attrlist.add("01AC0040-nameOfProvider|01AC0040-nameOfProvider");
+attrlist.add("01AC0041-barCodeType|01AC0041-barCodeType");
+attrlist.add("01AC0043-hasBatchNumber|01AC0043-hasBatchNumber");
+attrlist.add("01AC0548-Status|01AC0548-Status");
+attrlist.add("01AC0557-ReplacementItem|01AC0557-ReplacementItem");
+attrlist.add("01AC0652-Innovation|01AC0652-Innovation");
+attrlist.add("01AC0659-MaterialType|01AC0659-MaterialType");
+attrlist.add("01AC0667-AuthorisationGroup|01AC0667-AuthorisationGroup");
+attrlist.add("01AC0668-EANCategory|01AC0668-EANCategory");
+attrlist.add("01AC0670-XPlantMatlStatus|01AC0670-XPlantMatlStatus");
+attrlist.add("01AC0740-OldMaterialNumber|01AC0740-OldMaterialNumber");
+attrlist.add("01AC0741-PackagingItemDescription|01AC0741-PackagingItemDescription");
+attrlist.add("01AC0775-PublishedIntoSAP|01AC0775-PublishedIntoSAP");
+
+attrlist.add("02FR|ProductionSiteGroup");
+attrlist.add("02FR0050-GroupMadeItem|02FR0050-GroupMadeItem");
+attrlist.add("02FR0051-ItemPurchased|02FR0051-ItemPurchased");
+attrlist.add("02FR0660-MaterialGroup|02FR0660-MaterialGroup");
+attrlist.add("02FR0673-PurchasingValueKey|02FR0673-PurchasingValueKey");
+attrlist.add("02FR0703-PurchasingGroup|02FR0703-PurchasingGroup");
+attrlist.add("02FR0704-AutoPurchAllowed|02FR0704-AutoPurchAllowed");
+
+attrlist.add("03FN0038-ProductFunction|03FN0038-ProductFunction");
+attrlist.add("03FN0065-DescriptionLong|03FN0065-DescriptionLong");
+attrlist.add("03FN0066-TradeItemDescriptionShort|03FN0066-TradeItemDescriptionShort");
+attrlist.add("03FN0067-ProductQualities|03FN0067-ProductQualities");
+attrlist.add("03FN0068-ProductFunction|03FN0068-ProductFunction");
+attrlist.add("03FN0069-ProductActivity|03FN0069-ProductActivity");
+attrlist.add("03FN0070-Use|03FN0070-Use");
+attrlist.add("03FN0072-SketchDrawing|03FN0072-SketchDrawing");
+attrlist.add("03FN0074-ProductPhoto|03FN0074-ProductPhoto");
+attrlist.add("03FN0578-TechnicalForm|03FN0578-TechnicalForm");
+
+attrlist.add("04CP0075-MarkingOnTheProduct|04CP0075-MarkingOnTheProduct");
+attrlist.add("04CP0076-LabellingType|04CP0076-LabellingType");
+attrlist.add("04CP0077-LabellingColour|04CP0077-LabellingColour");
+attrlist.add("04CP0078-LabellingPoint|04CP0078-LabellingPoint");
+attrlist.add("04CP0079-IsFixingLabels|04CP0079-IsFixingLabels");
+attrlist.add("04CP0080-CommercialThickness|04CP0080-CommercialThickness");
+attrlist.add("04CP0081-CommercialThicknessUnits|04CP0081-CommercialThicknessUnits");
+attrlist.add("04CP0082-RealThickness|04CP0082-RealThickness");
+attrlist.add("04CP0083-ThicknessTolerance|04CP0083-ThicknessTolerance");
+attrlist.add("04CP0084-RealThicknessUnits|04CP0084-RealThicknessUnits");
+attrlist.add("04CP0085-CommercialBoardThickness|04CP0085-CommercialBoardThickness");
+attrlist.add("04CP0086-CommercialBoardThicknessUnits|04CP0086-CommercialBoardThicknessUnits");
+attrlist.add("04CP0087-RealBoardThickness|04CP0087-RealBoardThickness");
+attrlist.add("04CP0088-RealBoardThicknessUnits|04CP0088-RealBoardThicknessUnits");
+attrlist.add("04CP0089-InsulationThickness|04CP0089-InsulationThickness");
+attrlist.add("04CP0090-InsulationThicknessUnits|04CP0090-InsulationThicknessUnits");
+attrlist.add("04CP0091-Thickness|04CP0091-Thickness");
+attrlist.add("04CP0092-ThicknessUnits|04CP0092-ThicknessUnits");
+attrlist.add("04CP0093-InternalBoardCommercialThickness|04CP0093-InternalBoardCommercialThickness");
+attrlist.add("04CP0095-Width|04CP0095-Width");
+attrlist.add("04CP0094-InternalBoardCommercialThicknessUnits|04CP0094-InternalBoardCommercialThicknessUnits");
+attrlist.add("04CP0096-WidthTolerance|04CP0096-WidthTolerance");
+attrlist.add("04CP0097-WidthUnit|04CP0097-WidthUnit");
+attrlist.add("04CP0098-InsulationRealThickness|04CP0098-InsulationRealThickness");
+attrlist.add("04CP0099-InsulationRealThicknessUnits|04CP0099-InsulationRealThicknessUnits");
+attrlist.add("04CP0101-DiameterUnits|04CP0101-DiameterUnits");
+attrlist.add("04CP0103-Length|04CP0103-Length");
+attrlist.add("04CP0104-LengthUnits|04CP0104-LengthUnits");
+attrlist.add("04CP0105-SurfaceArea|04CP0105-SurfaceArea");
+attrlist.add("04CP0106-SurfaceAreaUnits|04CP0106-SurfaceAreaUnits");
+attrlist.add("04CP0107-BItemHeight|04CP0107-BItemHeight");
+attrlist.add("04CP0108-BItemHeightUnits|04CP0108-BItemHeightUnits");
+attrlist.add("04CP0111-BaseWidthUnits|04CP0111-BaseWidthUnits");
+attrlist.add("04CP0113-BaseLengthUnits|04CP0113-BaseLengthUnits");
+attrlist.add("04CP0114-Height|04CP0114-Height");
+attrlist.add("04CP0115-HeightUnits|04CP0115-HeightUnits");
+attrlist.add("04CP0116-Depth|04CP0116-Depth");
+attrlist.add("04CP0117-DepthUnits|04CP0117-DepthUnits");
+attrlist.add("04CP0118-PItemWidth|04CP0118-PItemWidth");
+attrlist.add("04CP0120-PItemWidthUnits|04CP0120-PItemWidthUnits");
+attrlist.add("04CP0121-CompatibleBeamMaxiHeelThickness|04CP0121-CompatibleBeamMaxiHeelThickness");
+attrlist.add("04CP0125-CompatibleBeamMiniTotalHeight|04CP0125-CompatibleBeamMiniTotalHeight");
+attrlist.add("04CP0127-CompatibleBeamMaxiHeelWidth|04CP0127-CompatibleBeamMaxiHeelWidth");
+attrlist.add("04CP0128-CompatibleBeamMiniHeelWidth|04CP0128-CompatibleBeamMiniHeelWidth");
+attrlist.add("04CP0135-MetalThickness|04CP0135-MetalThickness");
+attrlist.add("04CP0136-MetalThicknessTolerance|04CP0136-MetalThicknessTolerance");
+attrlist.add("04CP0137-LabelFormat|04CP0137-LabelFormat");
+attrlist.add("04CP0141-MeanWingHeightUnits|04CP0141-MeanWingHeightUnits");
+attrlist.add("04CP0143-WingHeightUnits1|04CP0143-WingHeightUnits1");
+attrlist.add("04CP0145-WingHeightUnits2|04CP0145-WingHeightUnits2");
+attrlist.add("04CP0146-Section|04CP0146-Section");
+attrlist.add("04CP0147-SectionUnits|04CP0147-SectionUnits");
+attrlist.add("04CP0149-MiniHeightUnits|04CP0149-MiniHeightUnits");
+attrlist.add("04CP0151-MaxiHeightUnits|04CP0151-MaxiHeightUnits");
+attrlist.add("04CP0152-BodyDiameter|04CP0152-BodyDiameter");
+attrlist.add("04CP0153-BodyDiameterUnits|04CP0153-BodyDiameterUnits");
+attrlist.add("04CP0154-HeadDiameter|04CP0154-HeadDiameter");
+attrlist.add("04CP0155-HeadDiameterUnits|04CP0155-HeadDiameterUnits");
+attrlist.add("04CP0156-PaperGrammage|04CP0156-PaperGrammage");
+attrlist.add("04CP0158-TypeBoard|04CP0158-TypeBoard");
+attrlist.add("04CP0159-TypeHeartBoard|04CP0159-TypeHeartBoard");
+attrlist.add("04CP0160-LongitudinalEdgeType|04CP0160-LongitudinalEdgeType");
+attrlist.add("04CP0161-FrontFacingType|04CP0161-FrontFacingType");
+attrlist.add("04CP0162-BackFacingType|04CP0162-BackFacingType");
+attrlist.add("04CP0163-FrontFacingColour|04CP0163-FrontFacingColour");
+attrlist.add("04CP0164-BackFacingColour|04CP0164-BackFacingColour");
+attrlist.add("04CP0165-TransverseEdgeType|04CP0165-TransverseEdgeType");
+attrlist.add("04CP0166-FrontInternalCoating|04CP0166-FrontInternalCoating");
+attrlist.add("04CP0167-BackInternalCoating|04CP0167-BackInternalCoating");
+attrlist.add("04CP0168-AddedCoating|04CP0168-AddedCoating");
+attrlist.add("04CP0169-VapourSeal|04CP0169-VapourSeal");
+attrlist.add("04CP0170-Perforation|04CP0170-Perforation");
+attrlist.add("04CP0171-PerforationLayout|04CP0171-PerforationLayout");
+attrlist.add("04CP0172-InsulationType|04CP0172-InsulationType");
+attrlist.add("04CP0173-EPSAccordingToNF|04CP0173-EPSAccordingToNF");
+attrlist.add("04CP0174-SurfaceAspect|04CP0174-SurfaceAspect");
+attrlist.add("04CP0175-Base|04CP0175-Base");
+attrlist.add("04CP0176-Profil|04CP0176-Profil");
+attrlist.add("04CP0177-Strip|04CP0177-Strip");
+attrlist.add("04CP0178-ProfileRaising|04CP0178-ProfileRaising");
+attrlist.add("04CP0179-ChamferRaising|04CP0179-ChamferRaising");
+attrlist.add("04CP0180-ChamferDescription|04CP0180-ChamferDescription");
+attrlist.add("04CP0181-colourCode|04CP0181-colourCode");
+attrlist.add("04CP0182-colourCodeAgency|04CP0182-colourCodeAgency");
+attrlist.add("04CP0183-Colouration|04CP0183-Colouration");
+attrlist.add("04CP0184-Shape|04CP0184-Shape");
+attrlist.add("04CP0185-HeadShape|04CP0185-HeadShape");
+attrlist.add("04CP0186-PointType|04CP0186-PointType");
+attrlist.add("04CP0187-ThreadType|04CP0187-ThreadType");
+attrlist.add("04CP0188-Galvanised|04CP0188-Galvanised");
+attrlist.add("04CP0189-PaperPresentation|04CP0189-PaperPresentation");
+attrlist.add("04CP0190-PaperQuality|04CP0190-PaperQuality");
+attrlist.add("04CP0191-PrePrinted|04CP0191-PrePrinted");
+attrlist.add("04CP0192-PrintLocation|04CP0192-PrintLocation");
+attrlist.add("04CP0193-PaperType|04CP0193-PaperType");
+attrlist.add("04CP0196-PaletType|04CP0196-PaletType");
+attrlist.add("04CP0197-CoverType|04CP0197-CoverType");
+attrlist.add("04CP0204-TypeOfFreeFilm|04CP0204-TypeOfFreeFilm");
+attrlist.add("04CP0206-TypeOfValves|04CP0206-TypeOfValves");
+attrlist.add("04CP0207-PositionOfTheValve|04CP0207-PositionOfTheValve");
+attrlist.add("04CP0208-Handle|04CP0208-Handle");
+attrlist.add("04CP0209-HandleMaterial|04CP0209-HandleMaterial");
+attrlist.add("04CP0210-GrippingSystem|04CP0210-GrippingSystem");
+attrlist.add("04CP0211-BigBagBaseType|04CP0211-BigBagBaseType");
+attrlist.add("04CP0212-InnerLiner|04CP0212-InnerLiner");
+attrlist.add("04CP0213-netWeight|04CP0213-netWeight");
+attrlist.add("04CP0214-netWeightUnit|04CP0214-netWeightUnit");
+attrlist.add("04CP0215-grossWeight|04CP0215-grossWeight");
+attrlist.add("04CP0216-grossWeightUnit|04CP0216-grossWeightUnit");
+attrlist.add("04CP0217-RoughVolume|04CP0217-RoughVolume");
+attrlist.add("04CP0218-RoughVolumeUnit|04CP0218-RoughVolumeUnit");
+attrlist.add("04CP0219-ProductBOM|04CP0219-ProductBOM");
+attrlist.add("04CP0220-ProductEquipement|04CP0220-ProductEquipement");
+attrlist.add("04CP0221-ChemicalComposition|04CP0221-ChemicalComposition");
+attrlist.add("04CP0222-ProductFormula|04CP0222-ProductFormula");
+attrlist.add("04CP0223-ProductType|04CP0223-ProductType");
+attrlist.add("04CP0224-SteelType|04CP0224-SteelType");
+attrlist.add("04CP0225-SteelAspect|04CP0225-SteelAspect");
+attrlist.add("04CP0226-Material|04CP0226-Material");
+attrlist.add("04CP0227-PaletMakeUp|04CP0227-PaletMakeUp");
+attrlist.add("04CP0228-PaletHandlingPoints|04CP0228-PaletHandlingPoints");
+attrlist.add("04CP0229-FibreType|04CP0229-FibreType");
+attrlist.add("04CP0230-GypsumBlockType|04CP0230-GypsumBlockType");
+attrlist.add("04CP0231-BeamCompatibilityCode|04CP0231-BeamCompatibilityCode");
+attrlist.add("04CP0232-Characteristics|04CP0232-Characteristics");
+attrlist.add("04CP0233-Familly|04CP0233-Familly");
+attrlist.add("04CP0234-Granulometry|04CP0234-Granulometry");
+attrlist.add("04CP0235-TreatedForExport|04CP0235-TreatedForExport");
+attrlist.add("04CP0236-Energy|04CP0236-Energy");
+attrlist.add("04CP0237-Voltage|04CP0237-Voltage");
+attrlist.add("04CP0241-DuctileRetractable|04CP0241-DuctileRetractable");
+attrlist.add("04CP0561-CoreType|04CP0561-CoreType");
+attrlist.add("04CP0562-RealingHand|04CP0562-RealingHand");
+attrlist.add("04CP0563-PaperClass|04CP0563-PaperClass");
+attrlist.add("04CP0572-BeamHealWidth|04CP0572-BeamHealWidth");
+attrlist.add("04CP0577-MsgNbrForMarkingPallet|04CP0577-MsgNbrForMarkingPallet");
+attrlist.add("04CP0581-WingBack|04CP0581-WingBack");
+attrlist.add("04CP0650-MethodOfManufacture|04CP0650-MethodOfManufacture");
+attrlist.add("04CP0820-DrainThickness|04CP0820-DrainThickness");
+attrlist.add("04CP0821-DrainThicknessUnit|04CP0821-DrainThicknessUnit");
+attrlist.add("04CP0843-CoilWidth|04CP0843-CoilWidth");
+attrlist.add("04CP0844-CoilWidthUnits|04CP0844-CoilWidthUnits");
+attrlist.add("05PC0254-IndicativeSurfaceMass|05PC0254-IndicativeSurfaceMass");
+attrlist.add("05PC0255-SpecifiedSurfaceMass|05PC0255-SpecifiedSurfaceMass");
+attrlist.add("05PC0256-SpecSurfaceMassTolerance|05PC0256-SpecSurfaceMassTolerance");
+attrlist.add("05PC0257-HardnessInShoreC|05PC0257-HardnessInShoreC");
+attrlist.add("05PC0258-SurfaceHardness|05PC0258-SurfaceHardness");
+attrlist.add("05PC0259-WorkingLoad|05PC0259-WorkingLoad");
+attrlist.add("05PC0260-InertiaFlat|05PC0260-InertiaFlat");
+attrlist.add("05PC0261-InertiaSection|05PC0261-InertiaSection");
+attrlist.add("05PC0262-Squaring|05PC0262-Squaring");
+attrlist.add("05PC0263-ApparentBulkDensity|05PC0263-ApparentBulkDensity");
+attrlist.add("05PC0264-ISOLE|05PC0264-ISOLE");
+attrlist.add("05PC0265-Incompressibility|05PC0265-Incompressibility");
+attrlist.add("05PC0266-CompressibilityClass|05PC0266-CompressibilityClass");
+attrlist.add("05PC0267-ServiceabilityCompressionStrength|05PC0267-ServiceabilityCompressionStrength");
+attrlist.add("05PC0268-ServiceabilityDeformation|05PC0268-ServiceabilityDeformation");
+attrlist.add("05PC0269-CompressiveStress|05PC0269-CompressiveStress");
+attrlist.add("05PC0270-MechanicalResistanceToCompression|05PC0270-MechanicalResistanceToCompression");
+attrlist.add("05PC0271-DeformationUnderSpecifiedConditions|05PC0271-DeformationUnderSpecifiedConditions");
+attrlist.add("05PC0272-TearStrength|05PC0272-TearStrength");
+attrlist.add("05PC0273-DimensionalStability|05PC0273-DimensionalStability");
+attrlist.add("05PC0274-DimensionalStabilityUnderSpecifiedConditions|05PC0274-DimensionalStabilityUnderSpecifiedConditions");
+attrlist.add("05PC0275-BehaviorWithWater|05PC0275-BehaviorWithWater");
+attrlist.add("05PC0276-WaterUptakeImmersion|05PC0276-WaterUptakeImmersion");
+attrlist.add("05PC0277-WaterAbsorptionSurfaceBoard|05PC0277-WaterAbsorptionSurfaceBoard");
+attrlist.add("05PC0278-WaterAbsorptionBoardByImmersion|05PC0278-WaterAbsorptionBoardByImmersion");
+attrlist.add("05PC0280-WaterClassOfBehavior|05PC0280-WaterClassOfBehavior");
+attrlist.add("05PC0281-WaterClassOfBehaviorOfBoard|05PC0281-WaterClassOfBehaviorOfBoard");
+attrlist.add("05PC0282-ResistanceToFrost|05PC0282-ResistanceToFrost");
+attrlist.add("05PC0284-CohesionAndInflexion|05PC0284-CohesionAndInflexion");
+attrlist.add("05PC0285-MechanicalResistanceToInflection|05PC0285-MechanicalResistanceToInflection");
+attrlist.add("05PC0286-TensileStrengthPerpendicularToInsulation|05PC0286-TensileStrengthPerpendicularToInsulation");
+attrlist.add("05PC0287-FlexuralStrengthMd|05PC0287-FlexuralStrengthMd");
+attrlist.add("05PC0288-FlexuralStrengthCd|05PC0288-FlexuralStrengthCd");
+attrlist.add("05PC0289-DeformationUnderloadMd|05PC0289-DeformationUnderloadMd");
+attrlist.add("05PC0290-DeformationUnderloadCd|05PC0290-DeformationUnderloadCd");
+attrlist.add("05PC0291-ResidualDeformationMd|05PC0291-ResidualDeformationMd");
+attrlist.add("05PC0292-ResidualDeformationCd|05PC0292-ResidualDeformationCd");
+attrlist.add("05PC0293-ResistanceToPunching|05PC0293-ResistanceToPunching");
+attrlist.add("05PC0294-UnderloadDeformation|05PC0294-UnderloadDeformation");
+attrlist.add("05PC0295-ShearStrength|05PC0295-ShearStrength");
+attrlist.add("05PC0296-PermeabilityToVapour|05PC0296-PermeabilityToVapour");
+attrlist.add("05PC0297-PermeabilityClass|05PC0297-PermeabilityClass");
+attrlist.add("05PC0298-WaterVapourTransmission|05PC0298-WaterVapourTransmission");
+attrlist.add("05PC0299-FactorOfResistanceToWaterVapour|05PC0299-FactorOfResistanceToWaterVapour");
+attrlist.add("05PC0300-ThermalResistance|05PC0300-ThermalResistance");
+attrlist.add("05PC0301-ThermalConductivityLambda|05PC0301-ThermalConductivityLambda");
+attrlist.add("05PC0303-NormalizesUpCalculation|05PC0303-NormalizesUpCalculation");
+attrlist.add("05PC0305-EuroclasseClassification|05PC0305-EuroclasseClassification");
+attrlist.add("05PC0306-ClassificationM|05PC0306-ClassificationM");
+attrlist.add("05PC0307-ClassificationMOfBoard|05PC0307-ClassificationMOfBoard");
+attrlist.add("05PC0308-ORReactionFire|05PC0308-ORReactionFire");
+attrlist.add("05PC0309-FireInsulation|05PC0309-FireInsulation");
+attrlist.add("05PC0310-FireResistance|05PC0310-FireResistance");
+attrlist.add("05PC0311-ORFireResistance|05PC0311-ORFireResistance");
+attrlist.add("05PC0312-AcousticAbsorptionCoef|05PC0312-AcousticAbsorptionCoef");
+attrlist.add("05PC0313-ORSoundAbsorption|05PC0313-ORSoundAbsorption");
+attrlist.add("05PC0314-IndexAttenuationOfNoise|05PC0314-IndexAttenuationOfNoise");
+attrlist.add("05PC0316-HeightOfMaxiInstallation|05PC0316-HeightOfMaxiInstallation");
+attrlist.add("05PC0319-RCT|05PC0319-RCT");
+attrlist.add("05PC0320-TensileStrengthMd|05PC0320-TensileStrengthMd");
+attrlist.add("05PC0321-TensileStrengthCd|05PC0321-TensileStrengthCd");
+attrlist.add("05PC0327-ViscosityWith20C|05PC0327-ViscosityWith20C");
+attrlist.add("05PC0332-DispersionInBoard)|05PC0332-DispersionInBoard)");
+attrlist.add("05PC0333-InflammableMaterial|05PC0333-InflammableMaterial");
+attrlist.add("05PC0334-Sealing|05PC0334-Sealing");
+attrlist.add("05PC0335-SafetyCoefficientCS|05PC0335-SafetyCoefficientCS");
+attrlist.add("05PC0564-ResistanceToInflection|05PC0564-ResistanceToInflection");
+attrlist.add("05PC0565-SCClassification|05PC0565-SCClassification");
+attrlist.add("05PC0573-AirPermeability|05PC0573-AirPermeability");
+attrlist.add("05PC0574-ThermalExpansion|05PC0574-ThermalExpansion");
+attrlist.add("05PC0575-ImpactResistance|05PC0575-ImpactResistance");
+attrlist.add("05PC0576-MouldResistance|05PC0576-MouldResistance");
+attrlist.add("05PC0579-EuroclasseClassificationOfBoard|05PC0579-EuroclasseClassificationOfBoard");
+attrlist.add("05PC0582-DirectAirborneNoiseInsulation|05PC0582-DirectAirborneNoiseInsulation");
+attrlist.add("05PC0651-ServiceabilityDeformationMaxi|05PC0651-ServiceabilityDeformationMaxi");
+attrlist.add("05PC0779-CombustionContinuousIncandescence|05PC0779-CombustionContinuousIncandescence");
+attrlist.add("05PC0780-DynamicStiffness|05PC0780-DynamicStiffness");
+attrlist.add("05PC0781-dLThickness|05PC0781-dLThickness");
+attrlist.add("05PC0783-DurabilityThermalResistance|05PC0783-DurabilityThermalResistance");
+attrlist.add("05PC0784-CreepCompression|05PC0784-CreepCompression");
+attrlist.add("05PC0786-EffortResistanceCyclicCompression|05PC0786-EffortResistanceCyclicCompression");
+attrlist.add("05PC0787-CompressiveStress5%Strain|05PC0787-CompressiveStress5%Strain");
+attrlist.add("05PC0788-CompressiveStress2%Strain|05PC0788-CompressiveStress2%Strain");
+attrlist.add("05PC0790-DurabilityOfReactionToFire|05PC0790-DurabilityOfReactionToFire");
+attrlist.add("05PC0791-DurabilityOfThermalResistance|05PC0791-DurabilityOfThermalResistance");
+attrlist.add("05PC0792-SustainabilityChemicalBiologicalAttacks|05PC0792-SustainabilityChemicalBiologicalAttacks");
+attrlist.add("05PC0793-ThresholdFlexuralStrength|05PC0793-ThresholdFlexuralStrength");
+attrlist.add("05PC0794-ClassFlexuralStrength |05PC0794-ClassFlexuralStrength ");
+attrlist.add("05PC0807-IT249|05PC0807-IT249");
+attrlist.add("05PC0822-SpecificHeat|05PC0822-SpecificHeat");
+attrlist.add("05PC0823-LightReflection|05PC0823-LightReflection");
+attrlist.add("05PC0824-ThermalResistanceDeclared|05PC0824-ThermalResistanceDeclared");
+attrlist.add("05PC0824-05PC0825-ThermalConductivityDeclaredLambda|05PC0825-ThermalConductivityDeclaredLambda");
+attrlist.add("05PC0826-ChlorideAmount|05PC0826-ChlorideAmount");
+attrlist.add("05PC0827-Formaldehyde|05PC0827-Formaldehyde");
+attrlist.add("05PC0828-LengthToleranceClass|05PC0828-LengthToleranceClass");
+attrlist.add("05PC0829-WidthToleranceClass|05PC0829-WidthToleranceClass");
+attrlist.add("05PC0830-Friability|05PC0830-Friability");
+attrlist.add("05PC0831-ProliferationHazardousMicroOrganismSusceptibility|05PC0831-ProliferationHazardousMicroOrganismSusceptibility");
+attrlist.add("05PC0301-ThermalConductivity|05PC0301-ThermalConductivity");
+
+attrlist.add("05PG0243-NFReference|05PG0243-NFReference");
+attrlist.add("05PG0244-NFProductType|05PG0244-NFProductType");
+attrlist.add("05PG0245-ENReference|05PG0245-ENReference");
+attrlist.add("05PG0246-ENProductType|05PG0246-ENProductType");
+attrlist.add("05PG0247-ENBoardType|05PG0247-ENBoardType");
+attrlist.add("05PG0248-NFCertified|05PG0248-NFCertified");
+attrlist.add("05PG0249-CECertified|05PG0249-CECertified");
+attrlist.add("05PG0250-ENItemType|05PG0250-ENItemType");
+attrlist.add("05PG0251-DINCertified|05PG0251-DINCertified");
+attrlist.add("05PG0338-TechnicalSpecifications|05PG0338-TechnicalSpecifications");
+attrlist.add("05PG0339-UseReference|05PG0339-UseReference");
+attrlist.add("05PG0340-TechnicalNote|05PG0340-TechnicalNote");
+attrlist.add("05PG0341-TechnicalNoteRef|05PG0341-TechnicalNoteRef");
+attrlist.add("05PG0342-LabelQuality|05PG0342-LabelQuality");
+attrlist.add("05PG0343-LabelVertCertificate|05PG0343-LabelVertCertificate");
+attrlist.add("05PG0344-InternalSpecRef|05PG0344-InternalSpecRef");
+attrlist.add("05PG0767-DOPNumber|05PG0767-DOPNumber");
+attrlist.add("05PG0768-ProductTypeID|05PG0768-ProductTypeID");
+attrlist.add("05PG0769-DOPUrl|05PG0769-DOPUrl");
+attrlist.add("05PG0770-ProductUsage|05PG0770-ProductUsage");
+attrlist.add("05PG0773-OrganismNotified|05PG0773-OrganismNotified");
+attrlist.add("05PG0778-VolontarySafetyStatement|05PG0778-VolontarySafetyStatement");
+attrlist.add("05PG0795-YearOfFirstCEMarking|05PG0795-YearOfFirstCEMarking");
+
+attrlist.add("06DN|ChannelOfDistributionGroup");
+attrlist.add("06DN|CountryGroup");
+attrlist.add("06DN|PlaceOfStorageGroup");
+attrlist.add("06DN0347-TradeItemOrderable|06DN0347-TradeItemOrderable");
+attrlist.add("06DN0356-ItemBillable|06DN0356-ItemBillable");
+attrlist.add("06DN0395-BaseItem|06DN0395-BaseItem");
+attrlist.add("06DN0396-PackingTypeOfBUnit|06DN0396-PackingTypeOfBUnit");
+attrlist.add("06DN0399-SupportOfPacking|06DN0399-SupportOfPacking");
+attrlist.add("06DN0400-packagingTermsAndConditions|06DN0400-packagingTermsAndConditions");
+attrlist.add("06DN0402-NumberOfPackagedItems|06DN0402-NumberOfPackagedItems");
+attrlist.add("06DN0407-TotalQuantityOfNextLowerLevel|06DN0407-TotalQuantityOfNextLowerLevel");
+attrlist.add("06DN0410-NetContentUnit|06DN0410-NetContentUnit");
+attrlist.add("06DN0411-Assembly|06DN0411-Assembly");
+attrlist.add("06DN0412-Stacking|06DN0412-Stacking");
+attrlist.add("06DN0413-Support|06DN0413-Support");
+attrlist.add("06DN0414-Covering|06DN0414-Covering");
+attrlist.add("06DN0415-Hooping|06DN0415-Hooping");
+attrlist.add("06DN0416-ForExport|06DN0416-ForExport");
+attrlist.add("06DN0423-SelfServiceItem|06DN0423-SelfServiceItem");
+attrlist.add("06DN0425-effectiveDate|06DN0425-effectiveDate");
+attrlist.add("06DN0427-ValidToDate|06DN0427-ValidToDate");
+attrlist.add("06DN0430-consumerAvailabilityDate|06DN0430-consumerAvailabilityDate");
+attrlist.add("06DN0431-endAvailabilityDate|06DN0431-endAvailabilityDate");
+attrlist.add("06DN0432-Consigned|06DN0432-Consigned");
+attrlist.add("06DN0433-stackingFactor|06DN0433-stackingFactor");
+attrlist.add("06DN0435-stackingWeightMaxiUnit|06DN0435-stackingWeightMaxiUnit");
+attrlist.add("06DN0436-handlingInstructions#1|06DN0436-handlingInstructions#1");
+attrlist.add("06DN0436-handlingInstructions#2|06DN0436-handlingInstructions#2");
+attrlist.add("06DN0436-handlingInstructions#3|06DN0436-handlingInstructions#3");
+attrlist.add("06DN0436-handlingInstructions#4|06DN0436-handlingInstructions#4");
+attrlist.add("06DN0436-handlingInstructions#5|06DN0436-handlingInstructions#5");
+attrlist.add("06DN0436-handlingInstructions#6|06DN0436-handlingInstructions#6");
+attrlist.add("06DN0436-handlingInstructions#7|06DN0436-handlingInstructions#7");
+attrlist.add("06DN0436-handlingInstructions#8|06DN0436-handlingInstructions#8");
+attrlist.add("06DN0436-handlingInstructions#9|06DN0436-handlingInstructions#9");
+attrlist.add("06DN0436-handlingInstructions|06DN0436-handlingInstructions");
+attrlist.add("06DN0438-storageTemperatureMaxiUnit|06DN0438-storageTemperatureMaxiUnit");
+attrlist.add("06DN0440-storageTemperatureMiniUnit|06DN0440-storageTemperatureMiniUnit");
+attrlist.add("06DN0351-orderQuantityMultiple|06DN0351-orderQuantityMultiple");
+attrlist.add("06DN0352-orderQuantityMini|06DN0352-orderQuantityMini");
+attrlist.add("06DN0357-orderQuantityMaxi|06DN0357-orderQuantityMaxi");
+attrlist.add("06DN0405-quantityOfNextLowerLevel|06DN0405-quantityOfNextLowerLevel");
+attrlist.add("06DN0408-quantityOfChildren|06DN0408-quantityOfChildren");
+attrlist.add("06DN0661-BaseUnitOfMeasure|06DN0661-BaseUnitOfMeasure");
+attrlist.add("06DN0662-RoutageKey|06DN0662-RoutageKey");
+attrlist.add("06DN0663-MixableRange|06DN0663-MixableRange");
+attrlist.add("06DN0669-GenItemCatGroup|06DN0669-GenItemCatGroup");
+attrlist.add("06DN0672-MaterialGroupPackaging|06DN0672-MaterialGroupPackaging");
+attrlist.add("06DN0674-PurchasingUnit|06DN0674-PurchasingUnit");
+attrlist.add("06DN0675-PackagingMaterialType|06DN0675-PackagingMaterialType");
+attrlist.add("06DN0676-TransportationGroup|06DN0676-TransportationGroup");
+attrlist.add("06DN0691-ConsumptionMode|06DN0691-ConsumptionMode");
+attrlist.add("06DN0692-ConsumptionPeriodBackward|06DN0692-ConsumptionPeriodBackward");
+attrlist.add("06DN0701-BatchManagementIndicator|06DN0701-BatchManagementIndicator");
+attrlist.add("06DN0702-UnitOfIssue|06DN0702-UnitOfIssue");
+attrlist.add("06DN0706-LoadingGroup|06DN0706-LoadingGroup");
+attrlist.add("06DN0732-SalesUnit|06DN0732-SalesUnit");
+attrlist.add("06DN0744-ShippingUnit|06DN0744-ShippingUnit");
+attrlist.add("06DN0749-StorageUnit|06DN0749-StorageUnit");
+attrlist.add("06DN0752-PricingUnit|06DN0752-PricingUnit");
+attrlist.add("06DN0755-ManagementUnit|06DN0755-ManagementUnit");
+attrlist.add("06DN0758-AdditionalUnit1|06DN0758-AdditionalUnit1");
+attrlist.add("06DN0761-AdditionalUnit2|06DN0761-AdditionalUnit2");
+attrlist.add("06DN0764-AdditionalUnit3|06DN0764-AdditionalUnit3");
+attrlist.add("06DN0774-IntrastatCode|06DN0774-IntrastatCode");
+attrlist.add("06DN0776-PickingArea|06DN0776-PickingArea");
+attrlist.add("06DN0777-VariablePurchaseOrderUnitValue|06DN0777-VariablePurchaseOrderUnitValue");
+attrlist.add("06DN0808-AdditionalUnit4|06DN0808-AdditionalUnit4");
+attrlist.add("06DN0813-BulkStorage|06DN0813-BulkStorage");
+attrlist.add("06DN0832-MaterialPriceDetermination|06DN0832-MaterialPriceDetermination");
+
+attrlist.add("07MO0336-MaxiThicknessSupport|07MO0336-MaxiThicknessSupport");
+attrlist.add("07MO0337-CompatibilitySupport|07MO0337-CompatibilitySupport");
+attrlist.add("07MO0441-ProductMarket|07MO0441-ProductMarket");
+attrlist.add("07MO0442-ProductUse|07MO0442-ProductUse");
+attrlist.add("07MO0443-CompatibleWetBuilding|07MO0443-CompatibleWetBuilding");
+attrlist.add("07MO0444-AdherenceToConcrete|07MO0444-AdherenceToConcrete");
+attrlist.add("07MO0445-AdherenceToEPS|07MO0445-AdherenceToEPS");
+attrlist.add("07MO0446-AspectType|07MO0446-AspectType");
+attrlist.add("07MO0447-PowderWaterRatio|07MO0447-PowderWaterRatio");
+attrlist.add("07MO0448-Shinkage|07MO0448-Shinkage");
+attrlist.add("07MO0449-MiniDescent|07MO0449-MiniDescent");
+attrlist.add("07MO0450-MaxiDescent|07MO0450-MaxiDescent");
+attrlist.add("07MO0451-ModeOfApplication|07MO0451-ModeOfApplication");
+attrlist.add("07MO0452-ModeOfMixing|07MO0452-ModeOfMixing");
+attrlist.add("07MO0453-Latency|07MO0453-Latency");
+attrlist.add("07MO0454-TimeOfUse|07MO0454-TimeOfUse");
+attrlist.add("07MO0455-TimeOfRaising|07MO0455-TimeOfRaising");
+attrlist.add("07MO0456-LastAdjustment|07MO0456-LastAdjustment");
+attrlist.add("07MO0457-StartOfSmoothing|07MO0457-StartOfSmoothing");
+attrlist.add("07MO0458-FirstSmoothingByRubbing|07MO0458-FirstSmoothingByRubbing");
+attrlist.add("07MO0459-SecondSmoothingWithSeivedPPM|07MO0459-SecondSmoothingWithSeivedPPM");
+attrlist.add("07MO0460-LatencyFor2ndMasterKey|07MO0460-LatencyFor2ndMasterKey");
+attrlist.add("07MO0461-TotalTime|07MO0461-TotalTime");
+attrlist.add("07MO0462-ApplicationTemperature|07MO0462-ApplicationTemperature");
+attrlist.add("07MO0463-TimeOfHardening|07MO0463-TimeOfHardening");
+attrlist.add("07MO0464-MaxiHeightOfUse|07MO0464-MaxiHeightOfUse");
+attrlist.add("07MO0465-ImplementationAdvice|07MO0465-ImplementationAdvice");
+attrlist.add("07MO0466-UsageAdvice|07MO0466-UsageAdvice");
+attrlist.add("07MO0467-Application|07MO0467-Application");
+attrlist.add("07MO0468-AssociatedProducts|07MO0468-AssociatedProducts");
+attrlist.add("07MO0470-GypsumBlocksPerSqM|07MO0470-GypsumBlocksPerSqM");
+attrlist.add("07MO0472-ConsumptionOfFacing|07MO0472-ConsumptionOfFacing");
+attrlist.add("07MO0473-ConsumptionCMOfThickness|07MO0473-ConsumptionCMOfThickness");
+attrlist.add("07MO0474-UsageSqMBagThickness|07MO0474-UsageSqMBagThickness");
+attrlist.add("07MO0475-Consumption|07MO0475-Consumption");
+attrlist.add("07MO0481-CompatibleSupports|07MO0481-CompatibleSupports");
+attrlist.add("07MO0482-ManifestlyIncompatibleSupports|07MO0482-ManifestlyIncompatibleSupports");
+attrlist.add("07MO0483-EmissionDangerousSubstances|07MO0483-EmissionDangerousSubstances");
+attrlist.add("07MO0484-SecurityBasicData|07MO0484-SecurityBasicData");
+attrlist.add("07MO0485-CertificateQualityAnalysis|07MO0485-CertificateQualityAnalysis");
+attrlist.add("07MO0486-ShelfLife|07MO0486-ShelfLife");
+attrlist.add("07MO0487-ShelfLifeUnit|07MO0487-ShelfLifeUnit");
+attrlist.add("07MO0488-AssociatedProductsGroup|07MO0488-AssociatedProductsGroup");
+attrlist.add("07MO0489-AssociatedProductsName|07MO0489-AssociatedProductsName");
+
+attrlist.add("08IE0488-EnvironmentalBasicData|08IE0488-EnvironmentalBasicData");
+attrlist.add("08IE0489-packagingMaterialCode|08IE0489-packagingMaterialCode");
+attrlist.add("08IE0490-PackagingMarkedRecyclable|08IE0490-PackagingMarkedRecyclable");
+attrlist.add("08IE0491-PackagingMarkedReturnable|08IE0491-PackagingMarkedReturnable");
+attrlist.add("08IE0492-TradeItemMarkedRecyclable|08IE0492-TradeItemMarkedRecyclable");
+attrlist.add("08IE0493-PackagingMarkedWithGreenDot|08IE0493-PackagingMarkedWithGreenDot");
+attrlist.add("08IE0653-LabelingHealth|08IE0653-LabelingHealth");
+attrlist.add("08IE0841-SanitizedCertificateReference|08IE0841-SanitizedCertificateReference");
+
+attrlist.add("10GC0677-XDistrChanStatus|10GC0677-XDistrChanStatus");
+attrlist.add("10GC0735-ProductAttribute10|10GC0735-ProductAttribute10");
+attrlist.add("10GC0747-TotalReplenishmentLeadTime|10GC0747-TotalReplenishmentLeadTime");
+attrlist.add("10GC0748-UnitOfTotalReplenishmentLeadTime|10GC0748-UnitOfTotalReplenishmentLeadTime");
+
+attrlist.add("12BI0665-Classification|12BI0665-Classification");
+attrlist.add("12BI0666-ProductHierarchy|12BI0666-ProductHierarchy");
+attrlist.add("12BI0736-Profile|12BI0736-Profile");
+attrlist.add("12BI0737-BusinessUnit|12BI0737-BusinessUnit");
+attrlist.add("12BI0738-MaterialGroup5|12BI0738-MaterialGroup5");
+
+var idatt = [];
+var id2att = [];
+var nbatt = [];
+var nlist = [];
+var tabindex = 0;
+
+for(var k = 0; k < attrlist.size(); k++){
+	if (idatt != attrlist[k].substring(0,4)){ //01 02
+		idatt = attrlist[k].substring(0,4); //01 02
+		// if (idatt.substring(0,1)=="0"){
+		//	id2att = replaceString(idatt,"0","");//1
+		// }
+		
+		
+		nbatt = 0;
+		//out.writeln("idatt = "+idatt+"<br />");
+		//out.writeln("id2att = "+id2att+"<br />");
+		tabindex++;
+	}
+		nbatt++;
+
+	nlist[tabindex][nbatt] = attrlist[k];
+	
+	// nlist[id2att][nbatt] = attrlist[k]; //nlist[1][0]= attrlist[0]
+	// out.writeln("attrlist k ="+attrlist[k]+"<br />");
+}
+
+	//out.writeln("<br />");
+	//out.writeln("nlist idatt = 1 : "+nlist["1"]+"<br />");
+	//out.writeln("nlist idatt = 2 : "+nlist["2"]+"<br />");
+	//out.writeln("list size :"+nlist.size()+"<br />");
+	//out.writeln("<br />");
+	
+	//creation du tableau
+	//for(var i = 1; i < nlist.size()+1; i++){ // nlist = 2 : 01 et 02 
+		//boucle d'affichage des tables
+		//out.writeln("table"+i+"<br />");
+
+
+		//for(var j = 1; j < nlist[i].size()+1; j++) {
+			//boucle d'affichage des lignes
+		//	out.writeln("ligne : "+nlist[i][j]+"<br />");
+		//}
+
+	//out.writeln("nlist  0"+i+": "+nlist["0"+i]+"<br />");
+
+	//out.writeln("<br />");
+	//out.writeln("nlist size = "+nlist.size()+"<br />");
+	//}
+
+	//attrlist[idctg] = attrlist[idctg] + alist[i];
+	//out.writeln("attrlist idctg :"+attrlist[idctg]+"<br />");
+
+    //font-family: 'Inconsolata', monospace;
+
+    //font-family: 'Roboto Mono', monospace;
+
+    //font-family: 'Open Sans', sans-serif;
+
+%>
+
+<link rel=stylesheet href='/css/pa_prof.css' type='text/css'/>
+<link rel=stylesheet href='/css/pa_prof_font_en_US.css' type='text/css'/>
+<link rel="stylesheet" href="//code.jquery.com/ui/1.12.0/themes/base/jquery-ui.css">
+<link href="https://fonts.googleapis.com/css?family=Inconsolata|Open+Sans|Roboto+Mono" rel="stylesheet">
+
+<style>
+body { font-size:8pt; font-family: 'Roboto Mono', monospace;  }
+td { font-size:8pt; }
+textarea { font-size:8pt; }
+input { font-size:8pt; }
+select { font-size:8pt; }
+.form { font-size:8pt; }
+.tablebean_even { font-size:8pt; }
+.tablebean_odd_product { font-size:8pt; }
+.formfixed { font-size:8pt; }
+.module_list { font-size:8pt; }
+.wizard_current { font-size:9pt; }
+.wizard_before { font-size:9pt; }
+.wizard_after { font-size:9pt; }
+.module_button { font-size:7pt; }
+.module_button_over { font-size:7pt; }
+.module_button_down { font-size:7pt; }
+.table_search_cell { font-size:7pt; }
+.table_search_form { font-size:7pt; }
+table { border-collapse: collapse; }
+td { border: solid 1px #B4B4B4;}
+</style>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script>
+$(document).ready(function(){
+
+	<% for(var l = 1; l < nlist.size()+1; l++) {%>
+		$("#<%=l%>").hide();
+		$("#c<%=l%>").click(function(){
+        	$("#<%=l%>").fadeToggle();
+    	});
+	<%}%>
+	$("#group").hide();
+	//$("#2").on( "input[value=ProductionSiteGroup]:checked").click(function(){
+	//	$("#group").show();
+	//});
+		
+    
+});
+</script>
+</head>
+<body>
+
+<button id="c1">01 AC</button>
+<button id="c2">02 Fournisseur</button>
+<button id="c3">03 Fonction</button>
+<button id="c4">04 Caract-phy</button>
+<button id="c5">05 Perf C</button>
+<button id="c6">05 Perf G</button>
+<button id="c7">06 Distri</button>
+<button id="c8">07 Mise-en-oeuvre</button>
+<button id="c9">08 Impact-env</button>
+<button id="c10">10 Gestion-co</button>
+<button id="c11">12 BI</button>
+
+<div style="float:left; padding:10px; padding-top:30px;">
+
+
+<form method="post" name="massexportform">
+<H1>  Exportation Khéops </H1>
+<br /><br />
+Choix des catalogues à exporter :
+&nbsp;&nbsp;
+<tr>
+	<select multiple name=ctg id=ctg style="width:450px;">
+		<%
+		aCatalogNames = [];
+		var aCatalogNames = sort(getCatalogNamesList("VIEW_ITEMS"));
+		for(var l = 0; l < aCatalogNames.size(); l++) {
+			// var catselected = aCatalogNames[i];
+		  	// C999 is not a normal ctg and makes query failure
+		  	if(!aCatalogNames[l].startsWith("C999") && aCatalogNames[l].startsWith("C")) {
+				out.writeln("<option value=\"" + aCatalogNames[l] + "\">" + aCatalogNames[l]);
+		  	}
+		}
+		%>
+		<option value="All">Tous les catalogues / All catalogs
+	</select>
+</tr>
+<br /><br />
+<br /><br />
+<table border=0 cellPadding=0 cellSpacing=0 class='tablebean'>
+  <tr>
+    <td colspan=3>
+      <table width='100%' border='0' cellSpacing='0' cellpadding='0' bgcolor='#000000' background='/images/newlook/leftnav_header_background.gif'>
+        <tr>
+          <td width='20' valign='middle'><img border=0 src=/images/newlook/header_dots_prof.gif height=16 width=16></td>
+          <td noWrap width=100% ><font color='#ffffff' font-family: 'Open Sans', sans-serif;>&nbsp;&nbsp;<b>choix des attributs à exporter</b>&nbsp;</font></td>
+        </tr>
+        <tr>
+          <td colspan=2 bgcolor='#ffffff'></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td>
+    <% for(var i = 1; i < nlist.size()+1; i++){%>
+      <table id='<%=i%>' width='50%' cellpadding='1' cellSpacing='0' class='sub_tablebean' style="border:solid 1px #B4B4B4;">
+        <tr bgcolor=#b4b4b4>
+          <td class="tablebean_tablebean_headereven" style="width:250px;"><font color=#000000><b>&nbsp;Attribut</b></font></td>
+          <td class="tablebean_tablebean_headereven" style="width:50px;"><font color=#000000><b>&nbsp;selection</b></font></td>
+        </tr>
+       <%   
+       		var strattrcode = [];
+       		for(var j = 1; j < nlist[i].size()+1; j++) {
+       			var attrdesc = nlist[i][j];
+       			var attr = attrdesc.parseDelim("|");
+				strattrcode = attr[1];//a droite du |
+	    %><tr>
+	          <td class="tablebean_even" style="width:280px;border:solid 1px #B4B4B4;">&nbsp;<%= strattrcode %>&nbsp;</td>
+	          <td class="tablebean_even" style="width:40px;"><input type="checkbox" name="attrib" value="<%= strattrcode %>"> &nbsp;</td>
+	   	<% } %></tr>
+	  </table>
+	  <%}%>
+    </td>  
+  </tr>
+</table>
+
+
+
+
+<br /><br />
+<input type="submit" name="submitvalues" id="submitvalues" value="Exporter">
+</form>
+
+<%
+var hmGlobals = initGlobals();
+
+	//traitement :
+	//ctg: catalogue
+	//attibselect : attributs
+
+if (request.ctg != null && request.ctg!="" && request.attrib != null && request.attrib != "") {
+	out.writeln("<div style=\"margin-top:15px;\">");
+	out.writeln("====    Traitement : ==== <br />");
+
+	//traitement catalogue :
+
+	var ctgselect = [];
+	var nbctg = "";
+
+	if (request.ctg[0] == null) { // 1 catalog
+		nbctg = 1;
+		for(var i = 0; i < nbctg; i++) {
+			ctgselect[i] = request.ctg;
+		}
+	}else {
+		nbctg = request.ctg.size();
+		for(var i = 0; i < nbctg; i++) {
+			ctgselect[i] = request.ctg[i];
+		}
+	}
+	
+	if (request.ctg == "All"){
+		out.writeln(" === Traitement des "+aCatalogNames.size()+" catalogues <br />");
+		for(var i = 0; i < aCatalogNames.size(); i++) {
+			if(!aCatalogNames[i].startsWith("C999") && aCatalogNames[i].startsWith("C")) {
+				ctgselect[i] = aCatalogNames[i];
+		  	}
+		}
+	}
+
+
+	//traitement attribut :
+
+	var attribselect = [];
+	var nbattrib = "";
+	var psg = "";
+	var cdg = "";
+	var ctyg = "";
+	var posg = "";
+	
+	if (request.attrib[0] == null) { // 1 checkbox
+		nbattrib = 1;
+		for(var i = 0; i < nbattrib; i++) {
+			if(request.attrib == "ProductionSiteGroup"){
+				psg = true;
+			}else if(request.attrib == "ChannelOfDistributionGroup"){
+				cdg = true;
+			}else if(request.attrib == "CountryGroup"){
+				ctyg = true;	
+			}else if(request.attrib == "PlaceOfStorageGroup"){
+				posg = true;
+
+			
+			}else{
+				attribselect[i] = request.attrib;
+			}
+			
+		}
+	}else { // multi checkbox
+		nbattrib = request.attrib.size();
+		for(var i = 0; i < nbattrib; i++) {
+			if(request.attrib[i] == "ProductionSiteGroup"){
+				psg = true;
+			}else if(request.attrib[i] == "ChannelOfDistributionGroup"){
+				cdg = true;
+			}else if(request.attrib[i] == "CountryGroup"){
+				ctyg = true;	
+			}else if(request.attrib[i] == "PlaceOfStorageGroup"){
+				posg = true;
+
+
+			}else{
+				attribselect[i] = request.attrib[i];
+			}
+		}
+	}
+
+	//traitement de production site :
+	
+		if (psg==true) {
+			// ajout du grouping
+			for(var j = 0; j < 21; j++){
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0063-ProductionSite");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0742-IsProducedOrRecut");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0654-ProductionLine");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0064-ManufacturerCountry");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0061-ManufacturerName");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0062-ManufacturerGLN");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0833-PEFCCertified");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0834-PEFCCertificateReference");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0835-PEFCLogoLicenceReference");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0837-NaturePlusCertified");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0838-NaturePlusCertificateReference");
+				attribselect.add("ProductionSiteGroup#"+j+"/02FR0840-PEFCInvoiceAdditionalText");
+			}
+		}
+		if (ctyg==true) {
+			// ajout du grouping
+			for(var j = 0; j < 20; j++){
+				attribselect.add("CountryGroup#"+j+"/06DN0419-Country");
+				attribselect.add("CountryGroup#"+j+"/06DN0420-TranslatedInvoiceName");
+			}
+		}
+		if (cdg==true) {
+			// ajout du grouping
+			for(var j = 0; j < 5; j++){
+				attribselect.add("ChannelOfDistributionGroup#"+j+"/06DN0422-ChannelOfDistribution");
+				attribselect.add("ChannelOfDistributionGroup#"+j+"/06DN0346-IsInCatalog");
+				attribselect.add("ChannelOfDistributionGroup#"+j+"/06DN0424-orderingLeadTime");
+				attribselect.add("ChannelOfDistributionGroup#"+j+"/06DN0423-SelfServiceItem");
+			}
+		}
+		if (posg==true) {
+			// ajout du grouping
+			for(var j = 0; j < 21; j++){
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0358-PlaceOfStorage");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0679-Plant");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0680-ProfitCentre");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0360-GrossWeight");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0361-GrossWeightUnit");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0646-ManufacturerCountry");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0683-RegionOfOrigin");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0681-SpecProcTypeCosting");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0682-NoCosting");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0684-ProcurementType");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0685-MrpType");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0686-MrpController");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0689-SchedMarginKey");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0690-StrategyGroup");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0691-ConsumptionMode");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0692-ConsumptionPeriodBackward");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0693-ConsumptionPeriodForward");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0694-AvailabilityCheck");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0695-MRPGroup");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0696-SpecProcurementType");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0697-IndividualOrCollectiveRequir");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0698-PeriodIndicator");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0699-BackFlushIndicator");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0700-SelectionMethod");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0701-BatchManagementIndicator");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0705-UnlimiedOverdelivery");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0709-ProductionSupervisor");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0720-PriceControl");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0721-ValuationClass");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0722-MaterialRelatedOrigin");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0723-OrigGroupAsSubdivCost");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0724-MateriaIsCostedWithQuantity");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0707-PlantMaterialStatus");
+				attribselect.add("PlaceOfStorageGroup#"+j+"/06DN0708-PlantMaterialStatusValidFrom");
+			}
+		}
+	
+
+	// affichage du résultat:
+	out.writeln("Selection des Catalogues :"+ctgselect+"<br />");
+	out.writeln("Selection des Attributs  :"+attribselect+"<br />");
+	out.writeln("<br />");
+	out.writeln("<a href='/ccd_docstore/adm_view_document_content.jsp?docstore_selected_path=%2Fmasseupdate%2Fexport.csv'>Fichier CSV</a>");
+	out.writeln("<br /><br />");
+
+	
+	//Création du fichier CSV récupérable dans le Document Store [siniat / masseupdate /export.csv]
+	var logPath = "/masseupdate/export.csv";
+	var logDoc = getDocByPath(logPath);	
+	if (logDoc != null)
+	{
+		logDoc.deleteDoc();
+	}
+	var logOut = createOtherOut(logPath);
+
+	// enregistrement de l'entete du csv
+	var hmEntete = "";
+	var attribname;
+	//hmEntete.add("");
+	//out.writeln("ctgselect size :"+ctgselect.size()+"<br />");
+	//out.writeln("attribselect size :"+attribselect.size()+"<br />");
+
+	for(var j=0;j<attribselect.size();j++) {
+
+			//out.writeln("boucle for de traitement :"+attribselect[j]+"<br />");
+			attribname = (parseDelim(attribselect[j],"-"));
+			hmEntete = hmEntete + attribname[1] + ";";
+	}
+	logOut.writeln(hmEntete);
+	//affichage de l'entete
+	out.writeln(hmEntete+"<br />");
+	out.writeln("<br />");
+	out.writeln("</div>");
+
+	var ctg;//Catalogue utilisé
+	var liItemValues = "";
+	for(var k=0;k<ctgselect.size();k++) { //Pour chaque catalogue de la selection
+		ctg = ctgselect[k];
+		%>
+		<div style="clear: left;">
+		<%
+		out.writeln("<br />");
+		out.writeln("====   Catalogue  ====  : "+ctg+" ==== <br />");
+		out.writeln("<br />");
+
+		%>
+		</div>
+		<div style="clear: left;">
+		<table class="responseTable" width=70% cellpadding="0" cellspacing="5" border="10">
+			<tr bgcolor="#cbdced" font-family: 'Open Sans', sans-serif;>
+			<% for(var l=0;l<attribselect.size();l++) { %>
+				<td><b><%=attribselect[l]%></b></td>
+			<%}%>
+			</tr>
+			<% forEachCtgItem(ctg,item) { %>
+				<tr>
+					<% for(var j=0;j<attribselect.size();j++) {
+
+						hmItemValues[j] = getValue(hmGlobals,item,attribselect[j]);
+						if(hmItemValues[j]==null) {hmItemValues[j] = "";}
+						liItemValues = liItemValues + "\"" + replaceString(toString(hmItemValues[j]),"\"","\"\"") + "\";";
+						out.writeln("<td><b>"+hmItemValues[j]+"</b></td>");
+					}
+					//out.writeln(hmItemValues+"<br />");
+					logOut.writeln(liItemValues);
+					liItemValues = "";
+				%></tr>
+			<%}%>
+		
+			
+		</table>
+		</div>
+		<%
+
+	}
+
+logOut.save(logPath);
+//logDebug("Traitement termine");
+}
+%>
+</div>
+</body>

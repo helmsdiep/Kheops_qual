@@ -1,0 +1,21 @@
+<html>
+
+<head>
+  <title>Lookup exports</title>
+</head>
+
+<body onload="document.forms['show_docstore'].submit()">>
+  <h1>Welcome on the Lookup Export page</h1>
+  <h2>Refresh</h2>
+  <p>You can ask for a fresh export by running the following script : Product Manager > Report > Reports Console > LG.Report.ExtractLookupTables</p>
+  <h2>Latest extracts</h2>
+  <form name="show_docstore" method="post" action="/ccd_docstore/adm_browse_docstore.jsp" target="results">
+    <input type="hidden" name="doit" value=''/>
+    <input type="hidden" name="docstore_selected_path" value="/lookups_export/"/>
+  </form>
+
+  <iframe name="results" width="1200px" height="1000px" src=""></iframe>
+</body>
+
+</html>
+

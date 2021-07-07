@@ -1,0 +1,1298 @@
+<%
+//
+// Mise à jour en masse
+//
+// Création : Benoit Durand / Ronan GUEVEL
+// Date création : 08/2016
+// Date de dernière modification : 13/11/2018
+// Version : FR
+//
+//script_execution_mode=not_compiled
+function initGlobals(){
+    var hmGlobals = [];
+    hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"] = getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodesFromAttrPath");
+    hmGlobals["FN_GET_ITEM_TYPE"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getItemType");
+    hmGlobals["FN_GET_CHILD_ITEMS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getChildItems");
+    hmGlobals["FN_GET_PARENT_ITEM"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentItem");
+    hmGlobals["FN_GET_CONST"]=getScriptByPath("/scripts/triggers/LG.Library.Const").getFunctionByName("getConst");
+    hmGlobals["FN_GET_ENTRY_NODE_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getEntryNodeAtLevel");
+    hmGlobals["FN_GET_PARENT_AT_LEVEL"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getParentAtLevel");
+    hmGlobals["FN_GET_STATUS"]=getScriptByPath("/scripts/triggers/LG.Library.LGUtils").getFunctionByName("getStatus");
+    hmGlobals["QUOT"] = lookupValues(getLkpByName("L902-KheopsConstants"),"QUOT")[0];
+    return hmGlobals;
+}
+
+function getEn(hmGlobals, item, sNodeName){
+    return hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+}
+
+function getFirstEn(hmGlobals, item, sNodeName){
+    var nodes = hmGlobals["FN_GET_ENTRY_NODES_FROM_ATTR_PATH"].invoke(item,sNodeName);
+    if (nodes == null || nodes.size() < 1 ) {
+        return null;
+    }
+    return nodes[0];
+}
+
+//	Fonction qui retourne le nom du catalogue
+//	code ERP => Nom Catalogue (ex:C010-Paques de plâtre -Gypsum plasterBoards)
+function getCatalogNameFromCatalogCode(strerpcode) {
+	var strCatalogName="";
+	var strCatalogCode="";
+	if(strerpcode!="") {
+		strCatalogCode=substring(strerpcode,1,4);
+		var ctgs = getCatalogNamesList();
+		var oKey;
+		var ctgName;
+		forEachHmElement(ctgs,oKey,ctgName) {
+			var strCtgCode = substring(ctgName,1,4);
+			if(strCtgCode==strCatalogCode) {
+				return ctgName;
+			}
+		}
+	}
+	return strCatalogName;
+}
+
+//	FONCTION QUI RETOURNE LE TYPE D'UN ITEM	
+//La méthode associée à la variable hmGlobals["FN_GET_ITEM_TYPE"] (ici il s'agit de getItemType())
+//est exécutée sur l'objet item passé en parametres via la fonction invoke()
+function getType(hmGlobals,item){
+	return hmGlobals["FN_GET_ITEM_TYPE"].invoke(item);
+}
+
+// Fonction qui retourne le code ERP
+// Code SAP => Code ERP
+function getPrimaryKeyFromSAPCode(strSAPCode) {
+	var strSAPCode = checkString(strSAPCode,"");
+	var pk = "";
+	var iasref = strSAPCode.length();
+	if(iasref!=null && iasref<18) {
+		for(var j=iasref;j<18;j++) {
+			strSAPCode = concat("0",strSAPCode);
+			
+		}
+	}
+	// out.writeln("code sap : "+strSAPCode+"<br />");
+	var aCatalogNames = [];
+	aCatalogNames = getCatalogNamesList("VIEW_ITEMS");
+	var aTypes = [];
+	aTypes.add("Prod");
+	aTypes.add("BUnit");
+	aTypes.add("PItem");
+	var bERPCodeRetrieved=false;
+	for (var m=0; m<aCatalogNames.size(); m++) {
+		var ctg = getCtgByName(aCatalogNames[m]); 
+		var filters = [];
+		filters["CONTAINER"] = ctg;
+		filters["SPECTYPE"] = "SECONDARY_SPEC";
+		var aSpecNames = getSpecNameList(filters);
+		var sSpecPrefix = aSpecNames[0].substring(0,aSpecNames[0].lastIndexOf("_"));
+		for (var j=0; j<aTypes.size(); j++) {
+			if(bERPCodeRetrieved==false) {
+			    var e;
+				catchError(e) {
+					var queryString = "select item.pk from catalog('" + aCatalogNames[m] + "') where item['" + sSpecPrefix + "_" +  aTypes[j] + "/01AC0664-MaterialNumber" + "'] = '" + strSAPCode + "'";
+					var query = new SearchQuery(queryString);
+					var resultset = query.execute();
+					if(resultset!=null) {
+						while (resultset.next()) {
+							pk = checkString(resultset.getString(1),"");
+							bERPCodeRetrieved=true;
+							return pk;
+						}
+					}
+				}
+				if(e!=null) {
+					out.writeln("PK item not found for SAP code ="+strSAPCode+"<br />");
+				}
+			}
+		}
+	}
+	return pk;
+}
+
+var hmGlobals = initGlobals();//Initialisation du tableau de variables globales
+
+var attrlist = [];
+attrlist.add("01AC0012-LongName|Appelation commerciale/Libellé long");
+attrlist.add("01AC0659-MaterialType|Appelation commerciale/Type de produits");
+attrlist.add("01AC0664-MaterialNumber|Appelation commerciale/Référence article");
+attrlist.add("01AC0740-OldMaterialNumber|Appelation commerciale/Ancienne référence article");
+attrlist.add("01AC0014-invoiceName|Appelation commerciale/Libellé facture");
+attrlist.add("01AC0741-PackagingItemDescription|Appelation commerciale/Description du packaging de l'article");
+attrlist.add("01AC0017-LabelName1|Appelation commerciale/Libellé étiquette");
+attrlist.add("01AC0018-LabelName2|Appelation commerciale/Libellé étiquette suite");
+attrlist.add("01AC0042-GTIN|Appelation commerciale/GTIN");
+attrlist.add("01AC0668-EANCategory|Appelation commerciale/Catégorie EAN");
+attrlist.add("01AC0011-replacementGtin|Appelation commerciale/Gtin Produit de substitution");
+attrlist.add("01AC0016-associationType|Appelation commerciale/Type d’association");
+attrlist.add("01AC0041-barCodeType|Appelation commerciale/Indication des codes à barres présents");
+attrlist.add("01AC0043-hasBatchNumber|Appelation commerciale/Numéro de lot marqué");
+attrlist.add("01AC0036-brandName|Appelation commerciale/marque commerciale");
+attrlist.add("01AC0038-brandOwner|Appelation commerciale/GLN du détenteur de la marque commerciale");
+attrlist.add("01AC0037-nameOfBrandOwner|Appelation commerciale/Détenteur de la marque commerciale");
+attrlist.add("01AC0039-GLNProvider|Appelation commerciale/GLN de l'Editeur de l'information");
+attrlist.add("01AC0040-nameOfProvider|Appelation commerciale/Nom de l'Editeur de l'information");
+attrlist.add("01AC0020-UnitDescriptor|Appelation commerciale/Type d'unité commerciale");
+attrlist.add("01AC0024-Model|Appelation commerciale/Modèle");
+attrlist.add("01AC0021-BaseUnit|Appelation commerciale/Unité de base");
+attrlist.add("01AC0022-ConsumerUnit|Appelation commerciale/Unité consommateur");
+attrlist.add("01AC0023-DespatchUnit|Appelation commerciale/Unité logistique");
+attrlist.add("01AC0025-StandardMixedPackage|Appelation commerciale/Colis mixte standard");
+attrlist.add("01AC0026-ConsumerPack|Appelation commerciale/Lot consommateur");
+attrlist.add("01AC0027-FullDisplayStand|Appelation commerciale/Présentoir garni");
+attrlist.add("01AC0035-ReturnableItem|Appelation commerciale/Objet consigné");
+attrlist.add("01AC0028-Service|Appelation commerciale/Service");
+attrlist.add("01AC0029-BulkItem|Appelation commerciale/Vrac");
+attrlist.add("01AC0030-CutToOrderItem|Appelation commerciale/Produit à découper");
+attrlist.add("01AC0031-DivisibleItem|Appelation commerciale/Article sécable");
+attrlist.add("01AC0032-ReOrdable|Appelation commerciale/Article réapprovisionnable");
+attrlist.add("01AC0033-SeasonalItem|Appelation commerciale/Produit saisonnier");
+attrlist.add("01AC0034-PromotionalItem|Appelation commerciale/Produit promotion consommateur");
+attrlist.add("01AC0652-Innovation|Appelation commerciale/Innovation?");
+attrlist.add("01AC0001-IsInPDM|Appelation commerciale/Publication web");
+attrlist.add("01AC0019-SdcNatureCode|Appelation commerciale/Classe Nature SDC");
+attrlist.add("01AC0667-AuthorisationGroup|Appelation commerciale/Groupe d'accès");
+attrlist.add("01AC0775-PublishedIntoSAP|Appelation commerciale/Publié dans SAP?");
+attrlist.add("01AC0670-XPlantMatlStatus|Appelation commerciale/Statut tous Sites");
+attrlist.add("01AC0671-XPlantMatlStatusValidFrom|Appelation commerciale/Statut tous Sites applicable au");
+attrlist.add("01AC0810-LabelFormat|Appelation commerciale/Marquage format logo");
+attrlist.add("02FR0050-GroupMadeItem|Fournisseur/Article fabriqué?");
+attrlist.add("02FR0051-ItemPurchased|Fournisseur/Article acheté ?");
+attrlist.add("02FR0660-MaterialGroup|Fournisseur/Groupe Marchand");
+attrlist.add("02FR0703-PurchasingGroup|Fournisseur/Groupe d'achats");
+attrlist.add("02FR0673-PurchasingValueKey|Fournisseur/Clé d'achat");
+attrlist.add("02FR0704-AutoPurchAllowed|Fournisseur/Déclenchement automatique du réappro autorisé");
+attrlist.add("03FN0065-DescriptionLong|Fonction/Texte descriptif long");
+attrlist.add("03FN0067-ProductQualities|Fonction/qualités particulières");
+attrlist.add("03FN0066-TradeItemDescriptionShort|Fonction/Texte descriptif court");
+attrlist.add("03FN0578-TechnicalForm|Fonction/Fiche technique");
+attrlist.add("03FN0072-SketchDrawing|Fonction/Croquis-dessin");
+attrlist.add("03FN0074-ProductPhoto|Fonction/Photo produit");
+attrlist.add("04CP0075-MarkingOnTheProduct|Caractéristiques physiques/Marquage sur le produit");
+attrlist.add("04CP0577-MsgNbrForMarkingPallet|Caractéristiques physiques/N° de message Marquage Lot");
+attrlist.add("04CP0079-IsFixingLabels|Caractéristiques physiques/Marquage tête de vis");
+attrlist.add("04CP0220-ProductEquipement|Caractéristiques physiques/équipement du produit");
+attrlist.add("04CP0080-CommercialThickness|Caractéristiques physiques/Epaisseur commerciale");
+attrlist.add("04CP0081-CommercialThicknessUnits|Caractéristiques physiques/unité  de l'épaisseur commerciale");
+attrlist.add("04CP0082-RealThickness|Caractéristiques physiques/Epaisseur réelle");
+attrlist.add("04CP0083-ThicknessTolerance|Caractéristiques physiques/Tolérance épaisseur");
+attrlist.add("04CP0084-RealThicknessUnits|Caractéristiques physiques/unité de l'épaisseur réelle");
+attrlist.add("04CP0085-CommercialBoardThickness|Caractéristiques physiques/épaisseur commerciale de la plaque");
+attrlist.add("04CP0086-CommercialBoardThicknessUnits|Caractéristiques physiques/Unité  de l'épaisseur commerciale de la plaque");
+attrlist.add("04CP0087-RealBoardThickness|Caractéristiques physiques/épaisseur réelle de la plaque");
+attrlist.add("04CP0088-RealBoardThicknessUnits|Caractéristiques physiques/unité  de l'épaisseur réelle de la plaque");
+attrlist.add("04CP0093-InternalBoardCommercialThickness|Caractéristiques physiques/Epaisseur commerciale de la plaque interne");
+attrlist.add("04CP0094-InternalBoardCommercialThicknessUnits|Caractéristiques physiques/Unité  de l'épaisseur commerciale de la plaque interne");
+attrlist.add("04CP0091-Thickness|Caractéristiques physiques/Epaisseur");
+attrlist.add("04CP0092-ThicknessUnits|Caractéristiques physiques/unité de l'épaisseur");
+attrlist.add("04CP0095-Width|Caractéristiques physiques/Largeur");
+attrlist.add("04CP0096-WidthTolerance|Caractéristiques physiques/Tolérance largeur");
+attrlist.add("04CP0097-WidthUnit|Caractéristiques physiques/unité de la largeur");
+attrlist.add("04CP0100-Diameter|Caractéristiques physiques/Diamètre");
+attrlist.add("04CP0101-DiameterUnits|Caractéristiques physiques/unité du diamètre");
+attrlist.add("04CP0103-Length|Caractéristiques physiques/Longueur");
+attrlist.add("04CP0104-LengthUnits|Caractéristiques physiques/unité de la longueur");
+attrlist.add("04CP0107-BItemHeight|Caractéristiques physiques/Hauteur de l'article de base");
+attrlist.add("04CP0108-BItemHeightUnits|Caractéristiques physiques/unité hauteur article de base");
+attrlist.add("04CP0110-BaseWidth|Caractéristiques physiques/Largeur du fond");
+attrlist.add("04CP0111-BaseWidthUnits|Caractéristiques physiques/Unité de la largeur du fond");
+attrlist.add("04CP0112-BaseLength|Caractéristiques physiques/Longueur du fond");
+attrlist.add("04CP0113-BaseLengthUnits|Caractéristiques physiques/Unité de la longueur du fond");
+attrlist.add("04CP0114-Height|Caractéristiques physiques/Hauteur");
+attrlist.add("04CP0115-HeightUnits|Caractéristiques physiques/unité de la hauteur");
+attrlist.add("04CP0118-PItemWidth|Caractéristiques physiques/Largeur de l'UL");
+attrlist.add("04CP0120-PItemWidthUnits|Caractéristiques physiques/unité de la largeur de l'UL");
+attrlist.add("04CP0116-Depth|Caractéristiques physiques/Profondeur");
+attrlist.add("04CP0117-DepthUnits|Caractéristiques physiques/unité de la profondeur");
+attrlist.add("04CP0105-SurfaceArea|Caractéristiques physiques/Surface");
+attrlist.add("04CP0106-SurfaceAreaUnits|Caractéristiques physiques/unité de la surface");
+attrlist.add("04CP0213-netWeight|Caractéristiques physiques/Poids net");
+attrlist.add("04CP0214-netWeightUnit|Caractéristiques physiques/unité du poids net");
+attrlist.add("04CP0215-grossWeight|Caractéristiques physiques/Poids brut");
+attrlist.add("04CP0216-grossWeightUnit|Caractéristiques physiques/unité du poids brut");
+attrlist.add("04CP0217-RoughVolume|Caractéristiques physiques/Volume brut");
+attrlist.add("04CP0218-RoughVolumeUnit|Caractéristiques physiques/unité  Volume brut");
+attrlist.add("04CP0109-ValveDimension|Caractéristiques physiques/Dimension de la valve en cm");
+attrlist.add("04CP0140-MeanWingHeight|Caractéristiques physiques/Hauteur d'aile moyenne");
+attrlist.add("04CP0141-MeanWingHeightUnits|Caractéristiques physiques/unité hauteur d'aile moyenne");
+attrlist.add("04CP0142-WingHeight1|Caractéristiques physiques/Hauteur d'aile 1");
+attrlist.add("04CP0143-WingHeightUnits1|Caractéristiques physiques/unité hauteur d'aile 1");
+attrlist.add("04CP0144-WingHeight2|Caractéristiques physiques/Hauteur d'aile 2");
+attrlist.add("04CP0145-WingHeightUnits2|Caractéristiques physiques/unité hauteur d'aile 2");
+attrlist.add("04CP0581-WingBack|Caractéristiques physiques/Retour d'ailes en mm");
+attrlist.add("04CP0146-Section|Caractéristiques physiques/Section");
+attrlist.add("04CP0147-SectionUnits|Caractéristiques physiques/Unité  de la section");
+attrlist.add("04CP0148-MiniHeight|Caractéristiques physiques/Hauteur mini");
+attrlist.add("04CP0149-MiniHeightUnits|Caractéristiques physiques/unité hauteur mini");
+attrlist.add("04CP0150-MaxiHeight|Caractéristiques physiques/Hauteur maxi");
+attrlist.add("04CP0151-MaxiHeightUnits|Caractéristiques physiques/unité hauteur maxi");
+attrlist.add("04CP0152-BodyDiameter|Caractéristiques physiques/Diamètre du corps");
+attrlist.add("04CP0153-BodyDiameterUnits|Caractéristiques physiques/unité diamètre du corps");
+attrlist.add("04CP0154-HeadDiameter|Caractéristiques physiques/Diamètre de la tête");
+attrlist.add("04CP0155-HeadDiameterUnits|Caractéristiques physiques/unité diamètre de la tête");
+attrlist.add("04CP0089-InsulationThickness|Caractéristiques physiques/Epaisseur isolant");
+attrlist.add("04CP0090-InsulationThicknessUnits|Caractéristiques physiques/unité  de l'épaisseur isolant");
+attrlist.add("04CP0159-TypeHeartBoard|Caractéristiques physiques/Type de cœur de la plaque");
+attrlist.add("04CP0160-LongitudinalEdgeType|Caractéristiques physiques/Type de bord longitudinal");
+attrlist.add("04CP0165-TransverseEdgeType|Caractéristiques physiques/Type de bord transversal");
+attrlist.add("04CP0161-FrontFacingType|Caractéristiques physiques/Type de parement face");
+attrlist.add("04CP0162-BackFacingType|Caractéristiques physiques/Type de parement dos");
+attrlist.add("04CP0163-FrontFacingColour|Caractéristiques physiques/couleur du parement face");
+attrlist.add("04CP0164-BackFacingColour|Caractéristiques physiques/couleur du parement dos");
+attrlist.add("04CP0166-FrontInternalCoating|Caractéristiques physiques/Revêtement rapporté face");
+attrlist.add("04CP0167-BackInternalCoating|Caractéristiques physiques/Revêtement rapporté dos");
+attrlist.add("04CP0169-VapourSeal|Caractéristiques physiques/Présence d'un pare vapeur");
+attrlist.add("04CP0170-Perforation|Caractéristiques physiques/Perforation");
+attrlist.add("04CP0171-PerforationLayout|Caractéristiques physiques/Zones de perforations");
+attrlist.add("04CP0172-InsulationType|Caractéristiques physiques/Type isolant");
+attrlist.add("04CP0173-EPSAccordingToNF|Caractéristiques physiques/Type de PSE selon norme NFT56-201");
+attrlist.add("04CP0174-SurfaceAspect|Caractéristiques physiques/aspect de surface (forme/découpe)");
+attrlist.add("04CP0175-Base|Caractéristiques physiques/fond");
+attrlist.add("04CP0176-Profil|Caractéristiques physiques/profil");
+attrlist.add("04CP0177-Strip|Caractéristiques physiques/Languette");
+attrlist.add("04CP0119-CasingHeight|Caractéristiques physiques/Hauteur coffrante en mm");
+attrlist.add("04CP0566-SpacingInMm|Caractéristiques physiques/Entraxe en mm");
+attrlist.add("04CP0572-BeamHealWidth|Caractéristiques physiques/Largeur du talon de poutrelle en mm");
+attrlist.add("04CP0121-CompatibleBeamMaxiHeelThickness|Caractéristiques physiques/épaisseur maxi talon poutrelle compatible");
+attrlist.add("04CP0122-BeamHeelThicknessAtEdge|Caractéristiques physiques/épaisseur talon poutrelle au bord en mm");
+attrlist.add("04CP0123-BeamHeelThicknessAtCenter|Caractéristiques physiques/épaisseur talon poutrelle au centre en mm");
+attrlist.add("04CP0124-BeamHeelThicknessForUP|Caractéristiques physiques/épaisseur talon poutrelle pour calcul Up indicatif en mm");
+attrlist.add("04CP0125-CompatibleBeamMiniTotalHeight|Caractéristiques physiques/hauteur totale mini poutrelle compatible");
+attrlist.add("04CP0126-WidthBetweenBeamCenters|Caractéristiques physiques/largeur entraxe poutrelles en mm");
+attrlist.add("04CP0127-CompatibleBeamMaxiHeelWidth|Caractéristiques physiques/largeur maxi talon poutrelle compatible");
+attrlist.add("04CP0128-CompatibleBeamMiniHeelWidth|Caractéristiques physiques/largeur mini talon poutrelle compatible");
+attrlist.add("04CP0129-BeamHeelWidthForUP|Caractéristiques physiques/largeur talon poutrelle pour calcul Up indicatif en mm");
+attrlist.add("04CP0130-ThicknessExcludingStrip|Caractéristiques physiques/Epaisseur hors languette en mm");
+attrlist.add("04CP0131-StripThickness|Caractéristiques physiques/Epaisseur de la languette en mm");
+attrlist.add("04CP0132-StripWidth|Caractéristiques physiques/Largeur de la languette en mm");
+attrlist.add("04CP0133-WidthExcludingStrip|Caractéristiques physiques/Largeur hors languette en mm");
+attrlist.add("04CP0134-MiniHeightHeartBeam|Caractéristiques physiques/Hauteur mini de l'âme de la poutrelle en mm");
+attrlist.add("04CP0178-ProfileRaising|Caractéristiques physiques/Profil  de réhausse");
+attrlist.add("04CP0179-ChamferRaising|Caractéristiques physiques/Chanfrein réhausse");
+attrlist.add("04CP0180-ChamferDescription|Caractéristiques physiques/Description du chanfrein");
+attrlist.add("04CP0232-Characteristics|Caractéristiques physiques/Particularités");
+attrlist.add("04CP0181-colourCode|Caractéristiques physiques/couleur");
+attrlist.add("04CP0181-colourCode|Caractéristiques physiques/couleur");
+attrlist.add("04CP0182-colourCodeAgency|Caractéristiques physiques/Agence de maintenance du code couleur");
+attrlist.add("04CP0183-Colouration|Caractéristiques physiques/coloration");
+attrlist.add("04CP0230-GypsumBlockType|Caractéristiques physiques/Type de carreaux");
+attrlist.add("04CP0234-Granulometry|Caractéristiques physiques/Granulométrie en micron");
+attrlist.add("04CP0222-ProductFormula|Caractéristiques physiques/formulation produit");
+attrlist.add("04CP0223-ProductType|Caractéristiques physiques/type de produit");
+attrlist.add("04CP0184-Shape|Caractéristiques physiques/Forme");
+attrlist.add("04CP0185-HeadShape|Caractéristiques physiques/Forme de la tête");
+attrlist.add("04CP0186-PointType|Caractéristiques physiques/Type de pointe");
+attrlist.add("04CP0187-ThreadType|Caractéristiques physiques/Type de filetage");
+attrlist.add("04CP0188-Galvanised|Caractéristiques physiques/Galvanisation en g/m2");
+attrlist.add("04CP0224-SteelType|Caractéristiques physiques/Type d'acier");
+attrlist.add("04CP0225-SteelAspect|Caractéristiques physiques/Aspect de l'acier");
+attrlist.add("04CP0135-MetalThickness|Caractéristiques physiques/Epaisseur de la tôle nue en mm");
+attrlist.add("04CP0136-MetalThicknessTolerance|Caractéristiques physiques/Tolérance épaisseur de la tôle");
+attrlist.add("04CP0560-WebDiameter|Caractéristiques physiques/Diamètre de la bobine (cm)");
+attrlist.add("04CP0561-CoreType|Caractéristiques physiques/Type de mandrin");
+attrlist.add("04CP0562-RealingHand|Caractéristiques physiques/Sens enroulage");
+attrlist.add("04CP0137-LabelFormat|Caractéristiques physiques/Format étiquette");
+attrlist.add("04CP0189-PaperPresentation|Caractéristiques physiques/Présentation du papier");
+attrlist.add("04CP0190-PaperQuality|Caractéristiques physiques/Qualité du papier");
+attrlist.add("04CP0563-PaperClass|Caractéristiques physiques/Classe du papier");
+attrlist.add("04CP0156-PaperGrammage|Caractéristiques physiques/Grammage en g/m2");
+attrlist.add("04CP0191-PrePrinted|Caractéristiques physiques/Support pré-imprimé");
+attrlist.add("04CP0193-PaperType|Caractéristiques physiques/Type du papier");
+attrlist.add("04CP0194-NumberPrintColours|Caractéristiques physiques/Nombre de couleurs de l'impression");
+attrlist.add("04CP0195-NumberLidPrintColours|Caractéristiques physiques/Nombre de couleurs impression du couvercle du seau");
+attrlist.add("04CP0196-PaletType|Caractéristiques physiques/Type de la palette");
+attrlist.add("04CP0235-TreatedForExport|Caractéristiques physiques/Traitement export");
+attrlist.add("04CP0227-PaletMakeUp|Caractéristiques physiques/Constitution de la palette");
+attrlist.add("04CP0228-PaletHandlingPoints|Caractéristiques physiques/Nombre d'entrées");
+attrlist.add("04CP0157-WoodVolume|Caractéristiques physiques/Volume de bois en dm3 ou litre");
+attrlist.add("04CP0138-BellowsWidth|Caractéristiques physiques/Largeur des soufflets en mm");
+attrlist.add("04CP0139-PolyethyleneThickness|Caractéristiques physiques/Epaisseur du polyéthylène en micron");
+attrlist.add("04CP0229-FibreType|Caractéristiques physiques/Type de fibres");
+attrlist.add("04CP0197-CoverType|Caractéristiques physiques/Familles de housses");
+attrlist.add("04CP0204-TypeOfFreeFilm|Caractéristiques physiques/Type de free-film");
+attrlist.add("04CP0205-FreeFilmThickness|Caractéristiques physiques/Epaisseur du free-film en micron");
+attrlist.add("04CP0206-TypeOfValves|Caractéristiques physiques/Type de valves");
+attrlist.add("04CP0207-PositionOfTheValve|Caractéristiques physiques/Position de la valve");
+attrlist.add("04CP0208-Handle|Caractéristiques physiques/Présence de poignée");
+attrlist.add("04CP0209-HandleMaterial|Caractéristiques physiques/Matière de la poignée");
+attrlist.add("04CP0211-BigBagBaseType|Caractéristiques physiques/Type de fond du big bag");
+attrlist.add("04CP0212-InnerLiner|Caractéristiques physiques/Présence de sache interne pour le big bag");
+attrlist.add("04CP0237-Voltage|Caractéristiques physiques/Voltage, en V");
+attrlist.add("04CP0238-UsefulOutput|Caractéristiques physiques/Puissance utile, en W");
+attrlist.add("04CP0239-RotationalSpeed|Caractéristiques physiques/Vitesse, en tour/min");
+attrlist.add("04CP0240-BladeDiameter|Caractéristiques physiques/Diamètre de la lame en mm");
+attrlist.add("04CP0241-DuctileRetractable|Caractéristiques physiques/Etirable/Rétractable");
+attrlist.add("04CP0650-MethodOfManufacture|Caractéristiques physiques/Mode de fabrication");
+attrlist.add("04CP0820-DrainThickness|Caractéristiques physiques/Epaisseur du drain");
+attrlist.add("04CP0821-DrainThicknessUnit|Caractéristiques physiques/Unité de l'épaisseur du drain");
+attrlist.add("05PC0794-ClassFlexuralStrength|Performances confidentielles/Classe de résistance à la flexion (kPa)");
+attrlist.add("05PC0789-MechanicalStressClass|Performances confidentielles/Classe de résistance mécanique");
+attrlist.add("05PC0779-CombustionContinuousIncandescence|Performances confidentielles/Combustion avec incandescence continue");
+attrlist.add("05PC0788-CompressiveStress2%Strain|Performances confidentielles/Contrainte en compression à 2% de déformation (kPa)");
+attrlist.add("05PC0787-CompressiveStress5%Strain|Performances confidentielles/Contrainte en compression à 5 % de déformation (kPa)");
+attrlist.add("05PC0790-DurabilityOfReactionToFire|Performances confidentielles/Durabilité de la réaction au feu");
+attrlist.add("05PC0791-DurabilityOfThermalResistance|Performances confidentielles/Durabilité de la résistance thermique");
+attrlist.add("05PC0783-DurabilityThermalResistance|Performances confidentielles/Durabilité de la résistance thermique aux effets du Gel/Dégel");
+attrlist.add("05PC0792-SustainabilityChemicalBiologicalAttacks|Performances confidentielles/Durabilité en fonction des attaques chimiques et biologiques");
+attrlist.add("05PC0781-dLThickness|Performances confidentielles/Epaisseur, dL");
+attrlist.add("05PC0784-CreepCompression|Performances confidentielles/Fluage en compression");
+attrlist.add("05PC0807-IT249|Performances confidentielles/IT249");
+attrlist.add("05PC0780-DynamicStiffness|Performances confidentielles/Raideur Dynamique");
+attrlist.add("05PC0785-LongTermThicknessReduction|Performances confidentielles/Réduction d'épaisseur à long terme");
+attrlist.add("05PC0786-EffortResistanceCyclicCompression|Performances confidentielles/Résistance à l'effort de compression cyclique");
+attrlist.add("05PC0793-ThresholdFlexuralStrength|Performances confidentielles/Seuil de résistance à la flexion (kPa)");
+attrlist.add("05PC0782-ThicknessTolerancesClass|Performances confidentielles/Tolérances épaisseurs, Classe");
+attrlist.add("05PC0254-IndicativeSurfaceMass|Performances confidentielles/Masse surfacique indicative en kg/m²");
+attrlist.add("05PC0255-SpecifiedSurfaceMass|Performances confidentielles/Masse surfacique spécifiée");
+attrlist.add("05PC0256-SpecSurfaceMassTolerance|Performances confidentielles/Masse surfacique spécifiée et tolérance");
+attrlist.add("05PC0257-HardnessInShoreC|Performances confidentielles/Dureté, en Shore C");
+attrlist.add("05PC0258-SurfaceHardness|Performances confidentielles/Dureté superficielle (billage à 2,5 joules en mm)");
+attrlist.add("05PC0259-WorkingLoad|Performances confidentielles/Charge admissible en daN");
+attrlist.add("05PC0260-InertiaFlat|Performances confidentielles/Inertie à plat en cm4");
+attrlist.add("05PC0261-InertiaSection|Performances confidentielles/Inertie sur chant en cm4");
+attrlist.add("05PC0262-Squaring|Performances confidentielles/Equerrage");
+attrlist.add("05PC0263-ApparentBulkDensity|Performances confidentielles/Masse volumique apparente en Kg/m3");
+attrlist.add("05PC0264-ISOLE|Performances confidentielles/I,S,O,L,E");
+attrlist.add("05PC0265-Incompressibility|Performances confidentielles/(I) Incompressibilité");
+attrlist.add("05PC0266-CompressibilityClass|Performances confidentielles/Classe compressibilité");
+attrlist.add("05PC0267-ServiceabilityCompressionStrength|Performances confidentielles/Résistance à la compression de service (Rcs) en Kpa");
+attrlist.add("05PC0268-ServiceabilityDeformation|Performances confidentielles/Déformation de service mini (ds) en %");
+attrlist.add("05PC0651-ServiceabilityDeformationMaxi|Performances confidentielles/Déformation de service maxi (ds) en %");
+attrlist.add("05PC0269-CompressiveStress|Performances confidentielles/Contrainte en compression pour 10 % de déformation");
+attrlist.add("05PC0565-SCClassification|Performances confidentielles/Classement SC (test de compression)");
+attrlist.add("05PC0270-MechanicalResistanceToCompression|Performances confidentielles/Résistance méca. à la compression en Megapascal");
+attrlist.add("05PC0271-DeformationUnderSpecifiedConditions|Performances confidentielles/Déformation dans des conditions de charge de compression et de température spécifiées");
+attrlist.add("05PC0272-TearStrength|Performances confidentielles/Résistance à l'arrachement en Mégapascal");
+attrlist.add("05PC0575-ImpactResistance|Performances confidentielles/Résistance à l'impact");
+attrlist.add("05PC0273-DimensionalStability|Performances confidentielles/(S)Stabilité dimensionnelle");
+attrlist.add("05PC0274-DimensionalStabilityUnderSpecifiedConditions|Performances confidentielles/stabilité dimensionnelle dans conditions T° et humidité spécifiées");
+attrlist.add("05PC0275-BehaviorWithWater|Performances confidentielles/(O) Comportement à l'eau");
+attrlist.add("05PC0276-WaterUptakeImmersion|Performances confidentielles/% de reprise d'eau après immersion de 2 heures");
+attrlist.add("05PC0277-WaterAbsorptionSurfaceBoard|Performances confidentielles/Absorption d’eau en surface de la plaque en g/m2");
+attrlist.add("05PC0278-WaterAbsorptionBoardByImmersion|Performances confidentielles/% d'absorption d'eau de la plaque par immersion");
+attrlist.add("05PC0279-LongTermWaterAbsoptionByImmersion|Performances confidentielles/% d'absorption d'eau à long terme par immersion");
+attrlist.add("05PC0280-WaterClassOfBehavior|Performances confidentielles/Classe de comportement à l'eau");
+attrlist.add("05PC0281-WaterClassOfBehaviorOfBoard|Performances confidentielles/Classe de comportement à l'eau de la plaque");
+attrlist.add("05PC0282-ResistanceToFrost|Performances confidentielles/Résistance au gel/dégel");
+attrlist.add("05PC0283-WaterAbsorptionCoefficient|Performances confidentielles/Coefficient absorption d'eau");
+attrlist.add("05PC0284-CohesionAndInflexion|Performances confidentielles/(L) Cohésion et Flexion");
+attrlist.add("05PC0564-ResistanceToInflection|Performances confidentielles/Résistance à la flexion");
+attrlist.add("05PC0580-Adhesion|Performances confidentielles/Adhérence (MPa)");
+attrlist.add("05PC0285-MechanicalResistanceToInflection|Performances confidentielles/Résistance mécanique à la flexion (daN)");
+attrlist.add("05PC0286-TensileStrengthPerpendicularToInsulation|Performances confidentielles/résistance à la traction perpendiculairement aux faces isolantes");
+attrlist.add("05PC0287-FlexuralStrengthMd|Performances confidentielles/Résistance flexion Sens Long (daN)");
+attrlist.add("05PC0288-FlexuralStrengthCd|Performances confidentielles/Résistance flexion Sens Travers (daN)");
+attrlist.add("05PC0289-DeformationUnderloadMd|Performances confidentielles/Déformé sous charge Sens Long (mm)");
+attrlist.add("05PC0290-DeformationUnderloadCd|Performances confidentielles/Déformé sous charge Sens Travers (mm)");
+attrlist.add("05PC0291-ResidualDeformationMd|Performances confidentielles/Déformé résiduel Sens Long (mm)");
+attrlist.add("05PC0292-ResidualDeformationCd|Performances confidentielles/Déformé résiduel Sens Travers (mm)");
+attrlist.add("05PC0293-ResistanceToPunching|Performances confidentielles/Résistance au poinçonnement (daN) (Nail pull test)");
+attrlist.add("05PC0294-UnderloadDeformation|Performances confidentielles/Résistance à la flexion(mm)");
+attrlist.add("05PC0295-ShearStrength|Performances confidentielles/Résistance au cisaillement (en newton)");
+attrlist.add("05PC0296-PermeabilityToVapour|Performances confidentielles/(E) Perméance à la vapeur d'eau");
+attrlist.add("05PC0297-PermeabilityClass|Performances confidentielles/Classe de perméance");
+attrlist.add("05PC0298-WaterVapourTransmission|Performances confidentielles/Transmission de vapeur d'eau");
+attrlist.add("05PC0299-FactorOfResistanceToWaterVapour|Performances confidentielles/Facteur de résistance à la vapeur d'eau");
+attrlist.add("05PC0576-MouldResistance|Performances confidentielles/Résistance à la moisissure");
+attrlist.add("05PC0300-ThermalResistance|Performances confidentielles/(R) Résistance thermique m2.K/W");
+attrlist.add("05PC0301-ThermalConductivityLambda|Performances confidentielles/Conductivité thermique en W/m.K (Lambda)");
+attrlist.add("05PC0302-IndicativeCoefUp|Performances confidentielles/Coef.Up indicatif en W/m2K");
+attrlist.add("05PC0303-NormalizesUpCalculation|Performances confidentielles/Norme de calcul Up");
+attrlist.add("05PC0304-ResistanceOfAssemblyRp|Performances confidentielles/Résistance du montage Rp(m2.K/W)");
+attrlist.add("05PC0574-ThermalExpansion|Performances confidentielles/Dilatation thermique à 50-60%RH (mm/mK)");
+attrlist.add("05PC0305-EuroclasseClassification|Performances confidentielles/Classement Euroclasse de réaction au feu");
+attrlist.add("05PC0306-ClassificationM|Performances confidentielles/Classement M de réaction au feu");
+attrlist.add("05PC0579-EuroclasseClassificationOfBoard|Performances confidentielles/Classement Euroclasse de réaction au feu de la plaque");
+attrlist.add("05PC0307-ClassificationMOfBoard|Performances confidentielles/Classement M de réaction au feu de la plaque");
+attrlist.add("05PC0308-ORReactionFire|Performances confidentielles/Ref procès verbal classement M réaction au feu");
+attrlist.add("05PC0309-FireInsulation|Performances confidentielles/Coupe feu");
+attrlist.add("05PC0310-FireResistance|Performances confidentielles/Résistance au feu");
+attrlist.add("05PC0312-AcousticAbsorptionCoef|Performances confidentielles/Coef.d'absorption acoustique (alpha W global)");
+attrlist.add("05PC0314-IndexAttenuationOfNoise|Performances confidentielles/Indice d'affaiblissement acoustique Rw+C en dB");
+attrlist.add("05PC0582-DirectAirborneNoiseInsulation|Performances confidentielles/Isolation contre le bruit aérien direct");
+attrlist.add("05PC0573-AirPermeability|Performances confidentielles/Perméabilité à l'air");
+attrlist.add("05PC0315-MaxiLoading|Performances confidentielles/Charge maxi en kg");
+attrlist.add("05PC0316-HeightOfMaxiInstallation|Performances confidentielles/Hauteur de pose maxi");
+attrlist.add("05PC0317-LengthOfCut|Performances confidentielles/Longueur de coupe en mm");
+attrlist.add("05PC0318-MaxiCapacityOfCut|Performances confidentielles/Capacité maximale de coupe en mm");
+attrlist.add("05PC0319-RCT|Performances confidentielles/RCT en daN (résistance mécanique à la compression)");
+attrlist.add("05PC0320-TensileStrengthMd|Performances confidentielles/Résistance à la traction, sens de fabrication, en daN");
+attrlist.add("05PC0321-TensileStrengthCd|Performances confidentielles/Résistance à la traction,sens travers, en daN");
+attrlist.add("05PC0322-AbsorbtionCobb|Performances confidentielles/Absorbtion en g/m2 (Cobb)");
+attrlist.add("05PC0323-Porosity|Performances confidentielles/Porosité en secondes");
+attrlist.add("05PC0324-Joining|Performances confidentielles/Collage en g/m2");
+attrlist.add("05PC0325-LowerCalorificValueNCV|Performances confidentielles/Pouvoir Calorifique Inférieur (PCI) en kcal/kg");
+attrlist.add("05PC0326-DensityWith20C|Performances confidentielles/Densité à 20°C en kg/l");
+attrlist.add("05PC0327-ViscosityWith20C|Performances confidentielles/Viscosité à 20°C en Cst");
+attrlist.add("05PC0328-MaximumSulphurContent|Performances confidentielles/Teneur en soufre maximum en % massique");
+attrlist.add("05PC0329-MaximumWaterContent|Performances confidentielles/Teneur en eau maximum en % massique");
+attrlist.add("05PC0330-Pressure|Performances confidentielles/Pression en Bars");
+attrlist.add("05PC0331-FlashPointInC|Performances confidentielles/Point éclair en C°");
+attrlist.add("05PC0332-DispersionInBoard)|Performances confidentielles/Dispersion (Répartition uniforme dans la plaque)");
+attrlist.add("05PC0333-InflammableMaterial|Performances confidentielles/Matière inflammable");
+attrlist.add("05PC0334-Sealing|Performances confidentielles/Etanchéité");
+attrlist.add("05PC0335-SafetyCoefficientCS|Performances confidentielles/Coefficient de sécurité C/S");
+attrlist.add("05PC0822-SpecificHeat|Performances confidentielles/Chaleur spécifique en Cp");
+attrlist.add("05PC0823-LightReflection|Performances confidentielles/Réflection à la lumière en %");
+attrlist.add("05PC0824-ThermalResistanceDeclared|Performances confidentielles/(R) Résistance thermique déclarée m2.K/W");
+attrlist.add("05PC0825-ThermalConductivityDeclaredLambda|Performances confidentielles/Conductivité thermique déclarée en W/m.K (Lambda)");
+attrlist.add("05PC0826-ChlorideAmount|Performances confidentielles/Teneur en chlorure en %");
+attrlist.add("05PC0827-Formaldehyde|Performances confidentielles/Formaldéhyde");
+attrlist.add("05PC0828-LengthToleranceClass|Performances confidentielles/Classe de longueur");
+attrlist.add("05PC0829-WidthToleranceClass|Performances confidentielles/Classe de largeur");
+attrlist.add("05PC0830-Friability|Performances confidentielles/Indice de friabilité");
+attrlist.add("05PC0831-ProliferationHazardousMicroOrganismSusceptibility|Performances confidentielles/Susceptibilité au développement de micro-organismes dangereux");
+attrlist.add("05PG0795-YearOfFirstCEMarking|Performances/Année de 1ère apposition du marquage CE");
+attrlist.add("05PG0778-VolontarySafetyStatement|Performances/N°Déclaration volontaire de sécurité");
+attrlist.add("05PG0243-NFReference|Performances/Références de la norme produit française");
+attrlist.add("05PG0244-NFProductType|Performances/Type de produit selon la norme française");
+attrlist.add("05PG0245-ENReference|Performances/Références de la norme produit européenne");
+attrlist.add("05PG0246-ENProductType|Performances/Type de produit selon la norme européenne");
+attrlist.add("05PG0247-ENBoardType|Performances/Type de plaque selon la norme européenne");
+attrlist.add("05PG0248-NFCertified|Performances/certifié NF");
+attrlist.add("05PG0249-CECertified|Performances/marquage CE");
+attrlist.add("05PG0250-ENItemType|Performances/Type d'article selon la norme européenne");
+attrlist.add("05PG0251-DINCertified|Performances/DIN");
+attrlist.add("05PG0340-TechnicalNote|Performances/Avis techniques");
+attrlist.add("05PG0342-LabelQuality|Performances/Label ou marque de qualité");
+attrlist.add("05PG0343-LabelVertCertificate|Performances/Certificat Label Vert");
+attrlist.add("05PG0344-InternalSpecRef|Performances/Référence de la spécification Siniat");
+attrlist.add("05PG0767-DOPNumber|Performances/Numéro de DOP");
+attrlist.add("05PG0768-ProductTypeID|Performances/Code produit type");
+attrlist.add("05PG0769-DOPUrl|Performances/URL de la DOP");
+attrlist.add("05PG0770-ProductUsage|Performances/Usage du produit");
+attrlist.add("05PG0773-OrganismNotified|Performances/Organisme Notifié");
+attrlist.add("06DN0347-TradeItemOrderable|Distribution/Commandable ?");
+attrlist.add("06DN0356-ItemBillable|Distribution/Unité facturable");
+attrlist.add("06DN0432-Consigned|Distribution/Consignation");
+attrlist.add("06DN0351-orderQuantityMultiple|Distribution/Multiple de commande");
+attrlist.add("06DN0352-orderQuantityMini|Distribution/Minimum de commande");
+attrlist.add("06DN0357-orderQuantityMaxi|Distribution/Maximum de commande");
+attrlist.add("06DN0406-NetContent|Distribution/Contenu net");
+attrlist.add("06DN0410-NetContentUnit|Distribution/unité  contenu net");
+attrlist.add("06DN0407-TotalQuantityOfNextLowerLevel|Distribution/Nombre total de fils");
+attrlist.add("06DN0405-quantityOfNextLowerLevel|Distribution/Nombre de fils");
+attrlist.add("06DN0402-NumberOfPackagedItems|Distribution/Nombre d'unité de conditionnement");
+attrlist.add("06DN0408-quantityOfChildren|Distribution/Nombre de fils différents");
+attrlist.add("06DN0403-quantityOfCompleteLayersInATradeItem|Distribution/Nombre de couches d'articles de rang inférieur");
+attrlist.add("06DN0409-quantityOfTradeItemsInACompleteLayer|Distribution/Nombre d'articles de rang inférieur par couche");
+attrlist.add("06DN0411-Assembly|Distribution/Assemblage");
+attrlist.add("06DN0412-Stacking|Distribution/Empilage");
+attrlist.add("06DN0413-Support|Distribution/Support");
+attrlist.add("06DN0414-Covering|Distribution/Houssage");
+attrlist.add("06DN0415-Hooping|Distribution/Cerclage");
+attrlist.add("06DN0425-effectiveDate|Distribution/Date de début de validité");
+attrlist.add("06DN0427-ValidToDate|Distribution/Date de fin de validité");
+attrlist.add("06DN0430-consumerAvailabilityDate|Distribution/Premier jour de commande");
+attrlist.add("06DN0431-endAvailabilityDate|Distribution/Dernier jour de commande");
+attrlist.add("06DN0399-SupportOfPacking|Distribution/Type d'emballage / conditionnement");
+attrlist.add("06DN0396-PackingTypeOfBUnit|Distribution/Type d'emballage de l'UC");
+attrlist.add("06DN0675-PackagingMaterialType|Distribution/Type d'emballage d'expédition");
+attrlist.add("06DN0400-packagingTermsAndConditions|Distribution/Traitement du support du conditionnement");
+attrlist.add("06DN0416-ForExport|Distribution/Vendu à l'exportation");
+attrlist.add("06DN0774-IntrastatCode|Distribution/Nomenclature douanière");
+attrlist.add("06DN0669-GenItemCatGroup|Distribution/Groupe général de types de poste");
+attrlist.add("06DN0672-MaterialGroupPackaging|Distribution/Groupe d'articles - emballages d'expédition");
+attrlist.add("06DN0777-VariablePurchaseOrderUnitValue|Distribution/Unité d'achat variable active");
+attrlist.add("06DN0395-BaseItem|Distribution/Article de base");
+attrlist.add("06DN0661-BaseUnitOfMeasure|Distribution/Unité de mesure de base");
+attrlist.add("06DN0674-PurchasingUnit|Distribution/Unité d'achat");
+attrlist.add("06DN0702-UnitOfIssue|Distribution/Unité de sortie");
+attrlist.add("06DN0732-SalesUnit|Distribution/Unité de vente");
+attrlist.add("06DN0744-ShippingUnit|Distribution/Unité d'expédition");
+attrlist.add("06DN0749-StorageUnit|Distribution/Unité  de stockage");
+attrlist.add("06DN0752-PricingUnit|Distribution/Unité de facturation");
+attrlist.add("06DN0755-ManagementUnit|Distribution/Unité de gestion");
+attrlist.add("06DN0758-AdditionalUnit1|Distribution/Unité additionnelle 1");
+attrlist.add("06DN0761-AdditionalUnit2|Distribution/Unité additionnelle 2");
+attrlist.add("06DN0764-AdditionalUnit3|Distribution/Unité additionnelle 3");
+attrlist.add("06DN0808-AdditionalUnit4|Distribution/Unité additionnelle 4");
+attrlist.add("06DN0676-TransportationGroup|Distribution/Groupe de transports");
+attrlist.add("06DN0706-LoadingGroup|Distribution/Groupe de chargement");
+attrlist.add("06DN0662-RoutageKey|Distribution/Famille de routage");
+attrlist.add("06DN0663-MixableRange|Distribution/Catégorie Mix produits");
+attrlist.add("06DN0776-PickingArea|Distribution/Zone de prélèvement");
+attrlist.add("06DN0433-stackingFactor|Distribution/Facteur de gerbage");
+attrlist.add("06DN0434-stackingWeightMaxi|Distribution/Poids de gerbage");
+attrlist.add("06DN0435-stackingWeightMaxiUnit|Distribution/unité Poids de gerbage");
+attrlist.add("06DN0437-storageTemperatureMaxi|Distribution/température de stockage maxi");
+attrlist.add("06DN0438-storageTemperatureMaxiUnit|Distribution/Unité température de stockage maxi");
+attrlist.add("06DN0439-storageTemperatureMini|Distribution/température de stockage mini");
+attrlist.add("06DN0440-storageTemperatureMiniUnit|Distribution/Unité température de stockage mini");
+attrlist.add("06DN0813-BulkStorage|Distribution/Nbre de palettes max pour gerbage");
+attrlist.add("07MO0336-MaxiThicknessSupport|Mise en oeuvre/Epaisseur maximale de support");
+attrlist.add("07MO0470-GypsumBlocksPerSqM|Mise en oeuvre/Nbre d'éléments au m2");
+attrlist.add("07MO0471-WeightInKgPerSqM|Mise en oeuvre/Poids en kg au m2 de cloison");
+attrlist.add("07MO0447-PowderWaterRatio|Mise en oeuvre/Taux de gâchage eau/poudre en %");
+attrlist.add("07MO0448-Shinkage|Mise en oeuvre/Retrait en %");
+attrlist.add("07MO0472-ConsumptionOfFacing|Mise en oeuvre/Consommation en kg/m2 de parement");
+attrlist.add("07MO0473-ConsumptionCMOfThickness|Mise en oeuvre/Consommation en Kg/m2/cm d'épaisseur");
+attrlist.add("07MO0474-UsageSqMBagThickness|Mise en oeuvre/Rendement m2/sac/cm d'épaisseur");
+attrlist.add("07MO0449-MiniDescent|Mise en oeuvre/Descente mini en mm");
+attrlist.add("07MO0450-MaxiDescent|Mise en oeuvre/Descente maxi en mm");
+attrlist.add("07MO0453-Latency|Mise en oeuvre/Temps d'attente");
+attrlist.add("07MO0454-TimeOfUse|Mise en oeuvre/Temps d'emploi");
+attrlist.add("07MO0455-TimeOfRaising|Mise en oeuvre/Temps de dressage");
+attrlist.add("07MO0462-ApplicationTemperature|Mise en oeuvre/Température d'emploi");
+attrlist.add("07MO0463-TimeOfHardening|Mise en oeuvre/Temps de durcissement");
+attrlist.add("07MO0456-LastAdjustment|Mise en oeuvre/Dernier réglage");
+attrlist.add("07MO0457-StartOfSmoothing|Mise en oeuvre/Début lissage");
+attrlist.add("07MO0458-FirstSmoothingByRubbing|Mise en oeuvre/Premier lissage à la frottasse");
+attrlist.add("07MO0459-SecondSmoothingWithSeivedPPM|Mise en oeuvre/Deuxième lissage ou finition au PPM Tamisé");
+attrlist.add("07MO0460-LatencyFor2ndMasterKey|Mise en oeuvre/Temps d'attente pour 2ème passe");
+attrlist.add("07MO0461-TotalTime|Mise en oeuvre/Temps total");
+attrlist.add("07MO0475-Consumption|Mise en oeuvre/Consommation en m2 ou ml");
+attrlist.add("07MO0476-RatioSimpleProfile40|Mise en oeuvre/consommation montant simple entraxe 40 en ml/m2 d'ouvrage");
+attrlist.add("07MO0477-RatioSimpleProfile60|Mise en oeuvre/consommation montant simple entraxe 60 en ml/m2 d'ouvrage");
+attrlist.add("07MO0478-RatiojoinedProfile40|Mise en oeuvre/consommation montant accolé entraxe 40 en ml/m2 d'ouvrage");
+attrlist.add("07MO0479-RatiojoinedProfile60|Mise en oeuvre/consommation montant accolé entraxe 60 en ml/m2 d'ouvrage");
+attrlist.add("07MO0480-AverageConsumption|Mise en oeuvre/consommation moyenne en ml/m2 d'ouvrage");
+attrlist.add("07MO0464-MaxiHeightOfUse|Mise en oeuvre/Hauteur limite d'utilisation");
+attrlist.add("07MO0465-ImplementationAdvice|Mise en oeuvre/Conseils de mise en œuvre");
+attrlist.add("07MO0444-AdherenceToConcrete|Mise en oeuvre/Adhérence sur béton");
+attrlist.add("07MO0445-AdherenceToEPS|Mise en oeuvre/Adhérence sur PSE");
+attrlist.add("07MO0466-UsageAdvice|Mise en oeuvre/Conseils d'utilisation");
+attrlist.add("07MO0467-Application|Mise en oeuvre/Application");
+attrlist.add("07MO0483-EmissionDangerousSubstances|Mise en oeuvre/Emission de substances dangereuses");
+attrlist.add("07MO0485-CertificateQualityAnalysis|Mise en oeuvre/Obligation d'un certificat d'analyse qualité");
+attrlist.add("07MO0486-ShelfLife|Mise en oeuvre/durée de conservation");
+attrlist.add("07MO0487-ShelfLifeUnit|Mise en oeuvre/Unité de la durée de conservation");
+attrlist.add("08IE0488-EnvironmentalBasicData|Impact environnemental/Fiche de Déclararion Environnementale et Sanitaire");
+attrlist.add("08IE0489-packagingMaterialCode|Impact environnemental/Matériau d'emballage / conditionnement");
+attrlist.add("08IE0490-PackagingMarkedRecyclable|Impact environnemental/Mention 'emballage/cond. recyclable' marquée");
+attrlist.add("08IE0491-PackagingMarkedReturnable|Impact environnemental/Mention 'emballage/cond. retournable' marquée");
+attrlist.add("08IE0492-TradeItemMarkedRecyclable|Impact environnemental/Mention 'produit recyclable' marqué (oui / non)");
+attrlist.add("08IE0493-PackagingMarkedWithGreenDot|Impact environnemental/Sigle 'Eco-Emballages' marquée");
+attrlist.add("08IE0653-LabelingHealth|Impact environnemental/Etiquetage sanitaire");
+attrlist.add("08IE0841-SanitizedCertificateReference|Impact environnemental/Référence du certificat Sanitized");
+attrlist.add("10GC0677-XDistrChanStatus|Gestion commerciale/Statut article tous canaux de distribution");
+attrlist.add("10GC0678-XDistrChanStatusValidFrom|Gestion commerciale/Début de validité du statut article");
+attrlist.add("10GC0747-TotalReplenishmentLeadTime|Gestion commerciale/Délai de réapprovisionnement");
+attrlist.add("10GC0748-UnitOfTotalReplenishmentLeadTime|Gestion commerciale/unité du délai de réapprovisionnement");
+attrlist.add("10GC0735-ProductAttribute10|Gestion commerciale/Article Catalogue Négoce ?");
+attrlist.add("12BI0666-ProductHierarchy|Business Intelligence/Hiérarchie produit");
+attrlist.add("12BI0736-Profile|Business Intelligence/Hiérarchie tarif Niveau 1");
+attrlist.add("12BI0738-MaterialGroup5|Business Intelligence/Hiérarchie tarif Niveau 3");
+attrlist.add("12BI0737-BusinessUnit|Business Intelligence/Hiérarchie tarif Niveau 2");
+
+var attrlistPlaceOfStorageGroup = [];
+attrlistPlaceOfStorageGroup.add("06DN0680-ProfitCentre|Distribution/Centre de profit");
+attrlistPlaceOfStorageGroup.add("06DN0360-GrossWeight|Distribution/Poids brut");
+attrlistPlaceOfStorageGroup.add("06DN0361-GrossWeightUnit|Distribution/unité Poids brut");
+attrlistPlaceOfStorageGroup.add("06DN0646-ManufacturerCountry|Distribution/Pays d'origine de l'article");
+attrlistPlaceOfStorageGroup.add("06DN0683-RegionOfOrigin|Distribution/Département ou région d'origine de l'article");
+attrlistPlaceOfStorageGroup.add("06DN0681-SpecProcTypeCosting|Distribution/Approvisionnement special CCR");
+attrlistPlaceOfStorageGroup.add("06DN0682-NoCosting|Distribution/Pas de CCR");
+attrlistPlaceOfStorageGroup.add("06DN0684-ProcurementType|Distribution/Type d'approvisionnement");
+attrlistPlaceOfStorageGroup.add("06DN0685-MrpType|Distribution/Type Plannification");
+attrlistPlaceOfStorageGroup.add("06DN0686-MrpController|Distribution/Numéro du gestionnaire");
+attrlistPlaceOfStorageGroup.add("06DN0689-SchedMarginKey|Distribution/Clé d'horizon pour marges");
+attrlistPlaceOfStorageGroup.add("06DN0690-StrategyGroup|Distribution/Groupe stratégie");
+attrlistPlaceOfStorageGroup.add("06DN0691-ConsumptionMode|Distribution/Mode de consommation");
+attrlistPlaceOfStorageGroup.add("06DN0692-ConsumptionPeriodBackward|Distribution/Période rétroactive de consommation");
+attrlistPlaceOfStorageGroup.add("06DN0693-ConsumptionPeriodForward|Distribution/Période de consommation à venir");
+attrlistPlaceOfStorageGroup.add("06DN0694-AvailabilityCheck|Distribution/Contrôle disponibilité à la commande");
+attrlistPlaceOfStorageGroup.add("06DN0695-MRPGroup|Distribution/Groupe de plannification");
+attrlistPlaceOfStorageGroup.add("06DN0696-SpecProcurementType|Distribution/Type d'appro. spécial");
+attrlistPlaceOfStorageGroup.add("06DN0697-IndividualOrCollectiveRequir|Distribution/Besoin personnalisé ou collectif");
+attrlistPlaceOfStorageGroup.add("06DN0698-PeriodIndicator|Distribution/Indicateur de période");
+attrlistPlaceOfStorageGroup.add("06DN0699-BackFlushIndicator|Distribution/Prélèvement rétroactif");
+attrlistPlaceOfStorageGroup.add("06DN0700-SelectionMethod|Distribution/Sélection de nomenclatures alternatives");
+attrlistPlaceOfStorageGroup.add("06DN0701-BatchManagementIndicator|Distribution/géré par lot ?");
+attrlistPlaceOfStorageGroup.add("06DN0705-UnlimiedOverdelivery|Distribution/Livraison excédentaire illimitée autorisée");
+attrlistPlaceOfStorageGroup.add("06DN0709-ProductionSupervisor|Distribution/Agent d'ordonnancement");
+attrlistPlaceOfStorageGroup.add("06DN0720-PriceControl|Distribution/Indicateur code prix");
+attrlistPlaceOfStorageGroup.add("06DN0721-ValuationClass|Distribution/Classe de valorisation");
+attrlistPlaceOfStorageGroup.add("06DN0722-MaterialRelatedOrigin|Distribution/Origine article");
+attrlistPlaceOfStorageGroup.add("06DN0723-OrigGroupAsSubdivCost|Distribution/Groupe d'origine");
+attrlistPlaceOfStorageGroup.add("06DN0724-MateriaIsCostedWithQuantity|Distribution/Calcul de coût de revient avec structure de qtés");
+attrlistPlaceOfStorageGroup.add("06DN0707-PlantMaterialStatus|Distribution/Statut de l'article sur le site");
+attrlistPlaceOfStorageGroup.add("06DN0708-PlantMaterialStatusValidFrom|Distribution/Date d'application du statut de l'article sur le site");
+attrlistPlaceOfStorageGroup.add("06DN0687-ProdStorageLocation|Distribution/Emplacement de stockage de consommation");
+attrlistPlaceOfStorageGroup.add("06DN0688-ExtProcStorageLocation|Distribution/Emplacement de stockage de réception");
+attrlistPlaceOfStorageGroup.add("06DN0832-MaterialPriceDetermination|Distribution/Détermination du prix");
+
+var attrlistSalesOrganisationGroup = [];
+attrlistSalesOrganisationGroup.add("10GC0726-DistributionChannel|Gestion commerciale/canal de distribution");
+attrlistSalesOrganisationGroup.add("10GC0733-DistrChannelStatus|Gestion commerciale/Statut article-Canal de distribution");
+attrlistSalesOrganisationGroup.add("10GC0734-DistrChannelStatusValidFrom|Gestion commerciale/Statut article-Canal de distribution applicable au");
+attrlistSalesOrganisationGroup.add("10GC0727-DeliveryPlant|Gestion commerciale/Division livraison");
+attrlistSalesOrganisationGroup.add("10GC0728-ItemCategoryGroup|Gestion commerciale/Groupe types de poste");
+attrlistSalesOrganisationGroup.add("10GC0729-MaterialStatGroup|Gestion commerciale/Groupe d'articles statistique");
+attrlistSalesOrganisationGroup.add("10GC0731-AccountAssignmentGroup|Gestion commerciale/Groupe d'imputation article");
+attrlistSalesOrganisationGroup.add("10GC0730-CashDiscount|Gestion commerciale/Soumis à l'escompte");
+
+var attrlistProductionSiteGroup = [];
+attrlistProductionSiteGroup.add("02FR0743-IsSubcontractedProduct|Fournisseur/Produit sous traité?");
+attrlistProductionSiteGroup.add("02FR0742-IsProducedOrRecut|Fournisseur/Produit fabriqué ou recoupé");
+attrlistProductionSiteGroup.add("02FR0654-ProductionLine|Fournisseur/Ligne de fabrication");
+attrlistProductionSiteGroup.add("02FR0064-ManufacturerCountry|Fournisseur/Pays d'origine de fabrication");
+attrlistProductionSiteGroup.add("02FR0061-ManufacturerName|Fournisseur/nom du fabricant");
+attrlistProductionSiteGroup.add("02FR0062-ManufacturerGLN|Fournisseur/GLN du fabricant");
+attrlistProductionSiteGroup.add("02FR0053-CSTBATCertified|Fournisseur/Certification CSTBAT");
+attrlistProductionSiteGroup.add("02FR0054-CSTBATReferences|Fournisseur/Références des certificats CSTBAT");
+attrlistProductionSiteGroup.add("02FR0657-ACERMICertified|Fournisseur/Certifié ACERMI?");
+attrlistProductionSiteGroup.add("02FR0056-CertificateNF|Fournisseur/Certificat NF");
+attrlistProductionSiteGroup.add("02FR0055-ECCertificateConformity|Fournisseur/Attestation de conformité CE");
+attrlistProductionSiteGroup.add("02FR0655-FPCCertificateNumber|Fournisseur/Numéro de certificat CPU");
+attrlistProductionSiteGroup.add("02FR0656-EUPCode|Fournisseur/Code UEL");
+attrlistProductionSiteGroup.add("02FR0833-PEFCCertified|Fournisseur/Certifié PEFC ?");
+attrlistProductionSiteGroup.add("02FR0834-PEFCCertificateReference#0|Fournisseur/Référence du certificat PEFC");
+attrlistProductionSiteGroup.add("02FR0835-PEFCLogoLicenceReference#0|Fournisseur/PEFC - Logo");
+attrlistProductionSiteGroup.add("02FR0837-NaturePlusCertified|Fournisseur/Certifié NaturePlus ?");
+attrlistProductionSiteGroup.add("02FR0838-NaturePlusCertificateReference#0|Fournisseur/Référence du certificat NaturePlus");
+attrlistProductionSiteGroup.add("02FR0840-PEFCInvoiceAdditionalText|Fournisseur/PEFC - Texte complémentaire facture");
+
+var attrlistChannelOfDistributionGroup = [];
+attrlistChannelOfDistributionGroup.add("06DN0345-HierarchyCatalog|Distribution/Chemin catalogue");
+attrlistChannelOfDistributionGroup.add("06DN0346-IsInCatalog|Distribution/Article au catalogue ?");
+attrlistChannelOfDistributionGroup.add("06DN0424-orderingLeadTime|Distribution/Délai de livraison ");
+attrlistChannelOfDistributionGroup.add("06DN0426-orderingLeadTimeUnit|Distribution/unité du délai de livraison");
+attrlistChannelOfDistributionGroup.add("06DN0423-SelfServiceItem|Distribution/article libre service ?");
+
+var attrlistCountryGroup = [];
+attrlistCountryGroup.add("06DN0420-TranslatedInvoiceName|Traduction Libellé/06DN0420-TranslatedInvoiceName");
+
+// codeinfo = erpcode ou sap
+var code1; //erpcode |valeur
+var strattrpathrequested; //attribut
+var codeline =[]; //eprcode | attrs[1] /par ligne
+var attrs =[];
+
+var strattrcodetmp = checkString(request.attrcode,"");
+var strposattrcodetmp = checkString(request.attrcodeplaceofstorage,"");
+var strsoattrcodetmp = checkString(request.attrcodesaleorganisation,"");
+var strpsattrcodetmp = checkString(request.attrcodeproductionsite,"");
+var strcodattrcodetmp = checkString(request.attrcodechannelofdistribution,"");
+var strcgattrcodetmp = checkString(request.attrcodecountrygroup,"");
+
+var strposcode = checkString(request.poscode,"");
+var strsocode = checkString(request.socode,"");
+var strpscode = checkString(request.pscode,"");
+var strcodcode = checkString(request.codcode,"");
+var strcgcode = checkString(request.cgcode,"");
+if ((strattrcodetmp!="" || strposattrcodetmp!="" || strsoattrcodetmp!="" || strpsattrcodetmp!="" || strcodattrcodetmp!="" || strcgattrcodetmp!="") && request.massupdatevalues != null && request.massupdatevalues != "") {
+
+	// split du formulaire code1 pour traitement par ligne
+	// parser du massupdatevalues  (code1)
+	// attrs[0] = ERPCODE = K020P32019 = strItemPK
+	// attrs[1] = valeur a definir
+	// codeline = valeur ERPCODE|attrs[1] /par ligne
+
+	var strMassUpdateType = request.codeinfo;
+	out.writeln("maj par : "+strMassUpdateType+"<br />");
+
+	code1 = request.massupdatevalues;
+	if(strposattrcodetmp!="") {
+		strattrpathrequested = strposattrcodetmp;
+	}
+	else if(strattrcodetmp!="") {
+		strattrpathrequested = strattrcodetmp;
+	}
+	else if(strsoattrcodetmp!="") {
+		strattrpathrequested = strsoattrcodetmp;
+	}
+	else if(strpsattrcodetmp!="") {
+		strattrpathrequested = strpsattrcodetmp;
+	}
+	else if(strcodattrcodetmp!="") {
+		strattrpathrequested = strcodattrcodetmp;
+	}
+	else if(strcgattrcodetmp!="") {
+		strattrpathrequested = strcgattrcodetmp;
+	}
+	codeline = parseDelim(code1,"\n"); //out.writeln("codeline :"+codeline[0]);
+
+	//test ci-dessous :
+	//var aCatalogNames = [];
+	//aCatalogNames = getCatalogNamesList();
+	//var aCatalogNames = getCatalogNameFromCatalogCode("K020P32019");
+	//out.writeln("test : "+aCatalogNames);
+
+	// ajout nb de ligne de traitements
+	var nbligne = codeline.size();
+	out.writeln("nb ligne "+nbligne+"<br />");
+
+	//var conf = false;
+	//%><script>
+	//var myWindow = window.open("","info","width=500,height=300");
+	//myWindow.document.write("<b>Vous allez modifier <%=nbligne%> enregistrements <br /> merci de confirmer <br /><br />");
+	//myWindow.document.write("<%=codeline%> <br /><br />");
+	//myWindow.document.write("<input type='submit' value='Annuler' onclick='parent.window.close(); this.disabled'>");
+	//myWindow.document.write("<input type='submit' value='confirmer' onclick='<%! conf = true;%>'>");
+	//</script><%
+
+	//if (conf == true) {
+	//	out.writeln("super");
+
+	//Ecriture des modifications dans un fichier csv
+	//onglet : Collaboration Manager/Document Store/masseupdate/
+	var logPath = "/masseupdate/massupdate"+today().formatDate("yyyyMMdd_HHmmss")+".csv";
+	var logDoc = getDocByPath(logPath);	
+	if (logDoc != null)
+	{
+		logDoc.deleteDoc();
+	}
+	var logOut = createOtherOut(logPath);
+	logOut.writeln("modification attribut ; ERPcode ; valeur avant modif ; nouvelle valeur ; ERPcode |valeur avant modif ; ERPcode |nouvelle valeur ;\n");
+	var massmodif = [];
+	//traitement des enregistrements
+	for (var j = 0; j < codeline.size(); j++) {
+		out.writeln("=== Début Traitement === <br />");
+		out.writeln("Traitement ligne :"+codeline[j]+"<br />");
+		attrs = parseDelim(codeline[j],"|");
+		//out.writeln("attrs 0 = erpcode ="+attrs[0]+"<br />");
+		//out.writeln("attrs 1 = valeur ="+attrs[1]+"<br />");
+				
+		var strItemPK = toString(attrs[0]);
+		
+		if (strMassUpdateType == "sap") {
+			out.writeln("SAP code : "+strItemPK+"<br />");
+			strItemPK = getPrimaryKeyFromSAPCode(attrs[0]);// script permettant de trouver le code erp en fonction du sap
+			out.writeln("ERP code : "+strItemPK+"<br />");
+		}
+		else {
+			out.writeln("ERP code : "+strItemPK+"<br />");
+		}
+
+		//debut traitement
+		var strCatalogName = getCatalogNameFromCatalogCode(strItemPK);
+
+		//(1) deactivate ctg rules
+		var optionstodesactivate=[];
+		optionstodesactivate[0]="ALL";
+		var scriptnameTemp=[];
+
+		var oKey;
+		var ctgName;
+		var ctgs = getCatalogNamesList();
+		var filter=[];
+
+		forEachHmElement(ctgs,oKey,ctgName) {
+			if(ctgName.startsWith("C")) {
+				// out.writeln("----------------------"+ctgName+"<br />");
+				var ctg = getCtgByName(ctgName);
+				//out.writeln("ctg :"+ ctg+"<br />");
+				ctg.disableContainerProcessingOptions(optionstodesactivate);
+				scriptnameTemp[0]="";
+				ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp);
+				ctg.saveCatalog();
+			}
+		}
+
+		if(strItemPK!="")
+		{
+			if(strCatalogName!="")
+			{
+				//recherche du catalogue:
+				out.writeln("CatalogName :"+strCatalogName+"<br />");
+				//recherche du type:
+				var oitem = getCtgByName(strCatalogName).getEntryByPrimaryKey(strItemPK);
+				//var type = getType(hmGlobals,oitem);recherche du type : Prod,BUnit,PItem
+
+				// recherche du specname a partir du erpcode
+				var strCatalogCode = substring(strCatalogName,0,4);//récupération du CatalogCode :C140
+				var allspecs = getSpecNameList(filter); //liste de specname
+		
+				var bKey;
+				var testspecName;
+				var specname;
+
+				forEachHmElement(allspecs ,bKey,testspecName) {
+					if (strCatalogCode == testspecName.substring(1,5)) {	//C140
+						//out.writeln(specname);// 3 catalog BUnit/PItem/Prod
+						if (strItemPK.contains("P")&& testspecName.contains("Prod")) {
+							specname = testspecName;
+							//out.writeln("specname prod :"+specname+"<br />"); 
+						}
+						else if (strItemPK.contains("B")&& testspecName.contains("BUnit")) {
+							specname = testspecName;
+							//out.writeln("specname BUnit :"+specname+"<br />");
+						}
+						else if (strItemPK.contains("I")&& testspecName.contains("PItem")) {
+							specname = testspecName;
+							//out.writeln("specname PItem :"+specname+"<br />");
+						}
+					}
+				}
+
+				
+				if(strattrpathrequested=="01AC0012-LongName" || strattrpathrequested=="06DN0427-ValidToDate" || strattrpathrequested=="06DN0425-effectiveDate"){
+					specname = "SC000-GlobPrim";
+				}
+		
+				// oitem.setEntryAttrib(specname+"/05PG0768-ProductTypeID", attrs[1]);												
+				// oitem.setEntryAttrib(specname+"/"+strattrpathrequested, attrs[1]);
+				// out.writeln("specname :"+specname+"<br />");
+				// out.writeln("recap modification : "+specname+"/"+strattrpathrequested +attrs[1]+"<br />");
+
+				// ci-dessous a désactiver pour faire des test !!!
+				
+				if(attrs[1]!=null) {
+					if(strposattrcodetmp!="") {
+						var PlaceOfStorageGroup = getEn(hmGlobals,oitem,"PlaceOfStorageGroup");
+						if(PlaceOfStorageGroup!=null) {
+							for(i=0;i<PlaceOfStorageGroup.size();i++) {
+								var oPlant = getEn(hmGlobals,oitem,"PlaceOfStorageGroup#"+i+"/06DN0679-Plant");
+								if(oPlant!=null) {
+									var strPlant = checkString(oPlant[0].getEntryNodeValue(),"");
+									if((strposcode!="" && strPlant==strposcode) || strposcode=="") {
+										var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/PlaceOfStorageGroup#"+i+"/"+strattrpathrequested),"");
+										out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+										out.writeln("lieu de stockage :"+strposcode+"<br />");
+										out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+										out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+										logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+										//
+										if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+											var itemdate = trim(attrs[1]);
+											var myDate = new Date("dd/MM/yyyy",itemdate);
+											oitem.setEntryAttrib(specname+"/PlaceOfStorageGroup#"+i+"/"+strattrpathrequested, myDate);
+										}
+										else {
+											oitem.setEntryAttrib(specname+"/PlaceOfStorageGroup#"+i+"/"+strattrpathrequested, trim(attrs[1]));
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(strsoattrcodetmp!="") {
+						var SalesOrganisationGroup = getEn(hmGlobals,oitem,"SalesOrganisationGroup");
+						if(SalesOrganisationGroup!=null) {
+							for(i=0;i<SalesOrganisationGroup.size();i++) {
+								var oSalesOrganisation = getEn(hmGlobals,oitem,"SalesOrganisationGroup#"+i+"/10GC0725-SalesOrganisation");
+								if(oSalesOrganisation!=null) {
+									var strSalesOrganisation = checkString(oSalesOrganisation[0].getEntryNodeValue(),"");
+									if((strsocode!="" && strSalesOrganisation==strsocode) || strsocode=="") {
+										var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/SalesOrganisationGroup#"+i+"/"+strattrpathrequested),"");
+										out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+										out.writeln("Organisation de vente :"+strsocode+"<br />");
+										out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+										out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+										logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+										//
+										if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+											var itemdate = trim(attrs[1]);
+											var myDate = new Date("dd/MM/yyyy",itemdate);
+											oitem.setEntryAttrib(specname+"/SalesOrganisationGroup#"+i+"/"+strattrpathrequested, myDate);
+										}
+										else {
+											oitem.setEntryAttrib(specname+"/SalesOrganisationGroup#"+i+"/"+strattrpathrequested, trim(attrs[1]));
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(strpsattrcodetmp!="") {
+						var ProductionSiteGroup = getEn(hmGlobals,oitem,"ProductionSiteGroup");
+						if(ProductionSiteGroup!=null) {
+							for(i=0;i<ProductionSiteGroup.size();i++) {
+								var oProductionSite = getEn(hmGlobals,oitem,"ProductionSiteGroup#"+i+"/02FR0063-ProductionSite");
+								if(oProductionSite!=null) {
+									var strProductionSite = checkString(oProductionSite[0].getEntryNodeValue(),"");
+									if((strpscode!="" && strProductionSite==strpscode) || strpscode=="") {
+										var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/ProductionSiteGroup#"+i+"/"+strattrpathrequested),"");
+										out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+										out.writeln("site de production :"+strpscode+"<br />");
+										out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+										out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+										logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+										//
+										if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+											var itemdate = trim(attrs[1]);
+											var myDate = new Date("dd/MM/yyyy",itemdate);
+											oitem.setEntryAttrib(specname+"/ProductionSiteGroup#"+i+"/"+strattrpathrequested, myDate);
+										}
+										else {
+											oitem.setEntryAttrib(specname+"/ProductionSiteGroup#"+i+"/"+strattrpathrequested, trim(attrs[1]));
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(strcodattrcodetmp!="") {
+						var ChannelOfDistributionGroup = getEn(hmGlobals,oitem,"ChannelOfDistributionGroup");
+						if(ChannelOfDistributionGroup!=null) {
+							for(i=0;i<ChannelOfDistributionGroup.size();i++) {
+								var oChannelOfDistribution = getEn(hmGlobals,oitem,"ChannelOfDistributionGroup#"+i+"/06DN0422-ChannelOfDistribution");
+								if(oChannelOfDistribution!=null) {
+									var strChannelOfDistribution = checkString(oChannelOfDistribution[0].getEntryNodeValue(),"");
+									if((strcodcode!="" && strChannelOfDistribution==strcodcode) || strcodcode=="") {
+										var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/ChannelOfDistributionGroup#"+i+"/"+strattrpathrequested),"");
+										out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+										out.writeln("canal de distribution :"+strcodcode+"<br />");
+										out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+										out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+										logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+										//
+										if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+											var itemdate = trim(attrs[1]);
+											var myDate = new Date("dd/MM/yyyy",itemdate);
+											oitem.setEntryAttrib(specname+"/ChannelOfDistributionGroup#"+i+"/"+strattrpathrequested, myDate);
+										}
+										else {
+											oitem.setEntryAttrib(specname+"/ChannelOfDistributionGroup#"+i+"/"+strattrpathrequested, trim(attrs[1]));
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(strcgattrcodetmp!="") {
+						var CountryGroup = getEn(hmGlobals,oitem,"CountryGroup");
+						if(CountryGroup!=null) {
+							for(i=0;i<CountryGroup.size();i++) {
+								var oCountry = getEn(hmGlobals,oitem,"CountryGroup#"+i+"/06DN0419-Country");
+								if(oCountry!=null) {
+									var strCountry = checkString(oCountry[0].getEntryNodeValue(),"");
+									if((strcgcode!="" && strCountry==strcgcode) || strcgcode=="") {
+										var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/CountryGroup#"+i+"/"+strattrpathrequested),"");
+										out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+										out.writeln("langue :"+strcgcode+"<br />");
+										out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+										out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+										logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+										//
+										//
+										if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+											var itemdate = trim(attrs[1]);
+											var myDate = new Date("dd/MM/yyyy",itemdate);
+											oitem.setEntryAttrib(specname+"/CountryGroup#"+i+"/"+strattrpathrequested, myDate);
+										}										
+										else {
+											oitem.setEntryAttrib(specname+"/CountryGroup#"+i+"/"+strattrpathrequested, trim(attrs[1]));
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(strattrcodetmp!="") {
+						var stroldvalue = checkString(oitem.getEntryAttrib(specname+"/"+strattrpathrequested),"");
+						out.writeln("attribut a modifier :"+strattrpathrequested+"<br />");
+						out.writeln("valeur avant modif : "+stroldvalue+"<br />");
+						out.writeln("valeur après modif : "+trim(attrs[1])+"<br />");
+						logOut.writeln(strattrpathrequested+" ; "+strItemPK+" ; "+stroldvalue+" ; "+trim(attrs[1])+" ; "+strItemPK+" | "+stroldvalue+" ; "+codeline[j]+" ; ");
+						//
+						if (strattrpathrequested.contains("Date") || strattrpathrequested.contains("ValidFrom")) {
+							var itemdate = trim(attrs[1]);
+							var myDate = new Date("dd/MM/yyyy",itemdate);
+							oitem.setEntryAttrib(specname+"/"+strattrpathrequested, myDate);
+						} else {
+							oitem.setEntryAttrib(specname+"/"+strattrpathrequested, trim(attrs[1]));
+						}
+					}
+				}
+				var dSaveDate = today();
+				//	
+				oitem.setEntryAttrib("SC000-GlobPrim/01AC0003-LastUpdateUser","Admin Mass Update FR");
+				oitem.setEntryAttrib("SC000-GlobPrim/01AC0004-LastUpdate",dSaveDate);
+				var test = oitem.saveCtgItem();
+				if(test!=null && test!="") {
+					out.writeln("<span style=\"color:red; font-weight:bold;\">ERROR</span> : "+strItemPK+"<br />");
+				}
+				out.writeln("Fin traitement ligne <br />");
+			}
+		}
+	}
+	//var hmResults = [];
+	//hmResults = getScriptByPath("/scripts/triggers/MSG.BOX");
+	//verification
+	//out.writeln("attrs :"+attrs);
+
+	// (3) reactivate ctg rules
+	var ctgs = getCatalogNamesList();
+	var scriptnameTemp2=[];
+
+	forEachHmElement(ctgs,oKey,ctgName) {
+		if(ctgName.startsWith("C")) {
+			// out.writeln("----------------------"+ctgName);
+			var ctg = getCtgByName(ctgName);
+			scriptnameTemp2[0]="LG.Catalog.PreProc";
+			ctg.setContainerAttribute("PRE_SCRIPT_NAME",scriptnameTemp2);
+			ctg.saveCatalog();
+		}
+	}
+logOut.save(logPath);
+out.writeln("Fin du Traitement <br />");
+} //fin de traitement
+%>
+<head>
+</head>
+<body>
+<div style="float:left; padding:10px; padding-top:30px;">
+<form method="post" name="massupdateform">
+<b>Mise à jour de masse</b> (version FR)
+<br /><br />
+<input type="radio" name="codeinfo" value="erpcode" checked>code ERP&nbsp;&nbsp;
+<input type="radio" name="codeinfo" value="sap">code SAP
+<br /><br />
+Attributs hors grouping&nbsp;&nbsp;<select name="attrcode" id="attrcode" style="width:450px;">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlist.size();i++) {
+	var attrdesc = attrlist[i];
+	var attr = attrdesc.parseDelim("|");
+	var strattrcode = attr[0];
+	var strattrname = attr[1];
+	if (strattrpathrequested != null && strattrpathrequested!="" && strattrpathrequested==strattrcode) {
+		out.writeln("<option value=\"" + strattrcode + "\" selected>" + strattrname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrcode + "\">" + strattrname+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Attributs rattachés à un ou l'ensemble des sites de production&nbsp;&nbsp;<select name="attrcodeproductionsite" id="attrcodeproductionsite">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlistProductionSiteGroup.size();i++) {
+	var attrpsdesc = attrlistProductionSiteGroup[i];
+	var attrps = attrpsdesc.parseDelim("|");
+	var strattrproductionsitecode = attrps[0];
+	var strattrproductionsitename = attrps[1];
+	if (strattrpathrequested!="" && strattrpathrequested==strattrproductionsitecode) {
+		out.writeln("<option value=\"" + strattrproductionsitecode + "\" selected>" + strattrproductionsitecode+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrproductionsitecode + "\">" + strattrproductionsitecode+"</option>");
+	}
+} 
+%>
+</select>
+<%
+var oProductionSiteArray = [];
+var oProductionSiteLkpTable = getCtgByName("L217-Sites de fabrication - Production sites");
+var oL217EntrySet = oProductionSiteLkpTable.getItemSetForCatalog();
+forEachItemSetElement(oL217EntrySet, oitemLkp) {
+	var strattrproductionsitecode = oitemLkp.getPrimaryKey();
+	var strattrproductionsitename = checkString(oitemLkp.getEntryAttrib("SL217-Production_sites/C02-Libellé"),"");
+	//
+	oProductionSiteArray.add(strattrproductionsitecode+"|"+strattrproductionsitename);
+}
+var oProductionSiteArraySorted = oProductionSiteArray.sort();
+%>
+&nbsp;<select name="pscode" id="pscode">
+<option value="">Choisir le site de production</option>
+<%
+for (var i=0;i<oProductionSiteArraySorted.size();i++) {
+	var strProductionSiteLine = oProductionSiteArraySorted[i];
+	var oProductionSite = strProductionSiteLine.parseDelim("|");
+	var strattrproductionsitecode = oProductionSite[0];
+	var strattrproductionsitename = oProductionSite[1];
+	if (strpscode!="" && strpscode==strattrproductionsitecode) {
+		out.writeln("<option value=\"" + strattrproductionsitecode + "\" selected>[" + strattrproductionsitecode +"] - "+ strattrproductionsitename+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrproductionsitecode + "\">[" + strattrproductionsitecode+"] - "+strattrproductionsitename+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Attributs rattachés à un ou l'ensemble des lieux de stockage&nbsp;&nbsp;<select name="attrcodeplaceofstorage" id="attrcodeplaceofstorage">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlistPlaceOfStorageGroup.size();i++) {
+	var attrposdesc = attrlistPlaceOfStorageGroup[i];
+	var attrpos = attrposdesc.parseDelim("|");
+	var strattrplaceofstoragecode = attrpos[0];
+	var strattrplaceofstoragename = attrpos[1];
+	if (strattrpathrequested!="" && strattrpathrequested==strattrplaceofstoragecode) {
+		out.writeln("<option value=\"" + strattrplaceofstoragecode + "\" selected>" + strattrplaceofstoragename+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrplaceofstoragecode + "\">" + strattrplaceofstoragename+"</option>");
+	}
+} 
+%>
+</select>
+<%
+var oPlaceOfStorageArray = [];
+var oPlaceOfstorageLkpTable = getCtgByName("T001W-Plants");
+var oT001WEntrySet = oPlaceOfstorageLkpTable.getItemSetForCatalog();
+forEachItemSetElement(oT001WEntrySet, oitemLkp) {
+	var strattrplaceofstoragecode = oitemLkp.getPrimaryKey();
+	var strattrplaceofstoragename = checkString(oitemLkp.getEntryAttrib("LKP_SAP_LookupTable_spec/C04-Description/fr_FR"),"");
+	//
+	oPlaceOfStorageArray.add(strattrplaceofstoragecode+"|"+strattrplaceofstoragename);
+}
+var oPlaceOfStorageArraySorted = oPlaceOfStorageArray.sort();
+%>
+&nbsp;<select name="poscode" id="poscode">
+<option value="">Choisir le lieu de stockage</option>
+<%
+for (var i=0;i<oPlaceOfStorageArraySorted.size();i++) {
+	var strPlaceOfStorageLine = oPlaceOfStorageArraySorted[i];
+	var oPlaceOfStorage = strPlaceOfStorageLine.parseDelim("|");
+	var strattrplaceofstoragecode = oPlaceOfStorage[0];
+	var strattrplaceofstoragename = oPlaceOfStorage[1];
+	if (strposcode!="" && strposcode==strattrplaceofstoragecode) {
+		out.writeln("<option value=\"" + strattrplaceofstoragecode + "\" selected>[" + strattrplaceofstoragecode +"] - "+ strattrplaceofstoragename+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrplaceofstoragecode + "\">[" + strattrplaceofstoragecode+"] - "+strattrplaceofstoragename+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Attributs rattachés à une ou l'ensemble des organisations de vente&nbsp;&nbsp;<select name="attrcodesaleorganisation" id="attrcodesaleorganisation">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlistSalesOrganisationGroup.size();i++) {
+	var attrsodesc = attrlistSalesOrganisationGroup[i];
+	var attrso = attrsodesc.parseDelim("|");
+	var strattrsaleorganisationcode = attrso[0];
+	var strattrsaleorganisationname = attrso[1];
+	if (strattrpathrequested!="" && strattrpathrequested==strattrsaleorganisationcode) {
+		out.writeln("<option value=\"" + strattrsaleorganisationcode + "\" selected>" + strattrsaleorganisationname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrsaleorganisationcode + "\">" + strattrsaleorganisationname+"</option>");
+	}
+} 
+%>
+</select>
+<%
+var oSalesOrganisationArray = [];
+var oSaleOrganisationLkpTable = getCtgByName("TVKOT-Sales organisation");
+var oTVKOTEntrySet = oSaleOrganisationLkpTable.getItemSetForCatalog();
+
+forEachItemSetElement(oTVKOTEntrySet, oitemLkp) {
+	var strattrsaleorganisationcode = oitemLkp.getPrimaryKey();
+	var strattrsaleorganisationname = checkString(oitemLkp.getEntryAttrib("LKP_SAP_LookupTable_spec/C04-Description/fr_FR"),"");
+	//
+	oSalesOrganisationArray.add(strattrsaleorganisationcode+"|"+strattrsaleorganisationname);
+}
+var oSalesOrganisationArraySorted = oSalesOrganisationArray.sort();
+%>
+&nbsp;<select name="socode" id="socode">
+<option value="">Choisir l'organisation de vente</option>
+<%
+for (var i=0;i<oSalesOrganisationArraySorted.size();i++) {
+	var strSalesOrganisationLine = oSalesOrganisationArraySorted[i];
+	var oSalesOrganisation = strSalesOrganisationLine.parseDelim("|");
+	var strattrsaleorganisationcode = oSalesOrganisation[0];
+	var strattrsaleorganisationname = oSalesOrganisation[1];
+	if (strsocode!="" && strsocode==strattrsaleorganisationcode) {
+		out.writeln("<option value=\"" + strattrsaleorganisationcode + "\" selected>[" + strattrsaleorganisationcode +"] - "+ strattrsaleorganisationname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrsaleorganisationcode + "\">[" + strattrsaleorganisationcode+"] - "+strattrsaleorganisationname+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Attributs rattachés à un ou l'ensemble des canaux de distribution&nbsp;&nbsp;<select name="attrcodechannelofdistribution" id="attrcodechannelofdistribution">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlistChannelOfDistributionGroup.size();i++) {
+	var attrsodesc = attrlistChannelOfDistributionGroup[i];
+	var attrso = attrsodesc.parseDelim("|");
+	var strattrchannelofdistributioncode = attrso[0];
+	var strattrchannelofdistributionname = attrso[1];
+	if (strattrpathrequested!="" && strattrpathrequested==strattrchannelofdistributioncode) {
+		out.writeln("<option value=\"" + strattrchannelofdistributioncode + "\" selected>" + strattrchannelofdistributionname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrchannelofdistributioncode + "\">" + strattrchannelofdistributionname+"</option>");
+	}
+} 
+%>
+</select>
+<%
+var oChannelOfDistributionArray = [];
+var oChannelOfDistributionLkpTable = getCtgByName("L019-Canaux de distribution - Channel of distribution");
+var oL019EntrySet = oChannelOfDistributionLkpTable.getItemSetForCatalog();
+forEachItemSetElement(oL019EntrySet, oitemLkp) {
+	var strattrchannelofdistributioncode = oitemLkp.getPrimaryKey();
+	var strattrchannelofdistributionname = checkString(oitemLkp.getEntryAttrib("SL019-Channel_of_distribution/C02-Libellé"),"");
+	//
+	oChannelOfDistributionArray.add(strattrchannelofdistributionname+"|"+strattrchannelofdistributioncode);
+}
+var oChannelOfDistributionArraySorted = oChannelOfDistributionArray.sort();
+%>
+&nbsp;<select name="codcode" id="codcode">
+<option value="">Choisir le canal de distribution</option>
+<%
+for (var i=0;i<oChannelOfDistributionArraySorted.size();i++) {
+	var strChannelOfDistributionLine = oChannelOfDistributionArraySorted[i];
+	var oChannelOfDistribution = strChannelOfDistributionLine.parseDelim("|");
+	var strattrchannelofdistributioncode = oChannelOfDistribution[1];
+	var strattrchannelofdistributionname = oChannelOfDistribution[0];
+	if (strcodcode!="" && strcodcode==strattrchannelofdistributioncode) {
+		out.writeln("<option value=\"" + strattrchannelofdistributioncode + "\" selected>" + strattrchannelofdistributionname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrchannelofdistributioncode + "\">" + strattrchannelofdistributionname+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Attributs rattachés à un ou l'ensemble des traductions&nbsp;&nbsp;<select name="attrcodecountrygroup" id="attrcodecountrygroup">
+<option value="">Choisir l'attribut à mettre à jour</option>
+<%
+for(var i=0;i<attrlistCountryGroup.size();i++) {
+	var attrcgdesc = attrlistCountryGroup[i];
+	var attrcg = attrcgdesc.parseDelim("|");
+	var strattrcountrygroupcode = attrcg[0];
+	var strattrcountrygroupname = attrcg[1];
+	if (strattrpathrequested!="" && strattrpathrequested==strattrcountrygroupcode) {
+		out.writeln("<option value=\"" + strattrcountrygroupcode + "\" selected>" + strattrcountrygroupname+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrcountrygroupcode + "\">" + strattrcountrygroupname+"</option>");
+	}
+} 
+%>
+</select>
+<%
+var oLanguageLkpTableArray = [];
+var oLanguageLkpTable = getCtgByName("LKP_SAPLanguageMapping");
+var oLkpLanguageEntrySet = oLanguageLkpTable.getItemSetForCatalog();
+forEachItemSetElement(oLkpLanguageEntrySet, oitemLkp) {
+	var strattrlanguagecode = oitemLkp.getPrimaryKey();
+	var strattrlanguagename = checkString(oitemLkp.getEntryAttrib("LKP_SAPLanguageMapping_spec/Language_Name"),"");
+	//
+	oLanguageLkpTableArray.add(strattrlanguagename+"|"+strattrlanguagecode);
+}
+var oLanguageLkpTableArraySorted = oLanguageLkpTableArray.sort();
+%>
+&nbsp;<select name="cgcode" id="cgcode">
+<option value="">Choisir la langue</option>
+<%
+for (var i=0;i<oLanguageLkpTableArraySorted.size();i++) {
+	var strLanguageLkpTableLine = oLanguageLkpTableArraySorted[i];
+	var oLanguageLkpTable = strLanguageLkpTableLine.parseDelim("|");
+	var strattrlanguagecode = oLanguageLkpTable[1];
+	var strattrlanguagename = oLanguageLkpTable[0];
+	if (strcgcode!="" && strcgcode==strattrlanguagecode) {
+		out.writeln("<option value=\"" + strattrlanguagecode + "\" selected>" + strattrlanguagename+"</option>");
+	}
+	else {
+		out.writeln("<option value=\"" + strattrlanguagecode + "\">" + strattrlanguagename+"</option>");
+	}
+} 
+%>
+</select>
+<br /><br />
+Renseigner les éléments à mettre à jour sous la forme (ERPCode-SAPCode)|valeur (1 seul item par ligne)
+<br /><br />
+<textarea name="massupdatevalues" id="massupdatevalues" style="width:1000px; height:270px;">
+</textarea>
+<br /><br />
+<input type="submit" name="submitvalues" id="submitvalues" value="Mettre &agrave; jour" style="font-size:14px; background: -ms-linear-gradient(top, #f4f4f4 1%, #ededed 100%);">
+<br />
+</form>
+</div>
+</body>

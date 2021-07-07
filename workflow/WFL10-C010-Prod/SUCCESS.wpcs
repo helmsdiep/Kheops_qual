@@ -1,0 +1,11 @@
+function IN(entrySet, colArea, workflow, step, stepPath) {
+	
+}
+
+function OUT(entrySet, colArea, workflow, step, stepPath) {
+getScriptByPath("/scripts/triggers/LG.Library.Workflow").getFunctionByName("OUT").invoke(entrySet, colArea, workflow, step, stepPath);	
+}
+
+function TIMEOUT(entrySet, colArea, workflow, step, stepPath) {
+
+}
